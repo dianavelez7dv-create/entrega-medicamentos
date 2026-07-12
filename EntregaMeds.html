@@ -1,0 +1,802 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Control de Entrega - Farmacia</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+body{font-family:-apple-system,'Segoe UI',Roboto,Arial,sans-serif;background:#f0f2f5;color:#1a1a2e;padding-bottom:80px;}
+#app{max-width:600px;margin:0 auto;min-height:100vh;background:#fff;}
+header{background:linear-gradient(135deg,#0a5c8a,#0d7fb8);color:#fff;padding:16px;position:sticky;top:0;z-index:50;}
+header h1{font-size:19px;font-weight:700;}
+header .sub{font-size:12px;opacity:.85;margin-top:2px;}
+.syncbar{display:flex;align-items:center;gap:6px;font-size:11px;margin-top:6px;opacity:.9;}
+.dot{width:8px;height:8px;border-radius:50%;background:#4ade80;}
+.dot.off{background:#f87171;}
+.content{padding:14px;}
+.card{background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:16px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,.05);}
+label{display:block;font-size:13px;font-weight:600;color:#444;margin-bottom:5px;margin-top:12px;}
+label:first-child{margin-top:0;}
+.inp,select,textarea{width:100%;font-size:16px !important;padding:12px 14px !important;border:2px solid #dbe2ea;border-radius:10px;background:#fafbfc;}
+.inp:focus,select:focus,textarea:focus{outline:none;border-color:#0d7fb8;background:#fff;}
+textarea{resize:vertical;min-height:60px;}
+.btn{font-size:15px !important;padding:13px 18px !important;border:none;border-radius:10px;font-weight:700;cursor:pointer;width:100%;margin-top:14px;}
+.btn-primary{background:#0d7fb8;color:#fff;}
+.btn-primary:active{background:#0a5c8a;}
+.btn-success{background:#16a34a;color:#fff;}
+.btn-success:active{background:#15803d;}
+.btn-outline{background:#fff;color:#0d7fb8;border:2px solid #0d7fb8;}
+.btn-danger{background:#fff;color:#dc2626;border:2px solid #dc2626;}
+.nav{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid #e5e7eb;display:flex;max-width:600px;margin:0 auto;z-index:50;}
+.nav button{flex:1;background:none;border:none;padding:10px 4px;font-size:11px;font-weight:600;color:#8892a0;display:flex;flex-direction:column;align-items:center;gap:3px;}
+.nav button.active{color:#0d7fb8;}
+.nav .ic{font-size:20px;}
+.item{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:14px;margin-bottom:10px;position:relative;}
+.item.old{border-left:5px solid #f59e0b;background:#fffbeb;}
+.item.veryold{border-left:5px solid #dc2626;background:#fef2f2;}
+.item-name{font-size:16px;font-weight:700;color:#1a1a2e;}
+.item-row{font-size:13px;color:#555;margin-top:4px;display:flex;gap:6px;flex-wrap:wrap;}
+.badge{display:inline-block;background:#e0f2fe;color:#0369a1;font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px;}
+.badge.warn{background:#fef3c7;color:#92400e;}
+.badge.danger{background:#fee2e2;color:#991b1b;}
+.badge.done{background:#dcfce7;color:#166534;}
+.item-actions{display:flex;gap:8px;margin-top:10px;}
+.item-actions button{flex:1;font-size:13px;padding:9px;border-radius:8px;border:none;font-weight:700;}
+.act-entregar{background:#16a34a;color:#fff;}
+.act-borrar{background:#f3f4f6;color:#9ca3af;}
+.searchbox{width:100%;font-size:16px !important;padding:14px 16px !important;border:2px solid #dbe2ea;border-radius:12px;margin-bottom:14px;}
+.search-wrap{position:relative;margin-bottom:14px;}
+.search-wrap .searchbox{margin-bottom:0;padding-left:42px !important;}
+.search-wrap svg{position:absolute;left:14px;top:50%;transform:translateY(-50%);width:18px;height:18px;pointer-events:none;}
+.empty{text-align:center;color:#9ca3af;padding:40px 20px;font-size:14px;}
+.empty .em{font-size:40px;display:block;margin-bottom:10px;}
+.toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:#1a1a2e;color:#fff;padding:12px 22px;border-radius:30px;font-size:14px;font-weight:600;z-index:200;box-shadow:0 4px 14px rgba(0,0,0,.2);opacity:0;transition:opacity .25s;pointer-events:none;}
+.toast.show{opacity:1;}
+.section-title{font-size:13px;font-weight:700;color:#8892a0;text-transform:uppercase;letter-spacing:.5px;margin:18px 0 10px;}
+.section-title:first-child{margin-top:0;}
+.hidden{display:none !important;}
+.pill-row{display:flex;gap:8px;margin-top:14px;}
+.pill{flex:1;text-align:center;padding:10px;border-radius:10px;background:#f3f4f6;}
+.pill b{display:block;font-size:20px;color:#0d7fb8;}
+.pill span{font-size:11px;color:#8892a0;}
+.btn-print{background:#1a1a2e;color:#fff;margin-bottom:12px;}
+@media print{
+  header,.nav,.searchbox,.btn-print,.item-actions,.toast,#statRow{display:none !important;}
+  body{background:#fff;padding:0;}
+  #app{max-width:100%;}
+  .content{padding:0;}
+  #printSheet{display:block !important;}
+}
+#printSheet{display:none;}
+#printSheet h2{font-size:22px;margin-bottom:4px;}
+#printSheet .psub{font-size:13px;color:#555;margin-bottom:16px;}
+#printSheet table{width:100%;border-collapse:collapse;}
+#printSheet th,#printSheet td{border:1px solid #999;padding:10px 8px;font-size:15px;text-align:left;}
+#printSheet th{background:#eee;}
+#printSheet tr.old td{background:#fff3cd;}
+#printSheet tr.veryold td{background:#f8d7da;}
+#printSheet, #printSheet *{-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important;color-adjust:exact !important;}
+#printSheet .loc-badge{font-size:12px;padding:3px 8px;}
+.loc-badge{display:inline-block;font-weight:700;font-size:13px;padding:4px 10px;border-radius:8px;letter-spacing:.3px;border:1.5px solid rgba(0,0,0,.08);}
+.loc-0{background:#dbeafe;color:#1e40af;}
+.loc-1{background:#dcfce7;color:#166534;}
+.loc-2{background:#fef3c7;color:#92400e;}
+.loc-3{background:#fce7f3;color:#9d174d;}
+.loc-4{background:#e0e7ff;color:#3730a3;}
+.loc-5{background:#ffedd5;color:#9a3412;}
+.loc-6{background:#f3e8ff;color:#6b21a8;}
+.loc-7{background:#cffafe;color:#155e75;}
+.loc-8{background:#fee2e2;color:#991b1b;}
+.loc-9{background:#ecfccb;color:#3f6212;}
+.login-overlay{position:fixed;inset:0;background:linear-gradient(135deg,#0a5c8a,#0d7fb8);z-index:999;display:flex;align-items:center;justify-content:center;padding:20px;}
+.login-box{background:#fff;border-radius:18px;padding:26px 22px;width:100%;max-width:360px;box-shadow:0 10px 40px rgba(0,0,0,.25);}
+.login-box h2{font-size:20px;text-align:center;margin-bottom:4px;color:#1a1a2e;}
+.login-box .lsub{font-size:13px;text-align:center;color:#888;margin-bottom:18px;}
+.emp-list-item{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border:1px solid #e5e7eb;border-radius:10px;margin-bottom:8px;}
+.emp-list-item span{font-weight:600;font-size:14px;}
+.emp-del{background:#fee2e2;color:#991b1b;border:none;padding:6px 10px;border-radius:8px;font-size:12px;font-weight:700;}
+.photo-label{display:block;text-align:center;background:#fff;color:#0d7fb8;border:2px dashed #0d7fb8;border-radius:10px;padding:14px;font-weight:700;font-size:14px;cursor:pointer;margin-top:6px;}
+.evid-thumb{max-width:100px;border-radius:10px;margin-top:8px;display:block;border:2px solid #e5e7eb;}
+#qrReader{border-radius:12px;overflow:hidden;}
+.scan-btn{width:auto !important;white-space:nowrap;margin-top:0 !important;padding:12px 14px !important;}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>💊 Control de Entrega</h1>
+    <div class="sub" id="hSub">Farmacia · <span style="color:#ffd700;font-weight:700;" id="verTag">v8</span></div>
+    <div class="syncbar"><span class="dot" id="syncDot"></span><span id="syncText">Sin sincronizar</span></div>
+    <div class="syncbar" style="margin-top:4px;cursor:pointer;" onclick="abrirLogin()">👤 <span id="empActual">Sin identificar</span> <span style="text-decoration:underline;">(cambiar sesión)</span></div>
+  </header>
+
+  <div id="loginOverlay" class="login-overlay hidden">
+    <div class="login-box">
+      <h2>🔒 Identificación</h2>
+      <div class="lsub" id="loginSub">Selecciona tu nombre e ingresa tu PIN</div>
+      <label>Empleado</label>
+      <select class="inp" id="loginSelect" onchange="actualizarModoLogin()"></select>
+
+      <div id="modoExistente">
+        <label>PIN (4 dígitos)</label>
+        <input class="inp" id="loginPass" type="password" inputmode="numeric" maxlength="4" placeholder="••••">
+      </div>
+
+      <div id="modoNuevo" class="hidden">
+        <label>Tu nombre</label>
+        <input class="inp" id="nuevoNombre" placeholder="Ej. Juan Pérez">
+        <label>Crea un PIN de 4 dígitos</label>
+        <input class="inp" id="nuevoPin1" type="password" inputmode="numeric" maxlength="4" placeholder="••••">
+        <label>Confirma el PIN</label>
+        <input class="inp" id="nuevoPin2" type="password" inputmode="numeric" maxlength="4" placeholder="••••">
+      </div>
+
+      <button class="btn btn-primary" onclick="intentarLogin()">Entrar</button>
+      <div id="loginMsg" style="color:#dc2626;font-size:13px;text-align:center;margin-top:10px;"></div>
+    </div>
+  </div>
+
+  <div class="content">
+
+    <!-- PANTALLA: NUEVA -->
+    <div id="scr-nueva">
+      <div class="pill-row" id="statRow"></div>
+      <div class="card">
+        <div class="section-title">Registrar receta lista</div>
+        <label>Nombre del paciente *</label>
+        <input class="inp" id="nPaciente" placeholder="Ej. María Rodríguez">
+        <label>Ubicación física *</label>
+        <input class="inp" id="nUbicacion" placeholder="Ej. Casillero B-3">
+        <label>Quién puede recogerlo (opcional)</label>
+        <input class="inp" id="nAutorizado" placeholder="Ej. Cualquier familiar / Solo esposo">
+        <label>Notas (opcional)</label>
+        <textarea class="inp" id="nNotas" placeholder="Ej. Refrigerado, requiere consentimiento, etc."></textarea>
+
+        <label>Código de barras (opcional)</label>
+        <div style="display:flex;gap:8px;">
+          <input class="inp" id="nCodigoBarras" placeholder="Escanea o escribe el código" style="flex:1;">
+          <button type="button" class="btn btn-outline scan-btn" onclick="abrirScanner()">📷 Escanear</button>
+        </div>
+
+        <label>Foto del frasco (evidencia, opcional)</label>
+        <label class="photo-label" id="nFotoLabel">📷 Tomar foto del frasco
+          <input type="file" accept="*/*" capture="environment" id="nFotoInput" style="display:none">
+        </label>
+        <img id="nFotoPreview" class="evid-thumb hidden">
+        <button type="button" class="btn btn-outline hidden" id="nFotoRemove" onclick="quitarFoto()">Quitar foto</button>
+
+        <button class="btn btn-primary" onclick="registrarEntrega()">Guardar</button>
+      </div>
+    </div>
+
+    <!-- OVERLAY: ESCÁNER DE CÓDIGO DE BARRAS -->
+    <div id="scannerOverlay" class="login-overlay hidden" style="z-index:998;">
+      <div class="login-box" style="max-width:400px;">
+        <h2>📷 Escanear código</h2>
+        <div class="lsub">Apunta la cámara al código de barras del frasco</div>
+        <div id="qrReader" style="width:100%;margin-top:10px;"></div>
+        <button class="btn btn-outline" onclick="cerrarScanner()">Cancelar</button>
+      </div>
+    </div>
+
+    <!-- PANTALLA: BUSCAR/ENTREGAR -->
+    <div id="scr-buscar" class="hidden">
+      <div class="search-wrap">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#8892a0" stroke-width="2"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input class="inp searchbox" id="buscarInput" placeholder="Buscar por nombre..." oninput="renderBuscar()">
+      </div>
+      <div id="buscarList"></div>
+    </div>
+
+    <!-- PANTALLA: PENDIENTES -->
+    <div id="scr-pendientes" class="hidden">
+      <button class="btn btn-print" onclick="imprimirLista()">🖨️ Imprimir lista (respaldo físico)</button>
+      <div id="pendList"></div>
+      <div id="printSheet">
+        <h2>Lista de recetas pendientes</h2>
+        <div class="psub" id="printFecha"></div>
+        <table>
+          <thead><tr><th>Paciente</th><th>Ubicación</th><th>Registrado</th><th>Autorizado</th></tr></thead>
+          <tbody id="printBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- PANTALLA: HISTORIAL -->
+    <div id="scr-historial" class="hidden">
+      <div class="pill-row" style="margin-bottom:12px;">
+        <div class="pill" id="tabHistEnt" onclick="toggleHistTab('entregas')" style="cursor:pointer;background:#0d7fb8;"><b style="color:#fff;font-size:13px;">📦 Entregas</b></div>
+        <div class="pill" id="tabHistAud" onclick="toggleHistTab('auditoria')" style="cursor:pointer;"><b style="font-size:13px;color:#0d7fb8;">🕵️ Auditoría</b></div>
+      </div>
+      <div class="search-wrap">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#8892a0" stroke-width="2"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input class="inp searchbox" id="histInput" placeholder="Buscar en historial..." oninput="renderHistorial()">
+      </div>
+      <div id="histList"></div>
+      <div id="audList" class="hidden"></div>
+    </div>
+
+    <!-- PANTALLA: SYNC -->
+    <div id="scr-sync" class="hidden">
+      <div class="card">
+        <div class="section-title">Sincronización en la nube</div>
+        <p style="font-size:13px;color:#666;line-height:1.5;">Para que todos los dispositivos (tablet + celulares) vean la misma información, conecta un bin gratuito de <b>JSONBin.io</b>. Crea una cuenta gratis en jsonbin.io, crea un "Bin" nuevo, y pega aquí el Bin ID y tu API Key (Master Key).</p>
+        <label>API Key (X-Master-Key)</label>
+        <input class="inp" id="cfgApiKey" placeholder="Pega tu API key aquí">
+        <label>Bin ID</label>
+        <input class="inp" id="cfgBinId" placeholder="Pega tu Bin ID aquí">
+        <button class="btn btn-primary" onclick="guardarConfig()">Guardar configuración</button>
+        <button class="btn btn-outline" onclick="sincronizarManual()">🔄 Sincronizar ahora</button>
+      </div>
+      <div class="card">
+        <div class="section-title">Datos</div>
+        <button class="btn btn-outline" onclick="exportarDatos()">Exportar respaldo (JSON)</button>
+        <button class="btn btn-danger" onclick="limpiarTodo()">Borrar todos los datos</button>
+      </div>
+      <div class="card">
+        <div class="section-title">Empleados registrados</div>
+        <div id="empleadosList"></div>
+        <button class="btn btn-danger" onclick="resetPinEmpleado()">Reiniciar PIN de un empleado</button>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="nav">
+    <button class="navbtn active" data-scr="nueva" onclick="goScreen('nueva')"><span class="ic">➕</span>Nueva</button>
+    <button class="navbtn" data-scr="buscar" onclick="goScreen('buscar')"><span class="ic">🔍</span>Entregar</button>
+    <button class="navbtn" data-scr="pendientes" onclick="goScreen('pendientes')"><span class="ic">📋</span>Pendientes</button>
+    <button class="navbtn" data-scr="historial" onclick="goScreen('historial')"><span class="ic">✅</span>Historial</button>
+    <button class="navbtn" data-scr="sync" onclick="goScreen('sync')"><span class="ic">☁️</span>Sync</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<div id="fotoOverlay" class="login-overlay hidden" style="z-index:997;background:rgba(0,0,0,.9);" onclick="cerrarFotoGrande()">
+  <img id="fotoGrandeImg" style="max-width:100%;max-height:90vh;border-radius:8px;">
+</div>
+
+<script>
+var LSKEY='entregameds_v1';
+var CFGKEY='entregameds_cfg';
+var EMPKEY='entregameds_empleado';
+var D = { entregas: [], auditoria: [], empleados: [] };
+var CFG = { apiKey:'', binId:'' };
+var EMPLEADO = '';
+var fotoActual = null;
+var html5QrCode = null;
+
+function loadEmpleado(){
+  D.empleados = D.empleados || [];
+  EMPLEADO = localStorage.getItem(EMPKEY) || '';
+  document.getElementById('empActual').textContent = EMPLEADO || 'Sin identificar';
+  if(!EMPLEADO) abrirLogin();
+}
+function abrirLogin(){
+  D.empleados = D.empleados || [];
+  var sel=document.getElementById('loginSelect');
+  var html='<option value="__nuevo__">+ Registrarme (nuevo empleado)</option>';
+  D.empleados.forEach(function(emp){ html+='<option value="'+esc(emp.nombre)+'">'+esc(emp.nombre)+'</option>'; });
+  sel.innerHTML=html;
+  document.getElementById('loginPass').value='';
+  document.getElementById('nuevoNombre').value='';
+  document.getElementById('nuevoPin1').value='';
+  document.getElementById('nuevoPin2').value='';
+  document.getElementById('loginMsg').textContent='';
+  actualizarModoLogin();
+  document.getElementById('loginOverlay').classList.remove('hidden');
+}
+function actualizarModoLogin(){
+  var sel=document.getElementById('loginSelect');
+  var esNuevo = sel.value==='__nuevo__';
+  document.getElementById('modoExistente').classList.toggle('hidden', esNuevo);
+  document.getElementById('modoNuevo').classList.toggle('hidden', !esNuevo);
+  document.getElementById('loginSub').textContent = esNuevo ? 'Crea tu perfil de empleado' : 'Ingresa tu PIN de 4 dígitos';
+}
+function cerrarLoginOverlay(){
+  document.getElementById('loginOverlay').classList.add('hidden');
+}
+function intentarLogin(){
+  var sel=document.getElementById('loginSelect');
+  var msg=document.getElementById('loginMsg');
+  D.empleados = D.empleados || [];
+  if(sel.value==='__nuevo__'){
+    var n=document.getElementById('nuevoNombre').value.trim();
+    var p1=document.getElementById('nuevoPin1').value.trim();
+    var p2=document.getElementById('nuevoPin2').value.trim();
+    if(!n){ msg.textContent='Escribe tu nombre'; return; }
+    var dup=D.empleados.some(function(e){return e.nombre.toLowerCase()===n.toLowerCase();});
+    if(dup){ msg.textContent='Ya existe un empleado con ese nombre'; return; }
+    if(!/^\d{4}$/.test(p1)){ msg.textContent='El PIN debe ser de 4 dígitos'; return; }
+    if(p1!==p2){ msg.textContent='Los PIN no coinciden'; return; }
+    D.empleados.push({nombre:n, pin:p1});
+    EMPLEADO=n;
+    logAuditoria('Nuevo empleado', n+' se registró en el sistema');
+  } else {
+    var nombre=sel.value;
+    var pin=document.getElementById('loginPass').value.trim();
+    var emp=null;
+    for(var i=0;i<D.empleados.length;i++){ if(D.empleados[i].nombre===nombre){ emp=D.empleados[i]; break; } }
+    if(!emp){ msg.textContent='Empleado no encontrado'; return; }
+    if(pin!==emp.pin){
+      msg.textContent='PIN incorrecto';
+      logAuditoria('Intento fallido', 'PIN incorrecto para '+nombre);
+      save();
+      return;
+    }
+    EMPLEADO=emp.nombre;
+    logAuditoria('Inicio de sesión', EMPLEADO+' inició sesión');
+  }
+  localStorage.setItem(EMPKEY, EMPLEADO);
+  document.getElementById('empActual').textContent = EMPLEADO;
+  save();
+  cerrarLoginOverlay();
+  renderEmpleados();
+  toast('Identificado como: '+EMPLEADO);
+}
+function logAuditoria(accion, detalle){
+  D.auditoria = D.auditoria || [];
+  D.auditoria.unshift({
+    id:'a'+Date.now()+Math.floor(Math.random()*1000),
+    fecha: new Date().toISOString(),
+    empleado: EMPLEADO || '(sin identificar)',
+    accion: accion,
+    detalle: detalle
+  });
+  if(D.auditoria.length>500) D.auditoria = D.auditoria.slice(0,500);
+}
+
+function load(){
+  try{ var raw=localStorage.getItem(LSKEY); if(raw) D=JSON.parse(raw); }catch(e){}
+  try{ var craw=localStorage.getItem(CFGKEY); if(craw) CFG=JSON.parse(craw); }catch(e){}
+}
+function save(){
+  localStorage.setItem(LSKEY, JSON.stringify(D));
+  pushRemote();
+}
+function toast(msg){
+  var t=document.getElementById('toast');
+  t.textContent=msg;
+  t.classList.add('show');
+  setTimeout(function(){ t.classList.remove('show'); }, 2200);
+}
+
+// ---- Screens ----
+function goScreen(name){
+  ['nueva','buscar','pendientes','historial','sync'].forEach(function(s){
+    document.getElementById('scr-'+s).classList.toggle('hidden', s!==name);
+  });
+  document.querySelectorAll('.navbtn').forEach(function(b){
+    b.classList.toggle('active', b.getAttribute('data-scr')===name);
+  });
+  if(name==='buscar') renderBuscar();
+  if(name==='pendientes') renderPendientes();
+  if(name==='historial') renderHistorial();
+  if(name==='nueva') renderStats();
+  if(name==='sync') renderEmpleados();
+}
+
+// ---- Registrar ----
+function registrarEntrega(){
+  var paciente=document.getElementById('nPaciente').value.trim();
+  var ubicacion=document.getElementById('nUbicacion').value.trim();
+  var autorizado=document.getElementById('nAutorizado').value.trim();
+  var notas=document.getElementById('nNotas').value.trim();
+  if(!paciente || !ubicacion){ toast('Falta nombre o ubicación'); return; }
+  var reg={
+    id: 'e'+Date.now()+Math.floor(Math.random()*1000),
+    paciente: paciente,
+    ubicacion: ubicacion,
+    autorizado: autorizado,
+    notas: notas,
+    codigoBarras: document.getElementById('nCodigoBarras').value.trim(),
+    foto: fotoActual,
+    fechaRegistro: new Date().toISOString(),
+    entregado: false,
+    fechaEntrega: null,
+    recogioPor: null
+  };
+  D.entregas.unshift(reg);
+  logAuditoria('Registro', reg.paciente+' → '+reg.ubicacion);
+  save();
+  document.getElementById('nPaciente').value='';
+  document.getElementById('nUbicacion').value='';
+  document.getElementById('nAutorizado').value='';
+  document.getElementById('nNotas').value='';
+  document.getElementById('nCodigoBarras').value='';
+  quitarFoto();
+  toast('✅ Registrado: '+paciente);
+  renderStats();
+}
+
+function renderStats(){
+  var pend=D.entregas.filter(function(e){return !e.entregado;}).length;
+  var hoy=D.entregas.filter(function(e){return e.entregado && sameDay(e.fechaEntrega,new Date());}).length;
+  var viejas=D.entregas.filter(function(e){return !e.entregado && diasDesde(e.fechaRegistro)>=2;}).length;
+  document.getElementById('statRow').innerHTML=
+    '<div class="pill"><b>'+pend+'</b><span>Pendientes</span></div>'+
+    '<div class="pill"><b>'+hoy+'</b><span>Entregadas hoy</span></div>'+
+    '<div class="pill"><b>'+viejas+'</b><span>+2 días</span></div>';
+}
+
+function diasDesde(iso){
+  var d=(new Date()-new Date(iso))/(1000*60*60*24);
+  return d;
+}
+function sameDay(a,b){
+  var da=new Date(a), db=new Date(b);
+  return da.getFullYear()===db.getFullYear() && da.getMonth()===db.getMonth() && da.getDate()===db.getDate();
+}
+function fmtFecha(iso){
+  var d=new Date(iso);
+  return d.toLocaleDateString('es-PR',{day:'2-digit',month:'short'})+' '+d.toLocaleTimeString('es-PR',{hour:'2-digit',minute:'2-digit'});
+}
+
+// ---- Buscar / Entregar ----
+function renderBuscar(){
+  var q=(document.getElementById('buscarInput').value||'').toLowerCase();
+  var list=D.entregas.filter(function(e){ return !e.entregado; });
+  if(q) list=list.filter(function(e){ return e.paciente.toLowerCase().indexOf(q)>=0; });
+  list.sort(function(a,b){ return new Date(a.fechaRegistro)-new Date(b.fechaRegistro); });
+  var html='';
+  if(list.length===0){
+    html='<div class="empty"><span class="em">📭</span>'+(q?'No se encontró':'No hay recetas pendientes')+'</div>';
+  } else {
+    list.forEach(function(e){
+      var dias=diasDesde(e.fechaRegistro);
+      var cls = dias>=3 ? 'veryold' : (dias>=2 ? 'old' : '');
+      var badge = dias>=3 ? '<span class="badge danger">'+Math.floor(dias)+' días</span>' : (dias>=2 ? '<span class="badge warn">'+Math.floor(dias)+' días</span>' : '<span class="badge">'+fmtFecha(e.fechaRegistro)+'</span>');
+      html+='<div class="item '+cls+'">'+
+        '<div class="item-name">'+esc(e.paciente)+'</div>'+
+        '<div class="item-row">'+locBadge(e.ubicacion)+' '+badge+'</div>'+
+        (e.autorizado?'<div class="item-row">👤 Autorizado: '+esc(e.autorizado)+'</div>':'')+
+        (e.notas?'<div class="item-row">📝 '+esc(e.notas)+'</div>':'')+
+        (e.codigoBarras?'<div class="item-row">🔢 '+esc(e.codigoBarras)+'</div>':'')+
+        (e.foto?'<img src="'+e.foto+'" class="evid-thumb" onclick="verFotoGrande(this.src)">':'')+
+        '<div class="item-actions">'+
+          '<button class="act-entregar" onclick="marcarEntregado(\''+e.id+'\')">✅ Marcar entregado</button>'+
+          '<button class="act-borrar" onclick="borrarEntrega(\''+e.id+'\')">🗑️</button>'+
+        '</div>'+
+      '</div>';
+    });
+  }
+  document.getElementById('buscarList').innerHTML=html;
+}
+
+function marcarEntregado(id){
+  var rec=null;
+  for(var i=0;i<D.entregas.length;i++){ if(D.entregas[i].id===id){ rec=D.entregas[i]; break; } }
+  if(!rec) return;
+  var quien=prompt('¿Quién recogió el medicamento? (nombre de quien lo retira)','');
+  if(quien===null) return;
+  rec.entregado=true;
+  rec.fechaEntrega=new Date().toISOString();
+  rec.recogioPor=quien.trim() || '(no especificado)';
+  logAuditoria('Entrega', rec.paciente+' — recogió: '+rec.recogioPor);
+  save();
+  toast('✅ Entregado a '+rec.paciente);
+  renderBuscar();
+  renderPendientes();
+  renderStats();
+}
+
+function borrarEntrega(id){
+  if(!confirm('¿Borrar este registro? Esta acción no se puede deshacer.')) return;
+  var rec=null;
+  for(var i=0;i<D.entregas.length;i++){ if(D.entregas[i].id===id){ rec=D.entregas[i]; break; } }
+  D.entregas = D.entregas.filter(function(e){ return e.id!==id; });
+  if(rec) logAuditoria('Borrado', rec.paciente+' ('+rec.ubicacion+')');
+  save();
+  renderBuscar();
+  renderPendientes();
+  renderStats();
+  toast('Registro borrado');
+}
+
+// ---- Pendientes (todas, ordenadas por antigüedad) ----
+function renderPendientes(){
+  var list=D.entregas.filter(function(e){ return !e.entregado; });
+  list.sort(function(a,b){ return new Date(a.fechaRegistro)-new Date(b.fechaRegistro); });
+  var html='';
+  if(list.length===0){
+    html='<div class="empty"><span class="em">🎉</span>No hay pendientes. ¡Todo entregado!</div>';
+  } else {
+    list.forEach(function(e){
+      var dias=diasDesde(e.fechaRegistro);
+      var cls = dias>=3 ? 'veryold' : (dias>=2 ? 'old' : '');
+      var badge = dias>=3 ? '<span class="badge danger">'+Math.floor(dias)+' días esperando</span>' : (dias>=2 ? '<span class="badge warn">'+Math.floor(dias)+' días esperando</span>' : '<span class="badge">Registrado '+fmtFecha(e.fechaRegistro)+'</span>');
+      html+='<div class="item '+cls+'">'+
+        '<div class="item-name">'+esc(e.paciente)+'</div>'+
+        '<div class="item-row">'+locBadge(e.ubicacion)+'</div>'+
+        '<div class="item-row">'+badge+'</div>'+
+        (e.codigoBarras?'<div class="item-row">🔢 '+esc(e.codigoBarras)+'</div>':'')+
+        (e.foto?'<img src="'+e.foto+'" class="evid-thumb" onclick="verFotoGrande(this.src)">':'')+
+        '<div class="item-actions">'+
+          '<button class="act-entregar" onclick="marcarEntregado(\''+e.id+'\')">✅ Marcar entregado</button>'+
+        '</div>'+
+      '</div>';
+    });
+  }
+  document.getElementById('pendList').innerHTML=html;
+}
+
+// ---- Imprimir (respaldo físico) ----
+function imprimirLista(){
+  var list=D.entregas.filter(function(e){ return !e.entregado; });
+  list.sort(function(a,b){ return new Date(a.fechaRegistro)-new Date(b.fechaRegistro); });
+  document.getElementById('printFecha').textContent='Generado: '+new Date().toLocaleString('es-PR');
+  var rows='';
+  if(list.length===0){
+    rows='<tr><td colspan="4" style="text-align:center;color:#888;">No hay pendientes</td></tr>';
+  } else {
+    list.forEach(function(e){
+      var dias=diasDesde(e.fechaRegistro);
+      var cls = dias>=3 ? 'veryold' : (dias>=2 ? 'old' : '');
+      rows+='<tr class="'+cls+'"><td>'+esc(e.paciente)+'</td><td>'+locBadge(e.ubicacion)+'</td><td>'+fmtFecha(e.fechaRegistro)+'</td><td>'+esc(e.autorizado||'-')+'</td></tr>';
+    });
+  }
+  document.getElementById('printBody').innerHTML=rows;
+  window.print();
+}
+
+// ---- Historial ----
+function renderHistorial(){
+  var q=(document.getElementById('histInput').value||'').toLowerCase();
+  var list=D.entregas.filter(function(e){ return e.entregado; });
+  if(q) list=list.filter(function(e){ return e.paciente.toLowerCase().indexOf(q)>=0; });
+  list.sort(function(a,b){ return new Date(b.fechaEntrega)-new Date(a.fechaEntrega); });
+  var html='';
+  if(list.length===0){
+    html='<div class="empty"><span class="em">📂</span>Sin entregas registradas aún</div>';
+  } else {
+    list.forEach(function(e){
+      html+='<div class="item">'+
+        '<div class="item-name">'+esc(e.paciente)+' <span class="badge done">Entregado</span></div>'+
+        '<div class="item-row">📍 '+esc(e.ubicacion)+'</div>'+
+        '<div class="item-row">👤 Recogió: '+esc(e.recogioPor||'-')+'</div>'+
+        '<div class="item-row">🕒 '+fmtFecha(e.fechaEntrega)+'</div>'+
+        (e.codigoBarras?'<div class="item-row">🔢 '+esc(e.codigoBarras)+'</div>':'')+
+        (e.foto?'<img src="'+e.foto+'" class="evid-thumb" onclick="verFotoGrande(this.src)">':'')+
+        '<div class="item-actions">'+
+          '<button class="act-borrar" onclick="borrarEntrega(\''+e.id+'\')" style="flex:1">🗑️ Borrar registro</button>'+
+        '</div>'+
+      '</div>';
+    });
+  }
+  document.getElementById('histList').innerHTML=html;
+}
+
+function toggleHistTab(tab){
+  var eEnt=document.getElementById('tabHistEnt'), eAud=document.getElementById('tabHistAud');
+  var histInput=document.getElementById('histInput'), histList=document.getElementById('histList'), audList=document.getElementById('audList');
+  if(tab==='entregas'){
+    eEnt.style.background='#0d7fb8'; eEnt.querySelector('b').style.color='#fff';
+    eAud.style.background='#f3f4f6'; eAud.querySelector('b').style.color='#0d7fb8';
+    histInput.classList.remove('hidden'); histList.classList.remove('hidden'); audList.classList.add('hidden');
+    renderHistorial();
+  } else {
+    eAud.style.background='#0d7fb8'; eAud.querySelector('b').style.color='#fff';
+    eEnt.style.background='#f3f4f6'; eEnt.querySelector('b').style.color='#0d7fb8';
+    histInput.classList.add('hidden'); histList.classList.add('hidden'); audList.classList.remove('hidden');
+    renderAuditoria();
+  }
+}
+function renderAuditoria(){
+  var list = (D.auditoria||[]).slice();
+  var html='';
+  if(list.length===0){
+    html='<div class="empty"><span class="em">🕵️</span>Sin actividad registrada aún</div>';
+  } else {
+    list.forEach(function(a){
+      var iconMap={Registro:'➕',Entrega:'✅',Borrado:'🗑️'};
+      html+='<div class="item">'+
+        '<div class="item-name">'+(iconMap[a.accion]||'•')+' '+esc(a.accion)+'</div>'+
+        '<div class="item-row">👤 <b>'+esc(a.empleado)+'</b></div>'+
+        '<div class="item-row">'+esc(a.detalle)+'</div>'+
+        '<div class="item-row" style="color:#9ca3af;">🕒 '+fmtFecha(a.fecha)+'</div>'+
+      '</div>';
+    });
+  }
+  document.getElementById('audList').innerHTML=html;
+}
+
+function verFotoGrande(src){
+  var ov=document.getElementById('fotoOverlay');
+  document.getElementById('fotoGrandeImg').src=src;
+  ov.classList.remove('hidden');
+}
+function cerrarFotoGrande(){
+  document.getElementById('fotoOverlay').classList.add('hidden');
+}
+
+function esc(s){
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ---- Foto de evidencia (comprimida) ----
+document.getElementById('nFotoInput').addEventListener('change', function(e){
+  var file = e.target.files[0];
+  if(!file) return;
+  var reader = new FileReader();
+  reader.onload = function(ev){
+    var img = new Image();
+    img.onload = function(){
+      var maxW = 640;
+      var scale = Math.min(1, maxW/img.width);
+      var canvas = document.createElement('canvas');
+      canvas.width = Math.round(img.width*scale);
+      canvas.height = Math.round(img.height*scale);
+      var ctx = canvas.getContext('2d');
+      ctx.drawImage(img,0,0,canvas.width,canvas.height);
+      fotoActual = canvas.toDataURL('image/jpeg', 0.55);
+      var prev = document.getElementById('nFotoPreview');
+      prev.src = fotoActual;
+      prev.classList.remove('hidden');
+      document.getElementById('nFotoRemove').classList.remove('hidden');
+      toast('📷 Foto capturada');
+    };
+    img.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+});
+function quitarFoto(){
+  fotoActual = null;
+  var prev=document.getElementById('nFotoPreview');
+  prev.classList.add('hidden');
+  prev.src='';
+  document.getElementById('nFotoRemove').classList.add('hidden');
+  document.getElementById('nFotoInput').value='';
+}
+
+// ---- Escáner de código de barras ----
+function abrirScanner(){
+  document.getElementById('scannerOverlay').classList.remove('hidden');
+  html5QrCode = new Html5Qrcode("qrReader");
+  html5QrCode.start(
+    { facingMode: "environment" },
+    { fps: 10, qrbox: { width: 260, height: 140 } },
+    function(decodedText){
+      document.getElementById('nCodigoBarras').value = decodedText;
+      cerrarScanner();
+      toast('✅ Código escaneado');
+    },
+    function(){ /* ignorar errores de frame sin código detectado */ }
+  ).catch(function(err){
+    toast('No se pudo abrir la cámara');
+    document.getElementById('scannerOverlay').classList.add('hidden');
+    console.log(err);
+  });
+}
+function cerrarScanner(){
+  if(html5QrCode){
+    html5QrCode.stop().then(function(){ return html5QrCode.clear(); }).catch(function(){});
+  }
+  document.getElementById('scannerOverlay').classList.add('hidden');
+}
+function locBadge(ubicacion){
+  var s = String(ubicacion||'');
+  var hash = 0;
+  for(var i=0;i<s.length;i++){ hash = (hash*31 + s.charCodeAt(i)) % 10; }
+  if(hash<0) hash += 10;
+  return '<span class="loc-badge loc-'+hash+'">📍 '+esc(ubicacion)+'</span>';
+}
+
+// ---- Config / Sync JSONBin ----
+function loadConfigUI(){
+  document.getElementById('cfgApiKey').value=CFG.apiKey||'';
+  document.getElementById('cfgBinId').value=CFG.binId||'';
+  updateSyncBadge();
+}
+function guardarConfig(){
+  CFG.apiKey=document.getElementById('cfgApiKey').value.trim();
+  CFG.binId=document.getElementById('cfgBinId').value.trim();
+  localStorage.setItem(CFGKEY, JSON.stringify(CFG));
+  toast('Configuración guardada');
+  updateSyncBadge();
+  if(CFG.apiKey && CFG.binId) pullRemote();
+}
+function updateSyncBadge(){
+  var dot=document.getElementById('syncDot'), txt=document.getElementById('syncText');
+  if(CFG.apiKey && CFG.binId){
+    dot.classList.remove('off');
+    txt.textContent='Sincronización activa';
+  } else {
+    dot.classList.add('off');
+    txt.textContent='Sin sincronizar (solo este dispositivo)';
+  }
+}
+function pushRemote(){
+  if(!CFG.apiKey || !CFG.binId) return;
+  fetch('https://api.jsonbin.io/v3/b/'+CFG.binId, {
+    method:'PUT',
+    headers:{'Content-Type':'application/json','X-Master-Key':CFG.apiKey},
+    body: JSON.stringify(D)
+  }).catch(function(e){ console.log('push error',e); });
+}
+function pullRemote(silent){
+  if(!CFG.apiKey || !CFG.binId) { if(!silent) toast('Configura JSONBin primero'); return; }
+  fetch('https://api.jsonbin.io/v3/b/'+CFG.binId+'/latest', {
+    headers:{'X-Master-Key':CFG.apiKey}
+  }).then(function(r){ return r.json(); }).then(function(res){
+    if(res && res.record && res.record.entregas){
+      D = res.record;
+      localStorage.setItem(LSKEY, JSON.stringify(D));
+      renderStats(); renderBuscar(); renderPendientes(); renderHistorial();
+      if(!silent) toast('🔄 Sincronizado');
+    }
+  }).catch(function(e){ if(!silent) toast('Error al sincronizar'); console.log(e); });
+}
+function sincronizarManual(){ pullRemote(false); }
+
+function exportarDatos(){
+  var blob=new Blob([JSON.stringify(D,null,2)],{type:'application/json'});
+  var url=URL.createObjectURL(blob);
+  var a=document.createElement('a');
+  a.href=url; a.download='entregameds_respaldo_'+Date.now()+'.json';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  toast('Respaldo descargado');
+}
+function limpiarTodo(){
+  if(!confirm('¿Borrar TODOS los datos de este sistema? Esto no se puede deshacer.')) return;
+  if(!confirm('Confirma de nuevo: se perderán todos los registros pendientes e historial.')) return;
+  D={entregas:[]};
+  save();
+  renderStats(); renderBuscar(); renderPendientes(); renderHistorial();
+  toast('Datos borrados');
+}
+
+function renderEmpleados(){
+  D.empleados = D.empleados || [];
+  var html='';
+  if(D.empleados.length===0){
+    html='<p style="font-size:13px;color:#9ca3af;">Aún no hay empleados registrados. Se crean al identificarse por primera vez desde la pantalla de login.</p>';
+  } else {
+    D.empleados.forEach(function(emp){
+      html+='<div class="emp-list-item"><span>👤 '+esc(emp.nombre)+'</span><button class="emp-del" onclick="borrarEmpleado(\''+esc(emp.nombre)+'\')">Eliminar</button></div>';
+    });
+  }
+  document.getElementById('empleadosList').innerHTML=html;
+}
+function borrarEmpleado(nombre){
+  if(!confirm('¿Eliminar a '+nombre+' del sistema? Ya no podrá iniciar sesión.')) return;
+  D.empleados = (D.empleados||[]).filter(function(e){ return e.nombre!==nombre; });
+  logAuditoria('Empleado eliminado', nombre+' fue eliminado del sistema');
+  save();
+  renderEmpleados();
+  toast('Empleado eliminado');
+}
+function resetPinEmpleado(){
+  D.empleados = D.empleados || [];
+  if(D.empleados.length===0){ toast('No hay empleados registrados'); return; }
+  var nombres = D.empleados.map(function(e){return e.nombre;}).join(', ');
+  var n = prompt('¿A qué empleado le reinicias el PIN?\n\nEmpleados: '+nombres);
+  if(n===null) return;
+  n=n.trim();
+  var emp=null;
+  for(var i=0;i<D.empleados.length;i++){ if(D.empleados[i].nombre.toLowerCase()===n.toLowerCase()){ emp=D.empleados[i]; break; } }
+  if(!emp){ toast('No se encontró ese empleado'); return; }
+  var pin2=prompt('Nuevo PIN de 4 dígitos para '+emp.nombre+':');
+  if(pin2===null) return;
+  pin2=pin2.trim();
+  if(!/^\d{4}$/.test(pin2)){ toast('El PIN debe ser de 4 dígitos'); return; }
+  emp.pin=pin2;
+  logAuditoria('PIN reiniciado', 'Se reinició el PIN de '+emp.nombre);
+  save();
+  renderEmpleados();
+  toast('PIN actualizado para '+emp.nombre);
+}
+
+// ---- Init ----
+load();
+loadEmpleado();
+loadConfigUI();
+renderStats();
+if(CFG.apiKey && CFG.binId) pullRemote(true);
+// auto-sync every 20s so multiple devices stay in sync
+setInterval(function(){ if(CFG.apiKey && CFG.binId) pullRemote(true); }, 20000);
+</script>
+</body>
+</html>
