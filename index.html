@@ -30,7 +30,7 @@ textarea{resize:vertical;min-height:60px;}
 .btn-outline{background:#fff;color:#0d7fb8;border:2px solid #0d7fb8;}
 .btn-danger{background:#fff;color:#dc2626;border:2px solid #dc2626;}
 .nav{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid #e5e7eb;display:flex;max-width:600px;margin:0 auto;z-index:50;}
-.nav button{flex:1;background:none;border:none;padding:10px 4px;font-size:11px;font-weight:600;color:#8892a0;display:flex;flex-direction:column;align-items:center;gap:3px;}
+.nav button{flex:1;background:none;border:none;padding:8px 2px;font-size:9.5px;font-weight:600;color:#8892a0;display:flex;flex-direction:column;align-items:center;gap:2px;}
 .nav button.active{color:#0d7fb8;}
 .nav .ic{font-size:20px;}
 .item{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:14px;margin-bottom:10px;position:relative;}
@@ -129,7 +129,7 @@ textarea{resize:vertical;min-height:60px;}
 <div id="app">
   <header>
     <h1>💊 Control de Entrega</h1>
-    <div class="sub" id="hSub">Farmacia · <span style="color:#ffd700;font-weight:700;" id="verTag">v24</span></div>
+    <div class="sub" id="hSub">Farmacia · <span style="color:#ffd700;font-weight:700;" id="verTag">v25</span></div>
     <div class="syncbar"><span class="dot" id="syncDot"></span><span id="syncText">Sin sincronizar</span></div>
     <div class="syncbar" style="margin-top:4px;cursor:pointer;" onclick="abrirLogin()">👤 <span id="empActual">Sin identificar</span> <span style="text-decoration:underline;">(cambiar sesión)</span></div>
   </header>
@@ -167,7 +167,7 @@ textarea{resize:vertical;min-height:60px;}
       <div class="pill-row" id="statRow"></div>
       <div id="avisoRapido" class="hidden" style="background:#f0fdf4;border:1.5px solid #86efac;border-radius:12px;padding:12px;margin-bottom:12px;"></div>
       <div class="card">
-        <div class="section-title">Registrar receta lista</div>
+        <div class="section-title" id="formTituloNueva">Registrar receta lista</div>
         <label>Nombre completo del paciente * <span style="font-weight:400;color:#999;">(ambos apellidos + inicial si aplica)</span></label>
         <input class="inp" id="nPaciente" placeholder="Ej. María A. Rodríguez Colón" oninput="onPacienteInput()" autocomplete="off">
         <div id="pacienteSugerencias" class="hidden" style="background:#fff;border:1.5px solid #dbe2ea;border-radius:10px;margin-top:6px;overflow:hidden;"></div>
@@ -218,8 +218,19 @@ textarea{resize:vertical;min-height:60px;}
         <img id="nFotoPreview" class="evid-thumb hidden">
         <button type="button" class="btn btn-outline hidden" id="nFotoRemove" onclick="quitarFoto()">Quitar foto</button>
 
-        <button class="btn btn-primary" onclick="registrarEntrega()">Guardar</button>
+        <button class="btn btn-primary" id="btnGuardarReceta" onclick="registrarEntrega()">Guardar</button>
+        <button class="btn btn-outline hidden" id="btnCancelarEdicion" onclick="cancelarEdicionEntrega()">Cancelar edición</button>
       </div>
+    </div>
+
+    <!-- PANTALLA: PACIENTES (DIRECTORIO) -->
+    <div id="scr-pacientes" class="hidden">
+      <button class="btn btn-primary" onclick="abrirPacienteOverlay(true)">➕ Nuevo paciente</button>
+      <div class="search-wrap" style="margin-top:10px;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#8892a0" stroke-width="2"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input class="inp searchbox" id="dirPacientesInput" placeholder="Buscar paciente..." oninput="renderDirectorioPacientesTab()">
+      </div>
+      <div id="directorioPacientesTabList"></div>
     </div>
 
     <!-- OVERLAY: ESCÁNER DE CÓDIGO DE BARRAS -->
@@ -234,11 +245,29 @@ textarea{resize:vertical;min-height:60px;}
 
     <!-- OVERLAY: PERFIL DE PACIENTE -->
     <div id="pacienteOverlay" class="login-overlay hidden" style="z-index:996;">
-      <div class="login-box">
+      <div class="login-box" style="max-height:90vh;overflow-y:auto;">
         <h2>🪪 Perfil del paciente</h2>
         <div class="lsub">Se guarda una vez y se reutiliza en sus próximas visitas</div>
-        <label>Nombre completo</label>
-        <input class="inp" id="pacNombreInput">
+        <label>Nombre(s) *</label>
+        <input class="inp" id="pacNombrePilaInput" placeholder="Ej. María" oninput="combinarNombrePaciente()">
+        <div style="display:flex;gap:8px;">
+          <div style="flex:1;">
+            <label>Inicial 2do nombre</label>
+            <input class="inp" id="pacInicialInput" maxlength="3" placeholder="Ej. A." oninput="combinarNombrePaciente()">
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <div style="flex:1;">
+            <label>Apellido paterno *</label>
+            <input class="inp" id="pacApellido1Input" placeholder="Ej. Rodríguez" oninput="combinarNombrePaciente()">
+          </div>
+          <div style="flex:1;">
+            <label>Apellido materno</label>
+            <input class="inp" id="pacApellido2Input" placeholder="Ej. Colón" oninput="combinarNombrePaciente()">
+          </div>
+        </div>
+        <input type="hidden" id="pacNombreInput">
+        <div style="font-size:12px;color:#0d7fb8;background:#eff8ff;padding:6px 10px;border-radius:8px;margin-top:6px;">Nombre completo: <b id="pacNombrePreview">—</b></div>
         <label>Plan médico (opcional)</label>
         <input class="inp" id="pacPlanInput" placeholder="Ej. Triple-S, MCS, Menonita...">
         <label>Teléfono (opcional)</label>
@@ -332,6 +361,29 @@ textarea{resize:vertical;min-height:60px;}
         <input class="inp searchbox" id="histInput" placeholder="Buscar en historial..." oninput="renderHistorial()">
       </div>
       <div id="histList"></div>
+      <div id="audFiltros" class="hidden card" style="margin-bottom:10px;">
+        <label>Buscar (paciente, medicamento, detalle)</label>
+        <input class="inp" id="audBusqueda" placeholder="Ej. María, Metformina..." oninput="renderAuditoria()">
+        <div style="display:flex;gap:8px;">
+          <div style="flex:1;">
+            <label>Desde</label>
+            <input class="inp" id="audDesde" type="date" onchange="renderAuditoria()">
+          </div>
+          <div style="flex:1;">
+            <label>Hasta</label>
+            <input class="inp" id="audHasta" type="date" onchange="renderAuditoria()">
+          </div>
+        </div>
+        <label>Empleado</label>
+        <select class="inp" id="audEmpleado" onchange="renderAuditoria()">
+          <option value="">Todos</option>
+        </select>
+        <label>Tipo de acción</label>
+        <select class="inp" id="audAccion" onchange="renderAuditoria()">
+          <option value="">Todas</option>
+        </select>
+        <button type="button" class="btn btn-outline" onclick="limpiarFiltrosAuditoria()">Limpiar filtros</button>
+      </div>
       <div id="audList" class="hidden"></div>
     </div>
 
@@ -345,13 +397,19 @@ textarea{resize:vertical;min-height:60px;}
       </div>
       <div class="card">
         <div class="section-title">Sincronización en la nube</div>
-        <p style="font-size:13px;color:#666;line-height:1.5;">Para que todos los dispositivos (tablet + celulares) vean la misma información, conecta un bin gratuito de <b>JSONBin.io</b>. Crea una cuenta gratis en jsonbin.io, crea un "Bin" nuevo, y pega aquí el Bin ID y tu API Key (Master Key).</p>
-        <label>API Key (X-Master-Key)</label>
-        <input class="inp" id="cfgApiKey" placeholder="Pega tu API key aquí">
-        <label>Bin ID</label>
-        <input class="inp" id="cfgBinId" placeholder="Pega tu Bin ID aquí">
-        <button class="btn btn-primary" onclick="guardarConfig()">Guardar configuración</button>
-        <button class="btn btn-outline" onclick="sincronizarManual()">🔄 Sincronizar ahora</button>
+        <p style="font-size:13px;color:#666;">Combina los datos de este dispositivo con los de la nube (no borra nada, solo une).</p>
+        <button class="btn btn-primary" onclick="sincronizarManual()">🔄 Sincronizar ahora</button>
+        <button type="button" class="btn btn-outline" style="margin-top:10px;" onclick="revelarConfigAvanzada()">🔒 Ver/editar configuración avanzada</button>
+        <div id="configAvanzadaBox" class="hidden" style="margin-top:12px;background:#fef3c7;border:1.5px solid #f59e0b;border-radius:10px;padding:12px;">
+          <p style="font-size:12px;color:#92400e;font-weight:700;margin-bottom:8px;">⚠️ No cambies esto a menos que sepas lo que haces — puede desconectar la sincronización de todos los dispositivos.</p>
+          <p style="font-size:12px;color:#666;line-height:1.5;">Para que todos los dispositivos (tablet + celulares) vean la misma información, conecta un bin gratuito de <b>JSONBin.io</b>. Crea una cuenta gratis en jsonbin.io, crea un "Bin" nuevo, y pega aquí el Bin ID y tu API Key (Master Key).</p>
+          <label>API Key (X-Master-Key)</label>
+          <input class="inp" id="cfgApiKey" placeholder="Pega tu API key aquí">
+          <label>Bin ID</label>
+          <input class="inp" id="cfgBinId" placeholder="Pega tu Bin ID aquí">
+          <button class="btn btn-primary" onclick="guardarConfig()">Guardar configuración</button>
+          <button type="button" class="btn btn-outline" onclick="document.getElementById('configAvanzadaBox').classList.add('hidden')">Ocultar</button>
+        </div>
       </div>
       <div class="card">
         <div class="section-title">Datos</div>
@@ -362,14 +420,6 @@ textarea{resize:vertical;min-height:60px;}
         <div class="section-title">Empleados registrados</div>
         <div id="empleadosList"></div>
         <button class="btn btn-danger" onclick="resetPinEmpleado()">Reiniciar PIN de un empleado</button>
-      </div>
-      <div class="card">
-        <div class="section-title">Directorio de pacientes</div>
-        <div class="search-wrap">
-          <svg viewBox="0 0 24 24" fill="none" stroke="#8892a0" stroke-width="2"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          <input class="inp searchbox" id="dirPacientesInput" placeholder="Buscar paciente..." oninput="renderDirectorioPacientes()">
-        </div>
-        <div id="directorioPacientesList"></div>
       </div>
       <div class="card">
         <div class="section-title">📢 Mensajes masivos</div>
@@ -400,9 +450,10 @@ textarea{resize:vertical;min-height:60px;}
 
   <div class="nav">
     <button class="navbtn active" data-scr="nueva" onclick="goScreen('nueva')"><span class="ic">➕</span>Nueva</button>
+    <button class="navbtn" data-scr="pacientes" onclick="goScreen('pacientes')"><span class="ic">🪪</span>Pac.</button>
     <button class="navbtn" data-scr="buscar" onclick="goScreen('buscar')"><span class="ic">🔍</span>Entregar</button>
-    <button class="navbtn" data-scr="pendientes" onclick="goScreen('pendientes')"><span class="ic">📋</span>Pendientes</button>
-    <button class="navbtn" data-scr="historial" onclick="goScreen('historial')"><span class="ic">✅</span>Historial</button>
+    <button class="navbtn" data-scr="pendientes" onclick="goScreen('pendientes')"><span class="ic">📋</span>Pend.</button>
+    <button class="navbtn" data-scr="historial" onclick="goScreen('historial')"><span class="ic">✅</span>Hist.</button>
     <button class="navbtn" data-scr="sync" onclick="goScreen('sync')"><span class="ic">☁️</span>Sync</button>
   </div>
 </div>
@@ -536,17 +587,18 @@ function toast(msg){
 
 // ---- Screens ----
 function goScreen(name){
-  ['nueva','buscar','pendientes','historial','sync'].forEach(function(s){
+  ['nueva','pacientes','buscar','pendientes','historial','sync'].forEach(function(s){
     document.getElementById('scr-'+s).classList.toggle('hidden', s!==name);
   });
   document.querySelectorAll('.navbtn').forEach(function(b){
     b.classList.toggle('active', b.getAttribute('data-scr')===name);
   });
+  if(name==='pacientes') renderDirectorioPacientesTab();
   if(name==='buscar') renderBuscar();
   if(name==='pendientes') renderPendientes();
   if(name==='historial') renderHistorial();
   if(name==='nueva') renderStats();
-  if(name==='sync'){ renderEmpleados(); renderDirectorioPacientes(); renderListaPacientesMensaje(); document.getElementById('syncEmpActual').textContent = EMPLEADO || 'Sin identificar'; }
+  if(name==='sync'){ renderEmpleados(); renderListaPacientesMensaje(); document.getElementById('syncEmpActual').textContent = EMPLEADO || 'Sin identificar'; document.getElementById('configAvanzadaBox').classList.add('hidden'); }
 }
 
 function agregarFilaMedicamento(){
@@ -731,7 +783,17 @@ function entregarMed(recordId, idx){
   if(!rec) return;
   ensureMedObjects(rec);
   var med=rec.medicamentos[idx];
-  abrirFirmaOverlay('Entregando: '+med.nombre, rec.autorizado||'', function(quien, firma){
+  var tieneDeuda = med.deuda && med.deuda.estado && med.deuda.estado!=='ninguna';
+  var contexto = tieneDeuda ? 'Entrega PARCIAL: '+med.nombre+' (queda pendiente completar)' : 'Entregando: '+med.nombre;
+  abrirFirmaOverlay(contexto, rec.autorizado||'', function(quien, firma){
+    if(tieneDeuda){
+      med.entregaParcialInfo = {recogioPor:quien, firma:firma, fecha:new Date().toISOString()};
+      logAuditoria('Entrega parcial registrada', rec.paciente+' — '+med.nombre+' — recogió: '+quien+' — queda pendiente: '+(med.deuda.monto||med.deuda.estado));
+      save();
+      renderBuscar(); renderPendientes(); renderHistorial(); renderStats();
+      toast('🟡 Entrega parcial registrada, queda pendiente completar');
+      return;
+    }
     med.estado='entregado';
     med.fecha=new Date().toISOString();
     med.recogioPor=quien;
@@ -742,6 +804,27 @@ function entregarMed(recordId, idx){
     save();
     renderBuscar(); renderPendientes(); renderHistorial(); renderStats();
     toast('✅ Entregado: '+med.nombre);
+  });
+}
+function completarMedicamento(recordId, idx){
+  var rec=null;
+  for(var i=0;i<D.entregas.length;i++){ if(D.entregas[i].id===recordId){ rec=D.entregas[i]; break; } }
+  if(!rec) return;
+  ensureMedObjects(rec);
+  var med=rec.medicamentos[idx];
+  var quienDefault = (med.entregaParcialInfo && med.entregaParcialInfo.recogioPor) || rec.autorizado || '';
+  abrirFirmaOverlay('Completando entrega: '+med.nombre, quienDefault, function(quien, firma){
+    med.estado='entregado';
+    med.fecha=new Date().toISOString();
+    med.recogioPor=quien;
+    med.firma= firma || (med.entregaParcialInfo && med.entregaParcialInfo.firma) || null;
+    med.deuda={estado:'ninguna', monto:''};
+    med.entregaParcialInfo=null;
+    logAuditoria('Entrega completada', rec.paciente+' — '+med.nombre+' — recogió: '+quien);
+    finalizarSiCompleto(rec);
+    save();
+    renderBuscar(); renderPendientes(); renderHistorial(); renderStats();
+    toast('✅ Entrega completada: '+med.nombre);
   });
 }
 function rechazarMed(recordId, idx){
@@ -775,13 +858,21 @@ function renderSugerenciasPaciente(val){
   D.pacientes = D.pacientes || [];
   if(!val || val.length<2){ box.classList.add('hidden'); box.innerHTML=''; return; }
   var matches = D.pacientes.filter(function(p){ return p.nombre.toLowerCase().indexOf(val.toLowerCase())>=0; }).slice(0,5);
-  if(matches.length===0){ box.classList.add('hidden'); box.innerHTML=''; return; }
-  box.innerHTML = matches.map(function(p){
+  var hayExacto = D.pacientes.some(function(p){ return p.nombre.toLowerCase()===val.toLowerCase(); });
+  var html = matches.map(function(p){
     return '<div style="padding:10px 12px;border-bottom:1px solid #f0f0f0;display:flex;align-items:center;gap:10px;cursor:pointer;" onclick="seleccionarPaciente(\''+p.id+'\')">'+
       (p.fotoId?'<img src="'+p.fotoId+'" style="width:36px;height:36px;border-radius:8px;object-fit:cover;flex-shrink:0;">':'<div style="width:36px;height:36px;border-radius:8px;background:#e5e7eb;display:flex;align-items:center;justify-content:center;flex-shrink:0;">🪪</div>')+
       '<span style="font-weight:600;font-size:14px;">'+esc(p.nombre)+'</span>'+
     '</div>';
   }).join('');
+  if(!hayExacto){
+    html += '<div style="padding:10px 12px;display:flex;align-items:center;gap:10px;cursor:pointer;background:#eff8ff;" onclick="abrirPacienteOverlay()">'+
+      '<div style="width:36px;height:36px;border-radius:8px;background:#0d7fb8;color:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:18px;">➕</div>'+
+      '<span style="font-weight:700;font-size:14px;color:#0d7fb8;">Crear paciente nuevo: "'+esc(val)+'"</span>'+
+    '</div>';
+  }
+  if(matches.length===0 && hayExacto){ box.classList.add('hidden'); box.innerHTML=''; return; }
+  box.innerHTML = html;
   box.classList.remove('hidden');
 }
 function seleccionarPaciente(id){
@@ -807,9 +898,38 @@ function deseleccionarPaciente(){
   pacienteSeleccionadoId=null;
   document.getElementById('pacienteSeleccionado').classList.add('hidden');
 }
-function abrirPacienteOverlay(){
-  var nombre=document.getElementById('nPaciente').value.trim();
-  document.getElementById('pacNombreInput').value=nombre;
+function splitNombreCompleto(nombre){
+  var tokens = (nombre||'').trim().split(/\s+/).filter(Boolean);
+  var r={pila:'', inicial:'', ap1:'', ap2:''};
+  if(tokens.length===0) return r;
+  if(tokens.length===1){ r.pila=tokens[0]; return r; }
+  if(tokens.length===2){ r.pila=tokens[0]; r.ap1=tokens[1]; return r; }
+  // 3 o más tokens: revisar si el segundo parece inicial (corto o termina en punto)
+  var pareceInicial = tokens[1].length<=2 || tokens[1].indexOf('.')>=0;
+  if(tokens.length===3){
+    if(pareceInicial){ r.pila=tokens[0]; r.inicial=tokens[1]; r.ap1=tokens[2]; }
+    else { r.pila=tokens[0]; r.ap1=tokens[1]; r.ap2=tokens[2]; }
+    return r;
+  }
+  // 4+ tokens
+  if(pareceInicial){ r.pila=tokens[0]; r.inicial=tokens[1]; r.ap1=tokens[2]; r.ap2=tokens.slice(3).join(' '); }
+  else { r.pila=tokens.slice(0,tokens.length-2).join(' '); r.ap1=tokens[tokens.length-2]; r.ap2=tokens[tokens.length-1]; }
+  return r;
+}
+function combinarNombrePaciente(){
+  var pila=document.getElementById('pacNombrePilaInput').value.trim();
+  var inicial=document.getElementById('pacInicialInput').value.trim();
+  var ap1=document.getElementById('pacApellido1Input').value.trim();
+  var ap2=document.getElementById('pacApellido2Input').value.trim();
+  if(inicial && inicial.indexOf('.')<0) inicial+='.';
+  var partes=[pila, inicial, ap1, ap2].filter(Boolean);
+  var combinado = partes.join(' ');
+  document.getElementById('pacNombreInput').value = combinado;
+  document.getElementById('pacNombrePreview').textContent = combinado || '—';
+  return combinado;
+}
+function abrirPacienteOverlay(standalone){
+  var nombre = standalone ? '' : document.getElementById('nPaciente').value.trim();
   document.getElementById('pacPlanInput').value='';
   document.getElementById('pacTelInput').value='';
   document.getElementById('pacEmailInput').value='';
@@ -819,6 +939,7 @@ function abrirPacienteOverlay(){
   var prev=document.getElementById('pacFotoPreview');
   prev.classList.add('hidden'); prev.src='';
   document.getElementById('pacFotoRemove').classList.add('hidden');
+  var split = {pila:nombre, inicial:'', ap1:'', ap2:''};
   if(pacienteSeleccionadoId){
     var p=(D.pacientes||[]).find(function(x){return x.id===pacienteSeleccionadoId;});
     if(p){
@@ -827,6 +948,7 @@ function abrirPacienteOverlay(){
       document.getElementById('pacEmailInput').value=p.email||'';
       document.getElementById('pacAutorizadoInput').value=p.autorizado||'';
       document.getElementById('pacDireccionInput').value=p.direccion||'';
+      split = splitNombreCompleto(p.nombre);
       if(p.fotoId){
         pacienteFotoActual=p.fotoId;
         prev.src=p.fotoId; prev.classList.remove('hidden');
@@ -834,7 +956,11 @@ function abrirPacienteOverlay(){
       }
     }
   }
-  if(!nombre){ toast('Escribe primero el nombre del paciente arriba'); }
+  document.getElementById('pacNombrePilaInput').value=split.pila;
+  document.getElementById('pacInicialInput').value=split.inicial;
+  document.getElementById('pacApellido1Input').value=split.ap1;
+  document.getElementById('pacApellido2Input').value=split.ap2;
+  combinarNombrePaciente();
   document.getElementById('pacienteOverlay').classList.remove('hidden');
 }
 function cerrarPacienteOverlay(){
@@ -873,7 +999,10 @@ document.getElementById('pacFotoInput').addEventListener('change', function(e){
   reader.readAsDataURL(file);
 });
 function guardarPaciente(){
-  var nombre=document.getElementById('pacNombreInput').value.trim();
+  var nombre=combinarNombrePaciente();
+  var pilaCheck=document.getElementById('pacNombrePilaInput').value.trim();
+  var ap1Check=document.getElementById('pacApellido1Input').value.trim();
+  if(!pilaCheck || !ap1Check){ toast('Escribe al menos el nombre y el apellido paterno'); return; }
   var plan=document.getElementById('pacPlanInput').value.trim();
   var tel=document.getElementById('pacTelInput').value.trim();
   var email=document.getElementById('pacEmailInput').value.trim();
@@ -902,9 +1031,10 @@ function guardarPaciente(){
   document.getElementById('nPaciente').value=nombre;
   seleccionarPaciente(pacienteSeleccionadoId);
   cerrarPacienteOverlay();
+  renderDirectorioPacientesTab();
   toast('✅ Paciente guardado: '+nombre);
 }
-function renderDirectorioPacientes(){
+function renderDirectorioPacientesTab(){
   D.pacientes = D.pacientes || [];
   var q=(document.getElementById('dirPacientesInput').value||'').toLowerCase();
   var list=D.pacientes.slice();
@@ -912,25 +1042,34 @@ function renderDirectorioPacientes(){
   list.sort(function(a,b){ return a.nombre.localeCompare(b.nombre); });
   var html='';
   if(list.length===0){
-    html='<p style="font-size:13px;color:#9ca3af;">'+(q?'No se encontró':'Aún no hay pacientes guardados. Se agregan desde la pantalla Nueva.')+'</p>';
+    html='<div class="empty"><span class="em">🪪</span>'+(q?'No se encontró':'Aún no hay pacientes guardados. Toca "➕ Nuevo paciente" arriba.')+'</div>';
   } else {
     list.forEach(function(p){
-      html+='<div class="emp-list-item" style="align-items:flex-start;flex-wrap:wrap;">'+
-        (p.fotoId?'<img src="'+p.fotoId+'" style="width:40px;height:40px;border-radius:8px;object-fit:cover;margin-right:10px;flex-shrink:0;" onclick="verFotoGrande(\''+p.fotoId+'\')">':'<div style="width:40px;height:40px;border-radius:8px;background:#e5e7eb;display:flex;align-items:center;justify-content:center;margin-right:10px;flex-shrink:0;">🪪</div>')+
-        '<div style="flex:1;min-width:150px;">'+
-          '<span style="font-weight:700;font-size:14px;display:block;">'+esc(p.nombre)+'</span>'+
-          (p.planMedico?'<span style="font-size:12px;color:#666;display:block;">Plan: '+esc(p.planMedico)+'</span>':'')+
-          (p.telefono?'<span style="font-size:12px;color:#666;display:block;">☎️ '+esc(p.telefono)+'</span>':'')+
-          (p.email?'<span style="font-size:12px;color:#666;display:block;">✉️ '+esc(p.email)+'</span>':'')+
-          (p.autorizado?'<span style="font-size:12px;color:#666;display:block;">👤 '+esc(p.autorizado)+'</span>':'')+
-          (p.direccion?'<span style="font-size:12px;color:#666;display:block;">📍 '+esc(p.direccion)+'</span>':'')+
+      html+='<div class="item">'+
+        '<div style="display:flex;gap:10px;">'+
+        (p.fotoId?'<img src="'+p.fotoId+'" style="width:50px;height:50px;border-radius:8px;object-fit:cover;flex-shrink:0;" onclick="verFotoGrande(\''+p.fotoId+'\')">':'<div style="width:50px;height:50px;border-radius:8px;background:#e5e7eb;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:22px;">🪪</div>')+
+        '<div style="flex:1;">'+
+          '<div class="item-name" style="font-size:15px;">'+esc(p.nombre)+'</div>'+
+          (p.planMedico?'<div class="item-row">🏥 '+esc(p.planMedico)+'</div>':'')+
+          (p.telefono?'<div class="item-row">☎️ '+esc(p.telefono)+'</div>':'')+
+          (p.email?'<div class="item-row">✉️ '+esc(p.email)+'</div>':'')+
+          (p.autorizado?'<div class="item-row">👤 '+esc(p.autorizado)+'</div>':'')+
+          (p.direccion?'<div class="item-row">📍 '+esc(p.direccion)+'</div>':'')+
+        '</div></div>'+
+        '<div class="item-actions" style="flex-wrap:wrap;">'+
+          '<button class="mini-btn" style="background:#fff;color:#0d7fb8;border:1.5px solid #0d7fb8;flex:1;" onclick="editarPacienteDesdeDirectorio(\''+p.id+'\')">✏️ Editar</button>'+
+          (p.telefono?'<button class="mini-btn" style="background:#dcfce7;color:#166534;flex:1;" onclick="avisarPacienteWhatsApp(\''+esc(p.nombre).replace(/'/g,"\\'")+'\',\'\')">💬 WhatsApp</button>':'')+
+          (p.direccion?'<button class="mini-btn mini-ok" style="flex:1;" onclick="abrirGoogleMaps(\''+esc(p.direccion).replace(/'/g,"\\'")+'\')">🗺️ Mapa</button>':'')+
+          '<button class="emp-del" style="flex:1;" onclick="borrarPaciente(\''+p.id+'\')">🗑️ Eliminar</button>'+
         '</div>'+
-        (p.direccion?'<button class="mini-btn mini-ok" style="margin-right:6px;" onclick="abrirGoogleMaps(\''+esc(p.direccion).replace(/'/g,"\\'")+'\')">🗺️ Mapa</button>':'')+
-        '<button class="emp-del" onclick="borrarPaciente(\''+p.id+'\')">Eliminar</button>'+
       '</div>';
     });
   }
-  document.getElementById('directorioPacientesList').innerHTML=html;
+  document.getElementById('directorioPacientesTabList').innerHTML=html;
+}
+function editarPacienteDesdeDirectorio(id){
+  pacienteSeleccionadoId = id;
+  abrirPacienteOverlay(true);
 }
 // ---- Mensajes masivos ----
 function guardarEmailWebhook(){
@@ -1041,7 +1180,7 @@ function borrarPaciente(id){
   D.pacientes = D.pacientes.filter(function(x){return x.id!==id;});
   logAuditoria('Paciente eliminado', p.nombre);
   save();
-  renderDirectorioPacientes();
+  renderDirectorioPacientesTab();
   toast('Paciente eliminado del directorio');
 }
 function fotoIdPorNombre(nombre){
@@ -1071,6 +1210,74 @@ function verificarNombreSimilar(){
   } else {
     warnBox.classList.add('hidden');
   }
+}
+var editandoEntregaId = null;
+function editarEntrega(id){
+  var rec=null;
+  for(var i=0;i<D.entregas.length;i++){ if(D.entregas[i].id===id){ rec=D.entregas[i]; break; } }
+  if(!rec) return;
+  editandoEntregaId = id;
+  document.getElementById('nPaciente').value = rec.paciente;
+  pacienteSeleccionadoId = null;
+  document.getElementById('pacienteSeleccionado').classList.add('hidden');
+  document.getElementById('nUbicacion').value = rec.ubicacion||'';
+  document.getElementById('nAutorizado').value = rec.autorizado||'';
+  document.getElementById('nNotas').value = rec.notas||'';
+  document.getElementById('nCodigoBarras').value = rec.codigoBarras||'';
+  fotoActual = rec.foto||null;
+  var prevF=document.getElementById('nFotoPreview');
+  if(fotoActual){ prevF.src=fotoActual; prevF.classList.remove('hidden'); document.getElementById('nFotoRemove').classList.remove('hidden'); }
+  else { prevF.classList.add('hidden'); document.getElementById('nFotoRemove').classList.add('hidden'); }
+  var meds = ensureMedObjects(rec);
+  var cont = document.getElementById('medsContainer');
+  cont.innerHTML='';
+  meds.forEach(function(m){
+    var row=document.createElement('div');
+    row.className='med-row-full';
+    var soloLectura = m.estado!=='pendiente';
+    row.innerHTML =
+      (soloLectura?'':'<button type="button" class="med-row-remove" onclick="quitarFilaMedicamento(this)">✕</button>')+
+      '<div style="display:flex;gap:8px;"><input class="inp med-input" value="'+esc(m.nombre)+'" style="flex:1;" '+(soloLectura?'disabled':'')+'></div>'+
+      (soloLectura?'<div style="font-size:11px;color:#9ca3af;margin-top:4px;">Ya '+(m.estado==='entregado'?'entregado':'procesado')+', no editable</div>':
+      '<div style="display:flex;gap:8px;margin-top:8px;">'+
+        '<select class="inp med-deuda" style="flex:1;" onchange="toggleMontoDeuda(this)">'+
+          '<option value="ninguna">✅ Medicamento completo</option>'+
+          '<option value="parcial">🟡 Entrega parcial (falta parte)</option>'+
+          '<option value="completa">🔴 No ha llegado (debe todo)</option>'+
+        '</select>'+
+        '<input class="inp med-deuda-monto hidden" placeholder="¿Cuánto falta? (ej. 10 tabs)" style="width:150px;">'+
+      '</div>');
+    cont.appendChild(row);
+    if(!soloLectura){
+      row.querySelector('.med-deuda').value = (m.deuda&&m.deuda.estado)||'ninguna';
+      var montoInp=row.querySelector('.med-deuda-monto');
+      if(m.deuda && m.deuda.estado!=='ninguna'){ montoInp.classList.remove('hidden'); montoInp.value=m.deuda.monto||''; }
+    }
+  });
+  document.getElementById('formTituloNueva').textContent='✏️ Editando receta de '+rec.paciente;
+  document.getElementById('btnGuardarReceta').textContent='💾 Guardar cambios';
+  document.getElementById('btnCancelarEdicion').classList.remove('hidden');
+  goScreen('nueva');
+  window.scrollTo(0,0);
+}
+function cancelarEdicionEntrega(){
+  editandoEntregaId=null;
+  limpiarFormularioNueva();
+  document.getElementById('formTituloNueva').textContent='Registrar receta lista';
+  document.getElementById('btnGuardarReceta').textContent='Guardar';
+  document.getElementById('btnCancelarEdicion').classList.add('hidden');
+}
+function limpiarFormularioNueva(){
+  document.getElementById('nPaciente').value='';
+  document.getElementById('nombreSimilarWarn').classList.add('hidden');
+  document.getElementById('pacienteSugerencias').classList.add('hidden');
+  deseleccionarPaciente();
+  resetMedsContainer();
+  document.getElementById('nUbicacion').value='';
+  document.getElementById('nAutorizado').value='';
+  document.getElementById('nNotas').value='';
+  document.getElementById('nCodigoBarras').value='';
+  quitarFoto();
 }
 function registrarEntrega(){
   var paciente=document.getElementById('nPaciente').value.trim();
@@ -1112,6 +1319,38 @@ function registrarEntrega(){
     fechaEntrega: null,
     recogioPor: null
   };
+
+  if(editandoEntregaId){
+    var recExist=null;
+    for(var i=0;i<D.entregas.length;i++){ if(D.entregas[i].id===editandoEntregaId){ recExist=D.entregas[i]; break; } }
+    if(!recExist){ toast('No se encontró la receta a editar'); editandoEntregaId=null; return; }
+    recExist.paciente = paciente;
+    recExist.ubicacion = ubicacion;
+    recExist.autorizado = autorizado;
+    recExist.notas = notas;
+    recExist.codigoBarras = document.getElementById('nCodigoBarras').value.trim();
+    recExist.foto = fotoActual;
+    var existentes = ensureMedObjects(recExist);
+    medicamentos.forEach(function(m){
+      var match = existentes.find(function(em){ return em.nombre.toLowerCase()===m.nombre.toLowerCase(); });
+      if(match){
+        if(match.estado==='pendiente') match.deuda = m.deuda;
+      } else {
+        existentes.push({nombre:m.nombre, estado:'pendiente', motivo:null, fecha:null, recogioPor:null, deuda:m.deuda});
+      }
+    });
+    logAuditoria('Receta editada', paciente+' — '+medicamentos.map(function(m){return m.nombre;}).join(', '));
+    save();
+    limpiarFormularioNueva();
+    document.getElementById('formTituloNueva').textContent='Registrar receta lista';
+    document.getElementById('btnGuardarReceta').textContent='Guardar';
+    document.getElementById('btnCancelarEdicion').classList.add('hidden');
+    editandoEntregaId=null;
+    toast('✅ Receta actualizada');
+    renderStats(); renderBuscar(); renderPendientes();
+    return;
+  }
+
   D.entregas.unshift(reg);
   logAuditoria('Registro', reg.paciente+' — '+medicamentos.map(function(m){return m.nombre;}).join(', ')+' → '+reg.ubicacion);
   save();
@@ -1197,6 +1436,15 @@ function renderBuscar(){
         var medsHtml = meds.map(function(m,idx){
           var nombreEsc = esc(m.nombre).replace(/'/g,"\\'");
           if(m.estado==='pendiente'){
+            if(m.entregaParcialInfo){
+              return '<div><div class="med-item"><span class="med-name">💊 '+esc(m.nombre)+deudaBadge(m)+'</span>'+
+                '<div class="med-mini-btns">'+
+                  '<button class="mini-btn mini-ok" onclick="completarMedicamento(\''+e.id+'\','+idx+')">✅ Completar entrega</button>'+
+                  '<button class="mini-btn" style="background:#fff;color:#166534;border:1.5px solid #86efac;" onclick="abrirPagoOverlay(\''+e.id+'\','+idx+',\''+nombreEsc+'\')">💵 Pago</button>'+
+                '</div></div>'+
+                '<div style="font-size:11px;color:#92400e;background:#fef3c7;padding:5px 9px;border-radius:8px;margin-top:4px;">🟡 Ya se entregó parte — recogió: '+esc(m.entregaParcialInfo.recogioPor)+' el '+fmtFecha(m.entregaParcialInfo.fecha)+'. Falta completar.</div>'+
+                pagosResumen(m)+'</div>';
+            }
             return '<div><div class="med-item"><span class="med-name">💊 '+esc(m.nombre)+deudaBadge(m)+'</span>'+
               '<div class="med-mini-btns">'+
                 '<button class="mini-btn mini-ok" onclick="entregarMed(\''+e.id+'\','+idx+')">✅ Entregar</button>'+
@@ -1216,6 +1464,7 @@ function renderBuscar(){
           (e.codigoBarras?'<div class="item-row">🔢 '+esc(e.codigoBarras)+'</div>':'')+
           (e.foto?'<img src="'+e.foto+'" class="evid-thumb" onclick="verFotoGrande(this.src)">':'')+
           '<div class="item-actions">'+
+            '<button class="mini-btn" style="background:#fff;color:#0d7fb8;border:1.5px solid #0d7fb8;flex:1;" onclick="editarEntrega(\''+e.id+'\')">✏️ Editar</button>'+
             '<button class="act-borrar" onclick="borrarEntrega(\''+e.id+'\')" style="flex:1">🗑️ Borrar receta completa</button>'+
           '</div>'+
         '</div>';
@@ -1379,26 +1628,79 @@ function renderHistorial(){
 function toggleHistTab(tab){
   var eEnt=document.getElementById('tabHistEnt'), eAud=document.getElementById('tabHistAud');
   var histInput=document.getElementById('histInput'), histList=document.getElementById('histList'), audList=document.getElementById('audList');
+  var audFiltros=document.getElementById('audFiltros');
   if(tab==='entregas'){
     eEnt.style.background='#0d7fb8'; eEnt.querySelector('b').style.color='#fff';
     eAud.style.background='#f3f4f6'; eAud.querySelector('b').style.color='#0d7fb8';
-    histInput.classList.remove('hidden'); histList.classList.remove('hidden'); audList.classList.add('hidden');
+    histInput.classList.remove('hidden'); histList.classList.remove('hidden'); audList.classList.add('hidden'); audFiltros.classList.add('hidden');
     renderHistorial();
   } else {
     eAud.style.background='#0d7fb8'; eAud.querySelector('b').style.color='#fff';
     eEnt.style.background='#f3f4f6'; eEnt.querySelector('b').style.color='#0d7fb8';
-    histInput.classList.add('hidden'); histList.classList.add('hidden'); audList.classList.remove('hidden');
+    histInput.classList.add('hidden'); histList.classList.add('hidden'); audList.classList.remove('hidden'); audFiltros.classList.remove('hidden');
+    poblarFiltrosAuditoria();
     renderAuditoria();
   }
 }
+function limpiarFiltrosAuditoria(){
+  document.getElementById('audBusqueda').value='';
+  document.getElementById('audDesde').value='';
+  document.getElementById('audHasta').value='';
+  document.getElementById('audEmpleado').value='';
+  document.getElementById('audAccion').value='';
+  renderAuditoria();
+}
+function poblarFiltrosAuditoria(){
+  var selEmp=document.getElementById('audEmpleado');
+  var valEmp=selEmp.value;
+  var nombres=[];
+  (D.auditoria||[]).forEach(function(a){ if(nombres.indexOf(a.empleado)<0) nombres.push(a.empleado); });
+  nombres.sort();
+  selEmp.innerHTML='<option value="">Todos</option>'+nombres.map(function(n){return '<option value="'+esc(n)+'">'+esc(n)+'</option>';}).join('');
+  selEmp.value=valEmp;
+
+  var selAcc=document.getElementById('audAccion');
+  var valAcc=selAcc.value;
+  var acciones=[];
+  (D.auditoria||[]).forEach(function(a){ if(acciones.indexOf(a.accion)<0) acciones.push(a.accion); });
+  acciones.sort();
+  selAcc.innerHTML='<option value="">Todas</option>'+acciones.map(function(a){return '<option value="'+esc(a)+'">'+esc(a)+'</option>';}).join('');
+  selAcc.value=valAcc;
+}
 function renderAuditoria(){
   var list = (D.auditoria||[]).slice();
+
+  var busq = (document.getElementById('audBusqueda').value||'').toLowerCase().trim();
+  var desde = document.getElementById('audDesde').value;
+  var hasta = document.getElementById('audHasta').value;
+  var empFiltro = document.getElementById('audEmpleado').value;
+  var accFiltro = document.getElementById('audAccion').value;
+
+  if(busq){
+    list = list.filter(function(a){
+      return (a.detalle||'').toLowerCase().indexOf(busq)>=0 ||
+             (a.empleado||'').toLowerCase().indexOf(busq)>=0 ||
+             (a.accion||'').toLowerCase().indexOf(busq)>=0;
+    });
+  }
+  if(desde){
+    var dDesde = new Date(desde+'T00:00:00');
+    list = list.filter(function(a){ return new Date(a.fecha) >= dDesde; });
+  }
+  if(hasta){
+    var dHasta = new Date(hasta+'T23:59:59');
+    list = list.filter(function(a){ return new Date(a.fecha) <= dHasta; });
+  }
+  if(empFiltro){ list = list.filter(function(a){ return a.empleado===empFiltro; }); }
+  if(accFiltro){ list = list.filter(function(a){ return a.accion===accFiltro; }); }
+
   var html='';
   if(list.length===0){
-    html='<div class="empty"><span class="em">🕵️</span>Sin actividad registrada aún</div>';
+    html='<div class="empty"><span class="em">🕵️</span>'+((busq||desde||hasta||empFiltro||accFiltro)?'No hay resultados con esos filtros':'Sin actividad registrada aún')+'</div>';
   } else {
+    html='<div style="font-size:12px;color:#8892a0;margin-bottom:8px;">'+list.length+' resultado'+(list.length>1?'s':'')+'</div>';
+    var iconMap={Registro:'➕',Entrega:'✅','Entrega grupal':'✅','Rechazado':'❌','Receta editada':'✏️','Pago registrado':'💵','Paciente':'🪪','Paciente eliminado':'🗑️','Nuevo empleado':'👤','Inicio de sesión':'🔑','Cerrar sesión':'🚪','Sesión bloqueada':'🔒','Empleado eliminado':'🗑️','Intento fallido':'⚠️','Aviso WhatsApp':'💬','WhatsApp preparado':'💬','Correo masivo':'📧','Respaldo exportado':'💾'};
     list.forEach(function(a){
-      var iconMap={Registro:'➕',Entrega:'✅',Borrado:'🗑️'};
       html+='<div class="item">'+
         '<div class="item-name">'+(iconMap[a.accion]||'•')+' '+esc(a.accion)+'</div>'+
         '<div class="item-row">👤 <b>'+esc(a.empleado)+'</b></div>'+
@@ -1492,6 +1794,10 @@ function locBadge(ubicacion){
 }
 
 // ---- Config / Sync JSONBin ----
+function revelarConfigAvanzada(){
+  if(!confirm('⚠️ Esto muestra el API Key y Bin ID que conectan la app a la nube. Solo continúa si sabes lo que haces. ¿Ver de todas formas?')) return;
+  document.getElementById('configAvanzadaBox').classList.remove('hidden');
+}
 function loadConfigUI(){
   document.getElementById('cfgApiKey').value=CFG.apiKey||'';
   document.getElementById('cfgBinId').value=CFG.binId||'';
