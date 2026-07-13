@@ -129,7 +129,7 @@ textarea{resize:vertical;min-height:60px;}
 <div id="app">
   <header>
     <h1>💊 Control de Entrega</h1>
-    <div class="sub" id="hSub">Farmacia · <span style="color:#ffd700;font-weight:700;" id="verTag">v22</span></div>
+    <div class="sub" id="hSub">Farmacia · <span style="color:#ffd700;font-weight:700;" id="verTag">v23</span></div>
     <div class="syncbar"><span class="dot" id="syncDot"></span><span id="syncText">Sin sincronizar</span></div>
     <div class="syncbar" style="margin-top:4px;cursor:pointer;" onclick="abrirLogin()">👤 <span id="empActual">Sin identificar</span> <span style="text-decoration:underline;">(cambiar sesión)</span></div>
   </header>
@@ -1522,20 +1522,30 @@ function pushRemote(){
     method:'PUT',
     headers:{'Content-Type':'application/json','X-Master-Key':CFG.apiKey},
     body: JSON.stringify(D)
-  }).catch(function(e){ console.log('push error',e); });
+  }).then(function(r){
+    if(!r.ok){ toast('⚠️ No se pudo guardar en la nube (revisa API Key / Bin ID)'); }
+  }).catch(function(e){ toast('⚠️ Sin conexión a la nube, guardado solo local'); console.log('push error',e); });
 }
 function pullRemote(silent){
   if(!CFG.apiKey || !CFG.binId) { if(!silent) toast('Configura JSONBin primero'); return; }
   fetch('https://api.jsonbin.io/v3/b/'+CFG.binId+'/latest', {
     headers:{'X-Master-Key':CFG.apiKey}
-  }).then(function(r){ return r.json(); }).then(function(res){
+  }).then(function(r){
+    if(!r.ok){ throw new Error('HTTP '+r.status); }
+    return r.json();
+  }).then(function(res){
     if(res && res.record && res.record.entregas){
       D = res.record;
       localStorage.setItem(LSKEY, JSON.stringify(D));
       renderStats(); renderBuscar(); renderPendientes(); renderHistorial();
-      if(!silent) toast('🔄 Sincronizado');
+      if(!silent) toast('🔄 Sincronizado ('+D.entregas.length+' registros)');
+    } else {
+      if(!silent) toast('⚠️ El bin respondió pero está vacío o con formato distinto');
     }
-  }).catch(function(e){ if(!silent) toast('Error al sincronizar'); console.log(e); });
+  }).catch(function(e){
+    if(!silent) toast('❌ Error al sincronizar: '+e.message);
+    console.log(e);
+  });
 }
 function sincronizarManual(){ pullRemote(false); }
 
