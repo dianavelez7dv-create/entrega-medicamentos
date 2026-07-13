@@ -129,7 +129,7 @@ textarea{resize:vertical;min-height:60px;}
 <div id="app">
   <header>
     <h1>💊 Control de Entrega</h1>
-    <div class="sub" id="hSub">Farmacia · <span style="color:#ffd700;font-weight:700;" id="verTag">v23</span></div>
+    <div class="sub" id="hSub">Farmacia · <span style="color:#ffd700;font-weight:700;" id="verTag">v24</span></div>
     <div class="syncbar"><span class="dot" id="syncDot"></span><span id="syncText">Sin sincronizar</span></div>
     <div class="syncbar" style="margin-top:4px;cursor:pointer;" onclick="abrirLogin()">👤 <span id="empActual">Sin identificar</span> <span style="text-decoration:underline;">(cambiar sesión)</span></div>
   </header>
@@ -1526,6 +1526,33 @@ function pushRemote(){
     if(!r.ok){ toast('⚠️ No se pudo guardar en la nube (revisa API Key / Bin ID)'); }
   }).catch(function(e){ toast('⚠️ Sin conexión a la nube, guardado solo local'); console.log('push error',e); });
 }
+function mergeById(localArr, remoteArr){
+  var map={};
+  (localArr||[]).forEach(function(item){ map[item.id]=item; });
+  (remoteArr||[]).forEach(function(item){
+    if(!map[item.id]){ map[item.id]=item; }
+    else {
+      // Si hay conflicto, se prioriza el que ya está entregado (para no revertir una entrega real)
+      var loc=map[item.id];
+      var locTieneEntrega = loc.entregado || (loc.medicamentos||[]).some(function(m){return m && m.estado && m.estado!=='pendiente';});
+      var remTieneEntrega = item.entregado || (item.medicamentos||[]).some(function(m){return m && m.estado && m.estado!=='pendiente';});
+      if(remTieneEntrega && !locTieneEntrega) map[item.id]=item;
+    }
+  });
+  return Object.keys(map).map(function(k){return map[k];});
+}
+function mergeEmpleados(localArr, remoteArr){
+  var map={};
+  (localArr||[]).forEach(function(e){ map[e.nombre.toLowerCase()]=e; });
+  (remoteArr||[]).forEach(function(e){ if(!map[e.nombre.toLowerCase()]) map[e.nombre.toLowerCase()]=e; });
+  return Object.keys(map).map(function(k){return map[k];});
+}
+function fusionarConNube(remote){
+  D.entregas = mergeById(D.entregas, remote.entregas || []);
+  D.auditoria = mergeById(D.auditoria, remote.auditoria || []);
+  D.empleados = mergeEmpleados(D.empleados, remote.empleados || []);
+  D.pacientes = mergeById(D.pacientes, remote.pacientes || []);
+}
 function pullRemote(silent){
   if(!CFG.apiKey || !CFG.binId) { if(!silent) toast('Configura JSONBin primero'); return; }
   fetch('https://api.jsonbin.io/v3/b/'+CFG.binId+'/latest', {
@@ -1534,11 +1561,14 @@ function pullRemote(silent){
     if(!r.ok){ throw new Error('HTTP '+r.status); }
     return r.json();
   }).then(function(res){
-    if(res && res.record && res.record.entregas){
-      D = res.record;
+    if(res && res.record){
+      var antes = D.entregas.length;
+      fusionarConNube(res.record);
       localStorage.setItem(LSKEY, JSON.stringify(D));
       renderStats(); renderBuscar(); renderPendientes(); renderHistorial();
-      if(!silent) toast('🔄 Sincronizado ('+D.entregas.length+' registros)');
+      if(!silent) toast('🔄 Combinado con la nube ('+D.entregas.length+' recetas totales)');
+      // Sube de vuelta la versión ya combinada, para que el otro dispositivo también la reciba completa
+      if(D.entregas.length !== antes || (res.record.entregas||[]).length !== antes) pushRemote();
     } else {
       if(!silent) toast('⚠️ El bin respondió pero está vacío o con formato distinto');
     }
