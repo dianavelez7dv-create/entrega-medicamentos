@@ -129,7 +129,7 @@ textarea{resize:vertical;min-height:60px;}
 <div id="app">
   <header>
     <h1>💊 Control de Entrega</h1>
-    <div class="sub" id="hSub">Farmacia · <span style="color:#ffd700;font-weight:700;" id="verTag">v25</span></div>
+    <div class="sub" id="hSub">Farmacia · <span style="color:#ffd700;font-weight:700;" id="verTag">v26</span></div>
     <div class="syncbar"><span class="dot" id="syncDot"></span><span id="syncText">Sin sincronizar</span></div>
     <div class="syncbar" style="margin-top:4px;cursor:pointer;" onclick="abrirLogin()">👤 <span id="empActual">Sin identificar</span> <span style="text-decoration:underline;">(cambiar sesión)</span></div>
   </header>
@@ -1829,7 +1829,12 @@ function pushRemote(){
     headers:{'Content-Type':'application/json','X-Master-Key':CFG.apiKey},
     body: JSON.stringify(D)
   }).then(function(r){
-    if(!r.ok){ toast('⚠️ No se pudo guardar en la nube (revisa API Key / Bin ID)'); }
+    if(!r.ok){
+      r.text().then(function(txt){
+        toast('⚠️ No se pudo guardar (HTTP '+r.status+')');
+        console.log('push error HTTP', r.status, txt);
+      });
+    }
   }).catch(function(e){ toast('⚠️ Sin conexión a la nube, guardado solo local'); console.log('push error',e); });
 }
 function mergeById(localArr, remoteArr){
