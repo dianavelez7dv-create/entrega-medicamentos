@@ -129,7 +129,7 @@ textarea{resize:vertical;min-height:60px;}
 <div id="app">
   <header>
     <h1>💊 Control de Entrega</h1>
-    <div class="sub" id="hSub">Farmacia · <span style="color:#ffd700;font-weight:700;" id="verTag">v26</span></div>
+    <div class="sub" id="hSub">Farmacia · <span style="color:#ffd700;font-weight:700;" id="verTag">v27</span></div>
     <div class="syncbar"><span class="dot" id="syncDot"></span><span id="syncText">Sin sincronizar</span></div>
     <div class="syncbar" style="margin-top:4px;cursor:pointer;" onclick="abrirLogin()">👤 <span id="empActual">Sin identificar</span> <span style="text-decoration:underline;">(cambiar sesión)</span></div>
   </header>
@@ -398,6 +398,7 @@ textarea{resize:vertical;min-height:60px;}
       <div class="card">
         <div class="section-title">Sincronización en la nube</div>
         <p style="font-size:13px;color:#666;">Combina los datos de este dispositivo con los de la nube (no borra nada, solo une).</p>
+        <div id="tamanoDatosBox" style="font-size:12px;padding:8px 10px;border-radius:8px;margin-bottom:10px;"></div>
         <button class="btn btn-primary" onclick="sincronizarManual()">🔄 Sincronizar ahora</button>
         <button type="button" class="btn btn-outline" style="margin-top:10px;" onclick="revelarConfigAvanzada()">🔒 Ver/editar configuración avanzada</button>
         <div id="configAvanzadaBox" class="hidden" style="margin-top:12px;background:#fef3c7;border:1.5px solid #f59e0b;border-radius:10px;padding:12px;">
@@ -598,7 +599,7 @@ function goScreen(name){
   if(name==='pendientes') renderPendientes();
   if(name==='historial') renderHistorial();
   if(name==='nueva') renderStats();
-  if(name==='sync'){ renderEmpleados(); renderListaPacientesMensaje(); document.getElementById('syncEmpActual').textContent = EMPLEADO || 'Sin identificar'; document.getElementById('configAvanzadaBox').classList.add('hidden'); }
+  if(name==='sync'){ renderEmpleados(); renderListaPacientesMensaje(); document.getElementById('syncEmpActual').textContent = EMPLEADO || 'Sin identificar'; document.getElementById('configAvanzadaBox').classList.add('hidden'); mostrarTamanoDatos(); }
 }
 
 function agregarFilaMedicamento(){
@@ -980,14 +981,14 @@ document.getElementById('pacFotoInput').addEventListener('change', function(e){
   reader.onload=function(ev){
     var img=new Image();
     img.onload=function(){
-      var maxW=500;
+      var maxW=420;
       var scale=Math.min(1, maxW/img.width);
       var canvas=document.createElement('canvas');
       canvas.width=Math.round(img.width*scale);
       canvas.height=Math.round(img.height*scale);
       var ctx=canvas.getContext('2d');
       ctx.drawImage(img,0,0,canvas.width,canvas.height);
-      pacienteFotoActual=canvas.toDataURL('image/jpeg',0.55);
+      pacienteFotoActual=canvas.toDataURL('image/jpeg',0.4);
       var prev=document.getElementById('pacFotoPreview');
       prev.src=pacienteFotoActual;
       prev.classList.remove('hidden');
@@ -1733,14 +1734,14 @@ document.getElementById('nFotoInput').addEventListener('change', function(e){
   reader.onload = function(ev){
     var img = new Image();
     img.onload = function(){
-      var maxW = 640;
+      var maxW = 480;
       var scale = Math.min(1, maxW/img.width);
       var canvas = document.createElement('canvas');
       canvas.width = Math.round(img.width*scale);
       canvas.height = Math.round(img.height*scale);
       var ctx = canvas.getContext('2d');
       ctx.drawImage(img,0,0,canvas.width,canvas.height);
-      fotoActual = canvas.toDataURL('image/jpeg', 0.55);
+      fotoActual = canvas.toDataURL('image/jpeg', 0.4);
       var prev = document.getElementById('nFotoPreview');
       prev.src = fotoActual;
       prev.classList.remove('hidden');
@@ -1794,6 +1795,18 @@ function locBadge(ubicacion){
 }
 
 // ---- Config / Sync JSONBin ----
+function mostrarTamanoDatos(){
+  var box = document.getElementById('tamanoDatosBox');
+  if(!box) return;
+  var bytes = new Blob([JSON.stringify(D)]).size;
+  var kb = (bytes/1024).toFixed(1);
+  var pct = Math.min(100, Math.round((bytes/102400)*100));
+  var color, texto2, texto;
+  if(pct<70){ color='#dcfce7'; texto2='#166534'; texto='✅ '+kb+' KB usados de 100 KB (plan gratis)'; }
+  else if(pct<95){ color='#fef3c7'; texto2='#92400e'; texto='🟡 '+kb+' KB usados de 100 KB — se acerca al límite, considera borrar fotos viejas'; }
+  else { color='#fee2e2'; texto2='#991b1b'; texto='🔴 '+kb+' KB de 100 KB — ¡al límite! Los guardados van a fallar. Borra pacientes/fotos de prueba ahora.'; }
+  box.style.background=color; box.style.color=texto2; box.textContent=texto;
+}
 function revelarConfigAvanzada(){
   if(!confirm('⚠️ Esto muestra el API Key y Bin ID que conectan la app a la nube. Solo continúa si sabes lo que haces. ¿Ver de todas formas?')) return;
   document.getElementById('configAvanzadaBox').classList.remove('hidden');
@@ -1831,9 +1844,16 @@ function pushRemote(){
   }).then(function(r){
     if(!r.ok){
       r.text().then(function(txt){
-        toast('⚠️ No se pudo guardar (HTTP '+r.status+')');
+        if(txt.indexOf('100kb')>=0 || txt.indexOf('over 100')>=0){
+          toast('🔴 Datos muy grandes para guardar (límite 100 KB). Borra fotos/pacientes de prueba.');
+        } else {
+          toast('⚠️ No se pudo guardar (HTTP '+r.status+')');
+        }
         console.log('push error HTTP', r.status, txt);
+        mostrarTamanoDatos();
       });
+    } else {
+      mostrarTamanoDatos();
     }
   }).catch(function(e){ toast('⚠️ Sin conexión a la nube, guardado solo local'); console.log('push error',e); });
 }
