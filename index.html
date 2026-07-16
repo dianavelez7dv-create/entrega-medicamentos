@@ -142,7 +142,7 @@ textarea{resize:vertical;min-height:60px;}
 <div id="app">
   <header>
     <h1>💊 Control de Entrega</h1>
-    <div class="sub" id="hSub">Farmacia · <span style="color:#ffd700;font-weight:700;" id="verTag">v32</span></div>
+    <div class="sub" id="hSub">Farmacia · <span style="color:#ffd700;font-weight:700;" id="verTag">v33</span></div>
     <div class="syncbar"><span class="dot" id="syncDot"></span><span id="syncText">Sin sincronizar</span></div>
     <div class="syncbar" style="margin-top:4px;cursor:pointer;" onclick="abrirLogin()">👤 <span id="empActual">Sin identificar</span> <span style="text-decoration:underline;">(cambiar sesión)</span></div>
   </header>
@@ -438,7 +438,14 @@ textarea{resize:vertical;min-height:60px;}
       <div class="card">
         <div class="section-title">Datos</div>
         <button class="btn btn-outline" onclick="exportarDatos()">Exportar respaldo (JSON)</button>
+        <button class="btn btn-outline" style="margin-top:8px;" onclick="document.getElementById('importFileInput').click()">📥 Importar respaldo</button>
+        <input type="file" id="importFileInput" accept=".json,application/json" style="display:none" onchange="importarDatos(event)">
         <button class="btn btn-danger" onclick="limpiarTodo()">Borrar todos los datos</button>
+      </div>
+      <div class="card">
+        <div class="section-title">🗑️ Papelera</div>
+        <p style="font-size:12px;color:#666;">Lo que borres queda aquí 30 días antes de eliminarse para siempre — puedes recuperarlo si fue un error.</p>
+        <div id="papeleraList"></div>
       </div>
       <div class="card">
         <div class="section-title">Empleados registrados</div>
@@ -492,7 +499,7 @@ textarea{resize:vertical;min-height:60px;}
 var LSKEY='entregameds_v1';
 var CFGKEY='entregameds_cfg';
 var EMPKEY='entregameds_empleado';
-var D = { entregas: [], auditoria: [], empleados: [], pacientes: [] };
+var D = { entregas: [], auditoria: [], empleados: [], pacientes: [], papelera: [] };
 var CFG = { apiKey:'', binId:'', emailWebhook:'' };
 var EMPLEADO = '';
 var fotoActual = null;
@@ -622,7 +629,7 @@ function goScreen(name){
   if(name==='pendientes') renderPendientes();
   if(name==='historial') renderHistorial();
   if(name==='nueva') renderStats();
-  if(name==='sync'){ renderEmpleados(); renderListaPacientesMensaje(); document.getElementById('syncEmpActual').textContent = EMPLEADO || 'Sin identificar'; document.getElementById('configAvanzadaBox').classList.add('hidden'); mostrarTamanoDatos(); }
+  if(name==='sync'){ renderEmpleados(); renderListaPacientesMensaje(); document.getElementById('syncEmpActual').textContent = EMPLEADO || 'Sin identificar'; document.getElementById('configAvanzadaBox').classList.add('hidden'); mostrarTamanoDatos(); renderPapelera(); }
 }
 
 function agregarFilaMedicamento(){
@@ -1200,12 +1207,13 @@ function abrirGoogleMaps(direccion){
 function borrarPaciente(id){
   var p=(D.pacientes||[]).find(function(x){return x.id===id;});
   if(!p) return;
-  if(!confirm('¿Eliminar el perfil de '+p.nombre+'? Sus recetas anteriores no se borran, solo su perfil y foto de ID.')) return;
+  if(!confirm('¿Eliminar el perfil de '+p.nombre+'? Se guarda en la Papelera 30 días. Sus recetas anteriores no se borran.')) return;
   D.pacientes = D.pacientes.filter(function(x){return x.id!==id;});
-  logAuditoria('Paciente eliminado', p.nombre);
+  moverAPapelera('paciente', p);
+  logAuditoria('Paciente eliminado', p.nombre+' — movido a papelera');
   save();
   renderDirectorioPacientesTab();
-  toast('Paciente eliminado del directorio');
+  toast('🗑️ Movido a la papelera (recuperable 30 días)');
 }
 function fotoIdPorNombre(nombre){
   var p=(D.pacientes||[]).find(function(x){return x.nombre.toLowerCase()===nombre.toLowerCase();});
@@ -1579,17 +1587,76 @@ function marcarGrupoEntregado(paciente){
   });
 }
 
+function moverAPapelera(tipo, objeto){
+  D.papelera = D.papelera || [];
+  D.papelera.unshift({
+    id: 'pap'+Date.now()+Math.floor(Math.random()*1000),
+    tipo: tipo,
+    datos: objeto,
+    fechaBorrado: new Date().toISOString(),
+    borradoPor: EMPLEADO||'(sin identificar)'
+  });
+}
+function purgarPapeleraVieja(){
+  D.papelera = (D.papelera||[]).filter(function(p){ return diasDesde(p.fechaBorrado) < 30; });
+}
+function renderPapelera(){
+  var box = document.getElementById('papeleraList');
+  if(!box) return;
+  purgarPapeleraVieja();
+  var list = D.papelera||[];
+  var html='';
+  if(list.length===0){
+    html='<p style="font-size:13px;color:#9ca3af;">La papelera está vacía.</p>';
+  } else {
+    list.forEach(function(p){
+      var nombre = p.tipo==='entrega' ? p.datos.paciente : p.datos.nombre;
+      var etiqueta = p.tipo==='entrega' ? '📋 Receta' : '🪪 Paciente';
+      var diasQuedan = Math.max(0, 30-Math.floor(diasDesde(p.fechaBorrado)));
+      html+='<div class="emp-list-item">'+
+        '<div style="flex:1;">'+
+          '<span style="font-weight:700;font-size:13px;display:block;">'+etiqueta+': '+esc(nombre)+'</span>'+
+          '<span style="font-size:11px;color:#999;">Borrado por '+esc(p.borradoPor)+' — se elimina en '+diasQuedan+' días</span>'+
+        '</div>'+
+        '<button class="mini-btn mini-ok" style="margin-right:6px;" onclick="restaurarDePapelera(\''+p.id+'\')">↩️ Restaurar</button>'+
+        '<button class="emp-del" onclick="borrarDefinitivoPapelera(\''+p.id+'\')">Borrar ya</button>'+
+      '</div>';
+    });
+  }
+  box.innerHTML=html;
+}
+function restaurarDePapelera(id){
+  var item = (D.papelera||[]).find(function(p){return p.id===id;});
+  if(!item) return;
+  if(item.tipo==='entrega'){ D.entregas.unshift(item.datos); }
+  else if(item.tipo==='paciente'){ D.pacientes.push(item.datos); }
+  D.papelera = D.papelera.filter(function(p){return p.id!==id;});
+  logAuditoria('Restaurado de papelera', item.tipo+': '+(item.tipo==='entrega'?item.datos.paciente:item.datos.nombre));
+  save();
+  renderPapelera(); renderBuscar(); renderPendientes(); renderHistorial(); renderDirectorioPacientesTab();
+  toast('✅ Restaurado');
+}
+function borrarDefinitivoPapelera(id){
+  if(!confirm('Esto borra el registro para siempre, sin poder recuperarlo. ¿Continuar?')) return;
+  D.papelera = (D.papelera||[]).filter(function(p){return p.id!==id;});
+  save();
+  renderPapelera();
+  toast('Eliminado definitivamente');
+}
 function borrarEntrega(id){
-  if(!confirm('¿Borrar este registro? Esta acción no se puede deshacer.')) return;
+  if(!confirm('¿Borrar este registro? Se guarda en la Papelera por 30 días por si te equivocas.')) return;
   var rec=null;
   for(var i=0;i<D.entregas.length;i++){ if(D.entregas[i].id===id){ rec=D.entregas[i]; break; } }
   D.entregas = D.entregas.filter(function(e){ return e.id!==id; });
-  if(rec) logAuditoria('Borrado', rec.paciente+' ('+rec.ubicacion+')');
+  if(rec){
+    moverAPapelera('entrega', rec);
+    logAuditoria('Borrado', rec.paciente+' ('+rec.ubicacion+') — movido a papelera');
+  }
   save();
   renderBuscar();
   renderPendientes();
   renderStats();
-  toast('Registro borrado');
+  toast('🗑️ Movido a la papelera (recuperable 30 días)');
 }
 
 // ---- Pendientes (todas, ordenadas por antigüedad) ----
@@ -1983,6 +2050,7 @@ function fusionarConNube(remote){
   D.auditoria = mergeById(D.auditoria, remote.auditoria || []);
   D.empleados = mergeEmpleados(D.empleados, remote.empleados || []);
   D.pacientes = mergeById(D.pacientes, remote.pacientes || []);
+  D.papelera = mergeById(D.papelera||[], remote.papelera || []);
 }
 function pullRemote(silent){
   if(!CFG.apiKey || !CFG.binId) { if(!silent) toast('Configura JSONBin primero'); return; }
@@ -2010,6 +2078,68 @@ function pullRemote(silent){
 }
 function sincronizarManual(){ pullRemote(false); }
 
+function base64ToBytes(b64){
+  var bin = atob(b64);
+  var bytes = new Uint8Array(bin.length);
+  for(var i=0;i<bin.length;i++){ bytes[i]=bin.charCodeAt(i); }
+  return bytes;
+}
+async function importarDatos(e){
+  var file = e.target.files[0];
+  e.target.value='';
+  if(!file) return;
+  var text;
+  try{ text = await file.text(); }catch(err){ toast('No se pudo leer el archivo'); return; }
+  var parsed;
+  try{ parsed = JSON.parse(text); }catch(err){ toast('❌ El archivo no es un respaldo válido (JSON)'); return; }
+
+  var datosFinal;
+  if(parsed && parsed.cifrado){
+    var pass = prompt('Este respaldo está cifrado. Escribe la contraseña que usaste al exportarlo:');
+    if(pass===null) return;
+    try{
+      var salt = base64ToBytes(parsed.salt);
+      var iv = base64ToBytes(parsed.iv);
+      var datosBytes = base64ToBytes(parsed.datos);
+      var enc = new TextEncoder();
+      var keyMaterial = await crypto.subtle.importKey('raw', enc.encode(pass), 'PBKDF2', false, ['deriveKey']);
+      var key = await crypto.subtle.deriveKey(
+        {name:'PBKDF2', salt:salt, iterations:150000, hash:'SHA-256'},
+        keyMaterial, {name:'AES-GCM', length:256}, false, ['decrypt']
+      );
+      var decryptedBuf = await crypto.subtle.decrypt({name:'AES-GCM', iv:iv}, key, datosBytes);
+      var dec = new TextDecoder();
+      datosFinal = JSON.parse(dec.decode(decryptedBuf));
+    }catch(err){
+      toast('❌ Contraseña incorrecta o archivo dañado');
+      console.log(err);
+      return;
+    }
+  } else {
+    datosFinal = parsed;
+  }
+
+  if(!datosFinal || typeof datosFinal!=='object'){ toast('❌ Formato de respaldo inválido'); return; }
+
+  var combinar = confirm('¿Quieres COMBINAR este respaldo con tus datos actuales (recomendado, no se pierde nada)?\n\nAceptar = combinar\nCancelar = reemplazar TODO (borra lo que tienes ahora)');
+  if(combinar){
+    fusionarConNube(datosFinal);
+    logAuditoria('Respaldo importado', 'Combinado con datos actuales');
+  } else {
+    if(!confirm('⚠️ Esto va a BORRAR todos los datos actuales de este dispositivo y ponerlos por los del respaldo. ¿Estás segura?')) return;
+    D = {
+      entregas: datosFinal.entregas||[],
+      auditoria: datosFinal.auditoria||[],
+      empleados: datosFinal.empleados||[],
+      pacientes: datosFinal.pacientes||[],
+      papelera: datosFinal.papelera||[]
+    };
+    logAuditoria('Respaldo importado', 'Reemplazó todos los datos');
+  }
+  save();
+  renderStats(); renderBuscar(); renderPendientes(); renderHistorial(); renderDirectorioPacientesTab(); mostrarTamanoDatos(); renderPapelera();
+  toast('✅ Respaldo importado correctamente');
+}
 async function exportarDatos(){
   var pass = prompt('Crea una contraseña para proteger este respaldo (necesaria para volver a abrirlo). Guárdala en un lugar seguro:');
   if(pass===null) return;
