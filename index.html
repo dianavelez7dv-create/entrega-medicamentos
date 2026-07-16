@@ -142,7 +142,7 @@ textarea{resize:vertical;min-height:60px;}
 <div id="app">
   <header>
     <h1>💊 Control de Entrega</h1>
-    <div class="sub" id="hSub">Farmacia · <span style="color:#ffd700;font-weight:700;" id="verTag">v31</span></div>
+    <div class="sub" id="hSub">Farmacia · <span style="color:#ffd700;font-weight:700;" id="verTag">v32</span></div>
     <div class="syncbar"><span class="dot" id="syncDot"></span><span id="syncText">Sin sincronizar</span></div>
     <div class="syncbar" style="margin-top:4px;cursor:pointer;" onclick="abrirLogin()">👤 <span id="empActual">Sin identificar</span> <span style="text-decoration:underline;">(cambiar sesión)</span></div>
   </header>
@@ -1460,7 +1460,16 @@ function renderBuscar(){
       var oldestDias = Math.max.apply(null, g.items.map(function(e){return diasDesde(e.fechaRegistro);}));
       var cls = oldestDias>=3 ? 'veryold' : (oldestDias>=2 ? 'old' : '');
       html+='<div class="item '+cls+'">';
-      html+='<div class="item-name">'+esc(g.paciente)+(g.items.length>1?' <span class="badge">'+g.items.length+' recetas</span>':'')+'</div>';
+      var fotoIdVerif = fotoIdPorNombre(g.paciente);
+      html+='<div style="display:flex;align-items:center;gap:10px;">';
+      if(fotoIdVerif){
+        html+='<img src="'+fotoIdVerif+'" style="width:44px;height:44px;border-radius:8px;object-fit:cover;border:2px solid #0d7fb8;flex-shrink:0;cursor:pointer;" onclick="verFotoGrande(\''+fotoIdVerif+'\')" title="Toca para ver ID en grande">';
+      }
+      html+='<div class="item-name" style="margin:0;">'+esc(g.paciente)+(g.items.length>1?' <span class="badge">'+g.items.length+' recetas</span>':'')+'</div>';
+      html+='</div>';
+      if(fotoIdVerif){
+        html+='<div style="font-size:11px;color:#0d7fb8;margin-top:2px;">🪪 Verifica que coincida con la identificación de quien recoge</div>';
+      }
       if(mismatch){
         html+='<div class="item-row" style="background:#fee2e2;color:#991b1b;padding:6px 10px;border-radius:8px;font-weight:700;">⚠️ Ubicaciones distintas — verificar antes de entregar</div>';
       }
