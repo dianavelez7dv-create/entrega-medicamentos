@@ -69,6 +69,8 @@ textarea{resize:vertical;min-height:60px;}
   .content{padding:0;}
   body.printing-pend #printSheet{display:block !important;}
   body.printing-pend #pendList{display:none !important;}
+  body.printing-deudas #printSheetDeudas{display:block !important;}
+  body.printing-recibo #printSheetRecibo{display:block !important;}
   body.printing-aud #printSheetAud{display:block !important;}
   body.printing-aud #audFiltros,
   body.printing-aud #audList,
@@ -92,6 +94,18 @@ textarea{resize:vertical;min-height:60px;}
 #printSheetAud table{width:100%;border-collapse:collapse;}
 #printSheetAud th,#printSheetAud td{border:1px solid #999;padding:8px 6px;font-size:12.5px;text-align:left;vertical-align:top;}
 #printSheetAud th{background:#eee;}
+#printSheetDeudas{display:none;}
+#printSheetDeudas h2{font-size:22px;margin-bottom:4px;}
+#printSheetDeudas .psub{font-size:13px;color:#555;margin-bottom:16px;}
+#printSheetDeudas table{width:100%;border-collapse:collapse;}
+#printSheetDeudas th,#printSheetDeudas td{border:1px solid #999;padding:8px 6px;font-size:13px;text-align:left;}
+#printSheetDeudas th{background:#eee;}
+#printSheetRecibo{display:none;}
+#printSheetRecibo h2{font-size:20px;margin-bottom:2px;}
+#printSheetRecibo .psub{font-size:12px;color:#555;margin-bottom:14px;}
+#printSheetRecibo .recibo-med{border-bottom:1px dashed #ccc;padding:8px 0;font-size:13px;}
+#printSheetRecibo .recibo-firma{max-height:60px;border:1px solid #ccc;border-radius:4px;margin-top:6px;}
+#printSheetRecibo .recibo-total{font-size:15px;font-weight:700;margin-top:12px;border-top:2px solid #333;padding-top:8px;}
 .loc-badge{display:inline-block;font-weight:700;font-size:13px;padding:4px 10px;border-radius:8px;letter-spacing:.3px;border:1.5px solid rgba(0,0,0,.08);}
 .loc-0{background:#dbeafe;color:#1e40af;}
 .loc-1{background:#dcfce7;color:#166534;}
@@ -142,7 +156,7 @@ textarea{resize:vertical;min-height:60px;}
 <div id="app">
   <header>
     <h1>💊 Control de Entrega</h1>
-    <div class="sub" id="hSub">Farmacia · <span style="color:#ffd700;font-weight:700;" id="verTag">v33</span></div>
+    <div class="sub" id="hSub">Farmacia · <span style="color:#ffd700;font-weight:700;" id="verTag">v35</span></div>
     <div class="syncbar"><span class="dot" id="syncDot"></span><span id="syncText">Sin sincronizar</span></div>
     <div class="syncbar" style="margin-top:4px;cursor:pointer;" onclick="abrirLogin()">👤 <span id="empActual">Sin identificar</span> <span style="text-decoration:underline;">(cambiar sesión)</span></div>
   </header>
@@ -352,6 +366,7 @@ textarea{resize:vertical;min-height:60px;}
     <!-- PANTALLA: PENDIENTES -->
     <div id="scr-pendientes" class="hidden">
       <button class="btn btn-print" onclick="imprimirLista()">🖨️ Imprimir lista (respaldo físico)</button>
+      <button class="btn btn-outline" style="margin-bottom:10px;" onclick="abrirReporteDeudas()">📊 Reporte de deudas pendientes</button>
       <div id="pendList"></div>
       <div id="printSheet">
         <h2>Lista de recetas pendientes</h2>
@@ -361,6 +376,31 @@ textarea{resize:vertical;min-height:60px;}
           <tbody id="printBody"></tbody>
         </table>
       </div>
+    </div>
+
+    <!-- OVERLAY: REPORTE DE DEUDAS PENDIENTES -->
+    <div id="deudasOverlay" class="login-overlay hidden" style="z-index:993;">
+      <div class="login-box" style="max-width:480px;max-height:90vh;overflow-y:auto;">
+        <h2>📊 Deudas pendientes</h2>
+        <div class="lsub">Prepara esto antes de que lleguen los pacientes</div>
+        <button class="btn btn-print" style="margin-top:10px;" onclick="imprimirReporteDeudas()">🖨️ Imprimir reporte</button>
+        <div id="deudasContenido" style="margin-top:10px;"></div>
+        <button class="btn btn-outline" onclick="document.getElementById('deudasOverlay').classList.add('hidden')">Cerrar</button>
+      </div>
+    </div>
+    <div id="printSheetDeudas">
+      <h2>Reporte de deudas pendientes</h2>
+      <div class="psub" id="printFechaDeudas"></div>
+      <table>
+        <thead><tr><th>Medicamento</th><th>Paciente</th><th>Estado</th><th>Falta</th><th>Ubicación</th></tr></thead>
+        <tbody id="printBodyDeudas"></tbody>
+      </table>
+    </div>
+
+    <div id="printSheetRecibo">
+      <h2>💊 Recibo de entrega — Farmacia</h2>
+      <div class="psub" id="reciboSub"></div>
+      <div id="reciboContenido"></div>
     </div>
 
     <!-- PANTALLA: HISTORIAL -->
@@ -1520,6 +1560,7 @@ function renderBuscar(){
           (e.foto?'<img src="'+e.foto+'" class="evid-thumb" onclick="verFotoGrande(this.src)">':'')+
           '<div class="item-actions">'+
             '<button class="mini-btn" style="background:#fff;color:#0d7fb8;border:1.5px solid #0d7fb8;flex:1;" onclick="editarEntrega(\''+e.id+'\')">✏️ Editar</button>'+
+            '<button class="mini-btn" style="background:#fff;color:#0d7fb8;border:1.5px solid #0d7fb8;flex:1;" onclick="imprimirRecibo(\''+e.id+'\')">🖨️ Recibo</button>'+
             '<button class="act-borrar" onclick="borrarEntrega(\''+e.id+'\')" style="flex:1">🗑️ Borrar receta completa</button>'+
           '</div>'+
         '</div>';
@@ -1690,6 +1731,109 @@ function renderPendientes(){
 }
 
 // ---- Imprimir (respaldo físico) ----
+// ---- Reporte de deudas pendientes ----
+function recolectarDeudas(){
+  var filas=[];
+  D.entregas.filter(function(e){ return !e.entregado; }).forEach(function(e){
+    ensureMedObjects(e).forEach(function(m){
+      var tieneDeuda = m.deuda && m.deuda.estado && m.deuda.estado!=='ninguna';
+      if((m.estado==='pendiente') && tieneDeuda){
+        filas.push({
+          medicamento: m.nombre,
+          paciente: e.paciente,
+          estado: m.deuda.estado,
+          falta: m.deuda.monto||'',
+          ubicacion: e.ubicacion,
+          yaParcial: !!m.entregaParcialInfo
+        });
+      }
+    });
+  });
+  return filas;
+}
+function abrirReporteDeudas(){
+  var filas = recolectarDeudas();
+  var box = document.getElementById('deudasContenido');
+  if(filas.length===0){
+    box.innerHTML='<div class="empty"><span class="em">✅</span>No hay deudas pendientes ahora mismo</div>';
+  } else {
+    var grupos={};
+    filas.forEach(function(f){
+      var key=f.medicamento.toLowerCase();
+      if(!grupos[key]) grupos[key]={nombre:f.medicamento, items:[]};
+      grupos[key].items.push(f);
+    });
+    var html='';
+    Object.keys(grupos).forEach(function(k){
+      var g=grupos[k];
+      html+='<div class="card" style="margin-bottom:10px;">'+
+        '<div class="item-name">💊 '+esc(g.nombre)+' <span class="badge">'+g.items.length+' paciente'+(g.items.length>1?'s':'')+'</span></div>';
+      g.items.forEach(function(it){
+        var estadoTxt = it.estado==='parcial' ? '🟡 Entrega parcial' : '🔴 No ha llegado';
+        html+='<div class="item-row" style="border-top:1px dashed #eee;padding-top:6px;margin-top:6px;">'+
+          '<b>'+esc(it.paciente)+'</b> — '+estadoTxt+(it.falta?' — falta: '+esc(it.falta):'')+
+          (it.yaParcial?' <span style="color:#166534;">(ya recibió parte)</span>':'')+
+        '</div>'+
+        '<div class="item-row" style="font-size:11px;color:#999;">📍 '+esc(it.ubicacion)+'</div>';
+      });
+      html+='</div>';
+    });
+    box.innerHTML=html;
+  }
+  document.getElementById('deudasOverlay').classList.remove('hidden');
+}
+function imprimirReporteDeudas(){
+  var filas = recolectarDeudas();
+  document.getElementById('printFechaDeudas').textContent='Generado: '+new Date().toLocaleString('es-PR')+' — '+filas.length+' pendiente'+(filas.length!==1?'s':'');
+  var rows='';
+  if(filas.length===0){
+    rows='<tr><td colspan="5" style="text-align:center;color:#888;">No hay deudas pendientes</td></tr>';
+  } else {
+    filas.sort(function(a,b){ return a.medicamento.localeCompare(b.medicamento); });
+    filas.forEach(function(f){
+      var estadoTxt = f.estado==='parcial' ? 'Entrega parcial' : 'No ha llegado';
+      rows+='<tr><td>'+esc(f.medicamento)+'</td><td>'+esc(f.paciente)+'</td><td>'+estadoTxt+'</td><td>'+esc(f.falta||'-')+'</td><td>'+esc(f.ubicacion)+'</td></tr>';
+    });
+  }
+  document.getElementById('printBodyDeudas').innerHTML=rows;
+  document.body.classList.add('printing-deudas');
+  window.print();
+  setTimeout(function(){ document.body.classList.remove('printing-deudas'); }, 500);
+}
+
+// ---- Recibo imprimible ----
+function imprimirRecibo(recordId){
+  var rec=null;
+  for(var i=0;i<D.entregas.length;i++){ if(D.entregas[i].id===recordId){ rec=D.entregas[i]; break; } }
+  if(!rec) return;
+  var meds = ensureMedObjects(rec);
+  document.getElementById('reciboSub').textContent = 'Paciente: '+rec.paciente+' — '+new Date().toLocaleString('es-PR');
+  var html='';
+  var totalPagado=0;
+  meds.forEach(function(m){
+    var estadoTxt, colorTxt;
+    if(m.estado==='rechazado'){ estadoTxt='❌ No lo quiso'+(m.motivo?': '+esc(m.motivo):''); }
+    else if(m.estado==='entregado' && (!m.deuda || m.deuda.estado==='ninguna')){ estadoTxt='✅ Entregado completo — recogió: '+esc(m.recogioPor||'-'); }
+    else if(m.entregaParcialInfo){ estadoTxt='🟡 Entrega parcial — recogió: '+esc(m.entregaParcialInfo.recogioPor)+' — falta: '+esc(m.deuda&&m.deuda.monto?m.deuda.monto:(m.deuda?m.deuda.estado:'')); }
+    else if(m.estado==='pendiente'){ estadoTxt='🔴 Pendiente de entregar'; }
+    else { estadoTxt='✅ Entregado — recogió: '+esc(m.recogioPor||'-'); }
+    html+='<div class="recibo-med"><b>💊 '+esc(m.nombre)+'</b><br>'+estadoTxt;
+    var firmaImg = m.firma || (m.entregaParcialInfo && m.entregaParcialInfo.firma);
+    if(firmaImg){ html+='<br><img src="'+firmaImg+'" class="recibo-firma">'; }
+    if(m.pagos && m.pagos.length){
+      m.pagos.forEach(function(p){ totalPagado+=parseFloat(p.cantidad); html+='<br><span style="color:#166534;">💵 Pagó $'+p.cantidad+' ('+esc(p.forma)+')</span>'; });
+    }
+    html+='</div>';
+  });
+  html+='<div class="item-row" style="margin-top:8px;">📍 Ubicación: '+esc(rec.ubicacion)+'</div>';
+  if(rec.autorizado){ html+='<div class="item-row">👤 Autorizado a recoger: '+esc(rec.autorizado)+'</div>'; }
+  if(totalPagado>0){ html+='<div class="recibo-total">Total pagado en esta visita: $'+totalPagado.toFixed(2)+'</div>'; }
+  document.getElementById('reciboContenido').innerHTML=html;
+  document.body.classList.add('printing-recibo');
+  window.print();
+  setTimeout(function(){ document.body.classList.remove('printing-recibo'); }, 500);
+}
+
 function imprimirLista(){
   var list=D.entregas.filter(function(e){ return !e.entregado; });
   list.sort(function(a,b){ return new Date(a.fechaRegistro)-new Date(b.fechaRegistro); });
@@ -1775,6 +1919,7 @@ function renderHistorial(){
         (e.codigoBarras?'<div class="item-row">🔢 '+esc(e.codigoBarras)+'</div>':'')+
         (e.foto?'<img src="'+e.foto+'" class="evid-thumb" onclick="verFotoGrande(this.src)">':'')+
         '<div class="item-actions">'+
+          '<button class="mini-btn" style="background:#fff;color:#0d7fb8;border:1.5px solid #0d7fb8;flex:1;" onclick="imprimirRecibo(\''+e.id+'\')">🖨️ Recibo</button>'+
           '<button class="act-borrar" onclick="borrarEntrega(\''+e.id+'\')" style="flex:1">🗑️ Borrar registro</button>'+
         '</div>'+
       '</div>';
