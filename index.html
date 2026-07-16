@@ -142,7 +142,7 @@ textarea{resize:vertical;min-height:60px;}
 <div id="app">
   <header>
     <h1>💊 Control de Entrega</h1>
-    <div class="sub" id="hSub">Farmacia · <span style="color:#ffd700;font-weight:700;" id="verTag">v30</span></div>
+    <div class="sub" id="hSub">Farmacia · <span style="color:#ffd700;font-weight:700;" id="verTag">v31</span></div>
     <div class="syncbar"><span class="dot" id="syncDot"></span><span id="syncText">Sin sincronizar</span></div>
     <div class="syncbar" style="margin-top:4px;cursor:pointer;" onclick="abrirLogin()">👤 <span id="empActual">Sin identificar</span> <span style="text-decoration:underline;">(cambiar sesión)</span></div>
   </header>
@@ -476,8 +476,8 @@ textarea{resize:vertical;min-height:60px;}
     <button class="navbtn active" data-scr="nueva" onclick="goScreen('nueva')"><span class="ic">➕</span>Nueva</button>
     <button class="navbtn" data-scr="pacientes" onclick="goScreen('pacientes')"><span class="ic">🪪</span>Pac.</button>
     <button class="navbtn" data-scr="buscar" onclick="goScreen('buscar')"><span class="ic">🔍</span>Entregar</button>
-    <button class="navbtn" data-scr="pendientes" onclick="goScreen('pendientes')"><span class="ic">📋</span>Pend.</button>
-    <button class="navbtn" data-scr="historial" onclick="goScreen('historial')"><span class="ic">✅</span>Hist.</button>
+    <button class="navbtn" data-scr="pendientes" onclick="filtroPendientesViejos=false;goScreen('pendientes')"><span class="ic">📋</span>Pend.</button>
+    <button class="navbtn" data-scr="historial" onclick="filtroHistorialHoy=false;goScreen('historial')"><span class="ic">✅</span>Hist.</button>
     <button class="navbtn" data-scr="sync" onclick="goScreen('sync')"><span class="ic">☁️</span>Sync</button>
   </div>
 </div>
@@ -1236,6 +1236,8 @@ function verificarNombreSimilar(){
   }
 }
 var editandoEntregaId = null;
+var filtroPendientesViejos = false;
+var filtroHistorialHoy = false;
 function editarEntrega(id){
   var rec=null;
   for(var i=0;i<D.entregas.length;i++){ if(D.entregas[i].id===id){ rec=D.entregas[i]; break; } }
@@ -1402,9 +1404,21 @@ function renderStats(){
   var hoy=D.entregas.filter(function(e){return e.entregado && sameDay(e.fechaEntrega,new Date());}).length;
   var viejas=D.entregas.filter(function(e){return !e.entregado && diasDesde(e.fechaRegistro)>=2;}).length;
   document.getElementById('statRow').innerHTML=
-    '<div class="pill"><b>'+pend+'</b><span>Pendientes</span></div>'+
-    '<div class="pill"><b>'+hoy+'</b><span>Entregadas hoy</span></div>'+
-    '<div class="pill"><b>'+viejas+'</b><span>+2 días</span></div>';
+    '<div class="pill" style="cursor:pointer;" onclick="irAPendientes()"><b>'+pend+'</b><span>Pendientes</span></div>'+
+    '<div class="pill" style="cursor:pointer;" onclick="irAEntregadasHoy()"><b>'+hoy+'</b><span>Entregadas hoy</span></div>'+
+    '<div class="pill" style="cursor:pointer;" onclick="irAViejas()"><b>'+viejas+'</b><span>+2 días</span></div>';
+}
+function irAPendientes(){
+  filtroPendientesViejos = false;
+  goScreen('pendientes');
+}
+function irAViejas(){
+  filtroPendientesViejos = true;
+  goScreen('pendientes');
+}
+function irAEntregadasHoy(){
+  filtroHistorialHoy = true;
+  goScreen('historial');
 }
 
 function diasDesde(iso){
@@ -1572,10 +1586,12 @@ function borrarEntrega(id){
 // ---- Pendientes (todas, ordenadas por antigüedad) ----
 function renderPendientes(){
   var list=D.entregas.filter(function(e){ return !e.entregado; });
+  if(filtroPendientesViejos){ list = list.filter(function(e){ return diasDesde(e.fechaRegistro)>=2; }); }
   list.sort(function(a,b){ return new Date(a.fechaRegistro)-new Date(b.fechaRegistro); });
-  var html='';
+  var filtroHtml = filtroPendientesViejos ? '<div style="background:#fef3c7;color:#92400e;padding:8px 12px;border-radius:8px;font-size:13px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;">🟡 Mostrando solo +2 días <button type="button" style="background:none;border:none;color:#0d7fb8;font-weight:700;font-size:13px;" onclick="irAPendientes()">Quitar filtro</button></div>' : '';
+  var html=filtroHtml;
   if(list.length===0){
-    html='<div class="empty"><span class="em">🎉</span>No hay pendientes. ¡Todo entregado!</div>';
+    html+='<div class="empty"><span class="em">🎉</span>'+(filtroPendientesViejos?'No hay recetas de +2 días':'No hay pendientes. ¡Todo entregado!')+'</div>';
   } else {
     list.forEach(function(e){
       var dias=diasDesde(e.fechaRegistro);
@@ -1656,14 +1672,20 @@ function imprimirAuditoria(){
 }
 
 // ---- Historial ----
+function quitarFiltroHistorialHoy(){
+  filtroHistorialHoy=false;
+  renderHistorial();
+}
 function renderHistorial(){
   var q=(document.getElementById('histInput').value||'').toLowerCase();
   var list=D.entregas.filter(function(e){ return e.entregado; });
   if(q) list=list.filter(function(e){ return e.paciente.toLowerCase().indexOf(q)>=0; });
+  if(filtroHistorialHoy){ list=list.filter(function(e){ return sameDay(e.fechaEntrega, new Date()); }); }
   list.sort(function(a,b){ return new Date(b.fechaEntrega)-new Date(a.fechaEntrega); });
-  var html='';
+  var filtroHtml = filtroHistorialHoy ? '<div style="background:#dcfce7;color:#166534;padding:8px 12px;border-radius:8px;font-size:13px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;">✅ Mostrando solo entregas de hoy <button type="button" style="background:none;border:none;color:#0d7fb8;font-weight:700;font-size:13px;" onclick="quitarFiltroHistorialHoy()">Quitar filtro</button></div>' : '';
+  var html=filtroHtml;
   if(list.length===0){
-    html='<div class="empty"><span class="em">📂</span>Sin entregas registradas aún</div>';
+    html+='<div class="empty"><span class="em">📂</span>'+(filtroHistorialHoy?'No hay entregas hoy todavía':'Sin entregas registradas aún')+'</div>';
   } else {
     list.forEach(function(e){
       html+='<div class="item">'+
