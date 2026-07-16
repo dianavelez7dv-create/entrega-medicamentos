@@ -1,0 +1,60 @@
+/**
+ * Google Apps Script - Envío masivo de correos para EntregaMeds
+ *
+ * INSTRUCCIONES PARA DESPLEGAR:
+ * 1. Ve a script.google.com y crea un proyecto nuevo
+ * 2. Borra el código de ejemplo y pega TODO este archivo
+ * 3. Arriba a la derecha, click "Desplegar" > "Nueva implementación"
+ * 4. Tipo: "Aplicación web"
+ * 5. "Ejecutar como": Yo (tu cuenta de Gmail)
+ * 6. "Quién tiene acceso": Cualquier usuario
+ * 7. Click "Desplegar" y autoriza los permisos que pida
+ * 8. Copia la URL que termina en /exec y pégala en la app EntregaMeds,
+ *    pestaña Sync > Mensajes masivos > URL del Web App
+ *
+ * Cada vez que cambies este código, debes crear una "Nueva implementación"
+ * o el cambio no se aplica (esto también aplica a tu sistema de flyers).
+ */
+
+function doPost(e) {
+  try {
+    var data = JSON.parse(e.postData.contents);
+    var recipients = data.recipients || [];
+    var asunto = data.asunto || '(sin asunto)';
+    var cuerpo = data.cuerpo || '';
+
+    var enviados = 0;
+    var errores = [];
+
+    for (var i = 0; i < recipients.length; i++) {
+      var r = recipients[i];
+      if (!r.email) continue;
+      try {
+        // Personaliza el mensaje con el nombre del paciente
+        var mensajePersonalizado = 'Estimado/a ' + (r.nombre || '') + ',\n\n' + cuerpo + '\n\nFarmacia';
+
+        GmailApp.sendEmail(r.email, asunto, mensajePersonalizado, {
+          name: 'Farmacia' // Aparece como nombre del remitente
+        });
+        enviados++;
+
+        // Pausa breve para no saturar el límite de envíos de Gmail
+        Utilities.sleep(300);
+      } catch (err) {
+        errores.push(r.email + ': ' + err.message);
+      }
+    }
+
+    return ContentService.createTextOutput(JSON.stringify({
+      ok: true,
+      enviados: enviados,
+      errores: errores
+    })).setMimeType(ContentService.MimeType.JSON);
+
+  } catch (err) {
+    return ContentService.createTextOutput(JSON.stringify({
+      ok: false,
+      error: err.message
+    })).setMimeType(ContentService.MimeType.JSON);
+  }
+}
