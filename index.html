@@ -129,7 +129,7 @@ textarea{resize:vertical;min-height:60px;}
 <div id="app">
   <header>
     <h1>💊 Control de Entrega</h1>
-    <div class="sub" id="hSub">Farmacia · <span style="color:#ffd700;font-weight:700;" id="verTag">v27</span></div>
+    <div class="sub" id="hSub">Farmacia · <span style="color:#ffd700;font-weight:700;" id="verTag">v28</span></div>
     <div class="syncbar"><span class="dot" id="syncDot"></span><span id="syncText">Sin sincronizar</span></div>
     <div class="syncbar" style="margin-top:4px;cursor:pointer;" onclick="abrirLogin()">👤 <span id="empActual">Sin identificar</span> <span style="text-decoration:underline;">(cambiar sesión)</span></div>
   </header>
@@ -383,6 +383,7 @@ textarea{resize:vertical;min-height:60px;}
           <option value="">Todas</option>
         </select>
         <button type="button" class="btn btn-outline" onclick="limpiarFiltrosAuditoria()">Limpiar filtros</button>
+        <button type="button" class="btn btn-danger" style="margin-top:8px;" onclick="recortarAuditoria()">🗑️ Recortar auditoría antigua (deja últimos 100)</button>
       </div>
       <div id="audList" class="hidden"></div>
     </div>
@@ -1020,7 +1021,7 @@ function guardarPaciente(){
     existing.email=email;
     existing.autorizado=autorizado;
     existing.direccion=direccion;
-    if(pacienteFotoActual) existing.fotoId=pacienteFotoActual;
+    existing.fotoId=pacienteFotoActual;
     pacienteSeleccionadoId=existing.id;
   } else {
     var np={id:'p'+Date.now()+Math.floor(Math.random()*1000), nombre:nombre, planMedico:plan, telefono:tel, email:email, autorizado:autorizado, direccion:direccion, fotoId:pacienteFotoActual, fechaCreado:new Date().toISOString()};
@@ -1642,6 +1643,16 @@ function toggleHistTab(tab){
     poblarFiltrosAuditoria();
     renderAuditoria();
   }
+}
+function recortarAuditoria(){
+  var total = (D.auditoria||[]).length;
+  if(total<=100){ toast('Ya tienes 100 o menos registros de auditoría'); return; }
+  if(!confirm('Esto borra permanentemente los registros de auditoría más viejos, dejando solo los últimos 100 (de '+total+'). ¿Continuar?')) return;
+  D.auditoria = D.auditoria.slice(0,100);
+  save();
+  renderAuditoria();
+  mostrarTamanoDatos();
+  toast('✅ Auditoría recortada a 100 registros');
 }
 function limpiarFiltrosAuditoria(){
   document.getElementById('audBusqueda').value='';
