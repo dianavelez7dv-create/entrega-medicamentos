@@ -71,6 +71,12 @@ textarea{resize:vertical;min-height:60px;}
   body.printing-pend #pendList{display:none !important;}
   body.printing-deudas #printSheetDeudas{display:block !important;}
   body.printing-recibo #printSheetRecibo{display:block !important;}
+  body.printing-dea #printSheetDEA{display:block !important;}
+  body.printing-dea #histList,
+  body.printing-dea #histInput,
+  body.printing-dea #audFiltros,
+  body.printing-dea #audList,
+  body.printing-dea .pill-row{display:none !important;}
   body.printing-recibo #buscarList,
   body.printing-recibo #pendList,
   body.printing-recibo #histList,
@@ -113,6 +119,12 @@ textarea{resize:vertical;min-height:60px;}
 #printSheetRecibo .recibo-med{border-bottom:1px dashed #ccc;padding:8px 0;font-size:13px;}
 #printSheetRecibo .recibo-firma{max-height:60px;border:1px solid #ccc;border-radius:4px;margin-top:6px;}
 #printSheetRecibo .recibo-total{font-size:15px;font-weight:700;margin-top:12px;border-top:2px solid #333;padding-top:8px;}
+#printSheetDEA{display:none;}
+#printSheetDEA h2{font-size:20px;margin-bottom:4px;}
+#printSheetDEA .psub{font-size:13px;color:#555;margin-bottom:16px;}
+#printSheetDEA table{width:100%;border-collapse:collapse;}
+#printSheetDEA th,#printSheetDEA td{border:1px solid #999;padding:8px 6px;font-size:12.5px;text-align:left;}
+#printSheetDEA th{background:#eee;}
 .loc-badge{display:inline-block;font-weight:700;font-size:13px;padding:4px 10px;border-radius:8px;letter-spacing:.3px;border:1.5px solid rgba(0,0,0,.08);}
 .loc-0{background:#dbeafe;color:#1e40af;}
 .loc-1{background:#dcfce7;color:#166534;}
@@ -163,7 +175,7 @@ textarea{resize:vertical;min-height:60px;}
 <div id="app">
   <header>
     <h1>💊 Control de Entrega</h1>
-    <div class="sub" id="hSub">Farmacia · <span style="color:#ffd700;font-weight:700;" id="verTag">v36</span></div>
+    <div class="sub" id="hSub">Farmacia · <span style="color:#ffd700;font-weight:700;" id="verTag">v37</span></div>
     <div class="syncbar"><span class="dot" id="syncDot"></span><span id="syncText">Sin sincronizar</span></div>
     <div class="syncbar" style="margin-top:4px;cursor:pointer;" onclick="abrirLogin()">👤 <span id="empActual">Sin identificar</span> <span style="text-decoration:underline;">(cambiar sesión)</span></div>
   </header>
@@ -218,8 +230,14 @@ textarea{resize:vertical;min-height:60px;}
           <div class="med-row-full">
             <button type="button" class="med-row-remove" onclick="quitarFilaMedicamento(this)">✕</button>
             <div style="display:flex;gap:8px;">
-              <input class="inp med-input" placeholder="Ej. Metformina 500mg" style="flex:1;">
+              <input class="inp med-input" placeholder="Ej. Metformina" style="flex:1;">
             </div>
+            <div style="display:flex;gap:8px;margin-top:8px;">
+              <input class="inp med-presentacion" placeholder="Miligramos/presentación * (ej. 500mg tabletas)" style="flex:1;">
+            </div>
+            <label style="display:flex;align-items:center;gap:8px;margin-top:8px;font-weight:600;font-size:13px;color:#991b1b;">
+              <input type="checkbox" class="med-controlado" style="width:18px;height:18px;"> 🔴 Controlado por el DEA
+            </label>
             <div style="display:flex;gap:8px;margin-top:8px;">
               <select class="inp med-deuda" style="flex:1;" onchange="toggleMontoDeuda(this)">
                 <option value="ninguna">✅ Medicamento completo</option>
@@ -410,12 +428,42 @@ textarea{resize:vertical;min-height:60px;}
       <div id="reciboContenido"></div>
     </div>
 
+    <!-- OVERLAY: REPORTE DE MEDICAMENTOS CONTROLADOS DEA -->
+    <div id="deaOverlay" class="login-overlay hidden" style="z-index:992;">
+      <div class="login-box" style="max-width:480px;max-height:90vh;overflow-y:auto;">
+        <h2>🔴 Medicamentos controlados (DEA)</h2>
+        <div class="lsub">Todos los movimientos de medicamentos marcados como controlados</div>
+        <div style="display:flex;gap:8px;margin-top:10px;">
+          <div style="flex:1;">
+            <label>Desde</label>
+            <input class="inp" id="deaDesde" type="date" onchange="renderReporteDEA()">
+          </div>
+          <div style="flex:1;">
+            <label>Hasta</label>
+            <input class="inp" id="deaHasta" type="date" onchange="renderReporteDEA()">
+          </div>
+        </div>
+        <button class="btn btn-print" style="margin-top:10px;" onclick="imprimirReporteDEA()">🖨️ Imprimir reporte</button>
+        <div id="deaContenido" style="margin-top:10px;"></div>
+        <button class="btn btn-outline" onclick="document.getElementById('deaOverlay').classList.add('hidden')">Cerrar</button>
+      </div>
+    </div>
+    <div id="printSheetDEA">
+      <h2>🔴 Reporte de medicamentos controlados (DEA)</h2>
+      <div class="psub" id="printFechaDEA"></div>
+      <table>
+        <thead><tr><th>Fecha</th><th>Medicamento</th><th>Paciente</th><th>Estado</th><th>Recogió</th></tr></thead>
+        <tbody id="printBodyDEA"></tbody>
+      </table>
+    </div>
+
     <!-- PANTALLA: HISTORIAL -->
     <div id="scr-historial" class="hidden">
       <div class="pill-row" style="margin-bottom:12px;">
         <div class="pill" id="tabHistEnt" onclick="toggleHistTab('entregas')" style="cursor:pointer;background:#0d7fb8;"><b style="color:#fff;font-size:13px;">📦 Entregas</b></div>
         <div class="pill" id="tabHistAud" onclick="toggleHistTab('auditoria')" style="cursor:pointer;"><b style="font-size:13px;color:#0d7fb8;">🕵️ Auditoría</b></div>
       </div>
+      <button class="btn btn-outline" style="margin-bottom:10px;" onclick="abrirReporteDEA()">🔴 Reporte de medicamentos controlados (DEA)</button>
       <div class="search-wrap">
         <svg viewBox="0 0 24 24" fill="none" stroke="#8892a0" stroke-width="2"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
         <input class="inp searchbox" id="histInput" placeholder="Buscar en historial..." oninput="renderHistorial()">
@@ -679,13 +727,13 @@ function goScreen(name){
   if(name==='sync'){ renderEmpleados(); renderListaPacientesMensaje(); document.getElementById('syncEmpActual').textContent = EMPLEADO || 'Sin identificar'; document.getElementById('configAvanzadaBox').classList.add('hidden'); mostrarTamanoDatos(); renderPapelera(); }
 }
 
-function agregarFilaMedicamento(){
-  var container = document.getElementById('medsContainer');
-  var row = document.createElement('div');
-  row.className='med-row-full';
-  row.innerHTML =
-    '<button type="button" class="med-row-remove" onclick="quitarFilaMedicamento(this)">✕</button>'+
-    '<div style="display:flex;gap:8px;"><input class="inp med-input" placeholder="Otro medicamento" style="flex:1;"></div>'+
+function medRowInnerHtml(placeholderMed){
+  return '<button type="button" class="med-row-remove" onclick="quitarFilaMedicamento(this)">✕</button>'+
+    '<div style="display:flex;gap:8px;"><input class="inp med-input" placeholder="'+(placeholderMed||'Otro medicamento')+'" style="flex:1;"></div>'+
+    '<div style="display:flex;gap:8px;margin-top:8px;"><input class="inp med-presentacion" placeholder="Miligramos/presentación * (ej. 500mg tabletas)" style="flex:1;"></div>'+
+    '<label style="display:flex;align-items:center;gap:8px;margin-top:8px;font-weight:600;font-size:13px;color:#991b1b;">'+
+      '<input type="checkbox" class="med-controlado" style="width:18px;height:18px;"> 🔴 Controlado por el DEA'+
+    '</label>'+
     '<div style="display:flex;gap:8px;margin-top:8px;">'+
       '<select class="inp med-deuda" style="flex:1;" onchange="toggleMontoDeuda(this)">'+
         '<option value="ninguna">✅ Medicamento completo</option>'+
@@ -694,6 +742,12 @@ function agregarFilaMedicamento(){
       '</select>'+
       '<input class="inp med-deuda-monto hidden" placeholder="¿Cuánto falta? (ej. 10 tabs)" style="width:150px;">'+
     '</div>';
+}
+function agregarFilaMedicamento(){
+  var container = document.getElementById('medsContainer');
+  var row = document.createElement('div');
+  row.className='med-row-full';
+  row.innerHTML = medRowInnerHtml('Otro medicamento');
   container.appendChild(row);
   row.querySelector('input').focus();
 }
@@ -707,19 +761,12 @@ function toggleMontoDeuda(select){
   monto.classList.toggle('hidden', select.value==='ninguna');
 }
 function resetMedsContainer(){
-  document.getElementById('medsContainer').innerHTML =
-    '<div class="med-row-full">'+
-      '<button type="button" class="med-row-remove" onclick="quitarFilaMedicamento(this)">✕</button>'+
-      '<div style="display:flex;gap:8px;"><input class="inp med-input" placeholder="Ej. Metformina 500mg" style="flex:1;"></div>'+
-      '<div style="display:flex;gap:8px;margin-top:8px;">'+
-        '<select class="inp med-deuda" style="flex:1;" onchange="toggleMontoDeuda(this)">'+
-          '<option value="ninguna">✅ Medicamento completo</option>'+
-          '<option value="parcial">🟡 Entrega parcial (falta parte)</option>'+
-          '<option value="completa">🔴 No ha llegado (debe todo)</option>'+
-        '</select>'+
-        '<input class="inp med-deuda-monto hidden" placeholder="¿Cuánto falta? (ej. 10 tabs)" style="width:150px;">'+
-      '</div>'+
-    '</div>';
+  var row = document.createElement('div');
+  row.className='med-row-full';
+  row.innerHTML = medRowInnerHtml('Ej. Metformina');
+  var cont = document.getElementById('medsContainer');
+  cont.innerHTML='';
+  cont.appendChild(row);
 }
 function ensureMedObjects(e){
   if(!e.medicamentos || e.medicamentos.length===0){
@@ -730,8 +777,18 @@ function ensureMedObjects(e){
       return {nombre:m, estado: e.entregado?'entregado':'pendiente', motivo:null, fecha: e.entregado?e.fechaEntrega:null, recogioPor: e.entregado?e.recogioPor:null};
     });
   }
-  e.medicamentos.forEach(function(m){ if(!m.deuda) m.deuda={estado:'ninguna', monto:''}; });
+  e.medicamentos.forEach(function(m){
+    if(!m.deuda) m.deuda={estado:'ninguna', monto:''};
+    if(m.presentacion===undefined) m.presentacion='';
+    if(m.controlado===undefined) m.controlado=false;
+  });
   return e.medicamentos;
+}
+function nombreCompletoMed(m){
+  return m.nombre + (m.presentacion ? ' '+m.presentacion : '');
+}
+function deaBadge(m){
+  return m.controlado ? '<span class="deuda-badge" style="background:#1a1a2e;color:#fff;">🔴 DEA</span>' : '';
 }
 function deudaBadge(m){
   if(!m.deuda || m.deuda.estado==='ninguna' || !m.deuda.estado) return '';
@@ -1320,6 +1377,10 @@ function editarEntrega(id){
       (soloLectura?'':'<button type="button" class="med-row-remove" onclick="quitarFilaMedicamento(this)">✕</button>')+
       '<div style="display:flex;gap:8px;"><input class="inp med-input" value="'+esc(m.nombre)+'" style="flex:1;" '+(soloLectura?'disabled':'')+'></div>'+
       (soloLectura?'<div style="font-size:11px;color:#9ca3af;margin-top:4px;">Ya '+(m.estado==='entregado'?'entregado':'procesado')+', no editable</div>':
+      '<div style="display:flex;gap:8px;margin-top:8px;"><input class="inp med-presentacion" value="'+esc(m.presentacion||'')+'" placeholder="Miligramos/presentación * (ej. 500mg tabletas)" style="flex:1;"></div>'+
+      '<label style="display:flex;align-items:center;gap:8px;margin-top:8px;font-weight:600;font-size:13px;color:#991b1b;">'+
+        '<input type="checkbox" class="med-controlado" style="width:18px;height:18px;" '+(m.controlado?'checked':'')+'> 🔴 Controlado por el DEA'+
+      '</label>'+
       '<div style="display:flex;gap:8px;margin-top:8px;">'+
         '<select class="inp med-deuda" style="flex:1;" onchange="toggleMontoDeuda(this)">'+
           '<option value="ninguna">✅ Medicamento completo</option>'+
@@ -1364,17 +1425,22 @@ function registrarEntrega(){
   var paciente=document.getElementById('nPaciente').value.trim();
   var filas=document.querySelectorAll('#medsContainer .med-row-full');
   var medicamentos=[];
+  var faltaPresentacion=false;
   filas.forEach(function(fila){
     var nombre=fila.querySelector('.med-input').value.trim();
     if(!nombre) return;
+    var presentacion=fila.querySelector('.med-presentacion').value.trim();
+    if(!presentacion) faltaPresentacion=true;
+    var controlado=fila.querySelector('.med-controlado').checked;
     var deudaEstado=fila.querySelector('.med-deuda').value;
     var deudaMonto=fila.querySelector('.med-deuda-monto').value.trim();
-    medicamentos.push({nombre:nombre, deuda:{estado:deudaEstado, monto:deudaMonto}});
+    medicamentos.push({nombre:nombre, presentacion:presentacion, controlado:controlado, deuda:{estado:deudaEstado, monto:deudaMonto}});
   });
   var ubicacion=document.getElementById('nUbicacion').value.trim();
   var autorizado=document.getElementById('nAutorizado').value.trim();
   var notas=document.getElementById('nNotas').value.trim();
   if(!paciente || medicamentos.length===0 || !ubicacion){ toast('Falta nombre, al menos un medicamento, o ubicación'); return; }
+  if(faltaPresentacion){ toast('Falta escribir miligramos/presentación en algún medicamento'); return; }
 
   // Alertar si el paciente ya tiene otra receta pendiente en ubicación distinta
   var otras = D.entregas.filter(function(e){ return !e.entregado && e.paciente.toLowerCase()===paciente.toLowerCase(); });
@@ -1389,7 +1455,7 @@ function registrarEntrega(){
   var reg={
     id: 'e'+Date.now()+Math.floor(Math.random()*1000),
     paciente: paciente,
-    medicamentos: medicamentos.map(function(m){ return {nombre:m.nombre, estado:'pendiente', motivo:null, fecha:null, recogioPor:null, deuda:m.deuda}; }),
+    medicamentos: medicamentos.map(function(m){ return {nombre:m.nombre, presentacion:m.presentacion, controlado:m.controlado, estado:'pendiente', motivo:null, fecha:null, recogioPor:null, deuda:m.deuda}; }),
     ubicacion: ubicacion,
     autorizado: autorizado,
     notas: notas,
@@ -1415,9 +1481,9 @@ function registrarEntrega(){
     medicamentos.forEach(function(m){
       var match = existentes.find(function(em){ return em.nombre.toLowerCase()===m.nombre.toLowerCase(); });
       if(match){
-        if(match.estado==='pendiente') match.deuda = m.deuda;
+        if(match.estado==='pendiente'){ match.deuda = m.deuda; match.presentacion = m.presentacion; match.controlado = m.controlado; }
       } else {
-        existentes.push({nombre:m.nombre, estado:'pendiente', motivo:null, fecha:null, recogioPor:null, deuda:m.deuda});
+        existentes.push({nombre:m.nombre, presentacion:m.presentacion, controlado:m.controlado, estado:'pendiente', motivo:null, fecha:null, recogioPor:null, deuda:m.deuda});
       }
     });
     logAuditoria('Receta editada', paciente+' — '+medicamentos.map(function(m){return m.nombre;}).join(', '));
@@ -1539,7 +1605,7 @@ function renderBuscar(){
           var nombreEsc = esc(m.nombre).replace(/'/g,"\\'");
           if(m.estado==='pendiente'){
             if(m.entregaParcialInfo){
-              return '<div><div class="med-item"><span class="med-name">💊 '+esc(m.nombre)+deudaBadge(m)+'</span>'+
+              return '<div><div class="med-item"><span class="med-name">💊 '+esc(nombreCompletoMed(m))+deaBadge(m)+deudaBadge(m)+'</span>'+
                 '<div class="med-mini-btns">'+
                   '<button class="mini-btn mini-ok" onclick="completarMedicamento(\''+e.id+'\','+idx+')">✅ Completar entrega</button>'+
                   '<button class="mini-btn" style="background:#fff;color:#166534;border:1.5px solid #86efac;" onclick="abrirPagoOverlay(\''+e.id+'\','+idx+',\''+nombreEsc+'\')">💵 Pago</button>'+
@@ -1547,16 +1613,16 @@ function renderBuscar(){
                 '<div style="font-size:11px;color:#92400e;background:#fef3c7;padding:5px 9px;border-radius:8px;margin-top:4px;">🟡 Ya se entregó parte — recogió: '+esc(m.entregaParcialInfo.recogioPor)+' el '+fmtFecha(m.entregaParcialInfo.fecha)+'. Falta completar.</div>'+
                 pagosResumen(m)+'</div>';
             }
-            return '<div><div class="med-item"><span class="med-name">💊 '+esc(m.nombre)+deudaBadge(m)+'</span>'+
+            return '<div><div class="med-item"><span class="med-name">💊 '+esc(nombreCompletoMed(m))+deaBadge(m)+deudaBadge(m)+'</span>'+
               '<div class="med-mini-btns">'+
                 '<button class="mini-btn mini-ok" onclick="entregarMed(\''+e.id+'\','+idx+')">✅ Entregar</button>'+
                 '<button class="mini-btn mini-no" onclick="rechazarMed(\''+e.id+'\','+idx+')">❌ No lo quiso</button>'+
                 '<button class="mini-btn" style="background:#fff;color:#166534;border:1.5px solid #86efac;" onclick="abrirPagoOverlay(\''+e.id+'\','+idx+',\''+nombreEsc+'\')">💵 Pago</button>'+
               '</div></div>'+pagosResumen(m)+'</div>';
           } else if(m.estado==='entregado'){
-            return '<div><div class="med-item"><span class="med-name">💊 '+esc(m.nombre)+deudaBadge(m)+'</span><span class="med-status st-entregado">✅ Recogió: '+esc(m.recogioPor||'-')+'</span>'+(m.firma?'<img src="'+m.firma+'" style="height:26px;background:#fff;border:1px solid #ddd;border-radius:4px;margin-left:6px;cursor:pointer;" onclick="verFotoGrande(\''+m.firma+'\')">':'')+' <button class="mini-btn" style="background:#fff;color:#166534;border:1.5px solid #86efac;margin-left:6px;" onclick="abrirPagoOverlay(\''+e.id+'\','+idx+',\''+nombreEsc+'\')">💵 Pago</button></div>'+pagosResumen(m)+'</div>';
+            return '<div><div class="med-item"><span class="med-name">💊 '+esc(nombreCompletoMed(m))+deaBadge(m)+deudaBadge(m)+'</span><span class="med-status st-entregado">✅ Recogió: '+esc(m.recogioPor||'-')+'</span>'+(m.firma?'<img src="'+m.firma+'" style="height:26px;background:#fff;border:1px solid #ddd;border-radius:4px;margin-left:6px;cursor:pointer;" onclick="verFotoGrande(\''+m.firma+'\')">':'')+' <button class="mini-btn" style="background:#fff;color:#166534;border:1.5px solid #86efac;margin-left:6px;" onclick="abrirPagoOverlay(\''+e.id+'\','+idx+',\''+nombreEsc+'\')">💵 Pago</button></div>'+pagosResumen(m)+'</div>';
           } else {
-            return '<div class="med-item"><span class="med-name">💊 '+esc(m.nombre)+deudaBadge(m)+'</span><span class="med-status st-rechazado">❌ No lo quiso'+(m.motivo?': '+esc(m.motivo):'')+'</span></div>';
+            return '<div class="med-item"><span class="med-name">💊 '+esc(nombreCompletoMed(m))+deaBadge(m)+deudaBadge(m)+'</span><span class="med-status st-rechazado">❌ No lo quiso'+(m.motivo?': '+esc(m.motivo):'')+'</span></div>';
           }
         }).join('');
         html+='<div style="border-top:1px dashed #e5e7eb;margin-top:10px;padding-top:10px;">'+
@@ -1723,7 +1789,7 @@ function renderPendientes(){
       var badge = dias>=3 ? '<span class="badge danger">'+Math.floor(dias)+' días esperando</span>' : (dias>=2 ? '<span class="badge warn">'+Math.floor(dias)+' días esperando</span>' : '<span class="badge">Registrado '+fmtFecha(e.fechaRegistro)+'</span>');
       html+='<div class="item '+cls+'">'+
         '<div class="item-name">'+esc(e.paciente)+'</div>'+
-        '<div class="med-list">'+ensureMedObjects(e).filter(function(m){return m.estado==='pendiente';}).map(function(m){return '<div>💊 '+esc(m.nombre)+deudaBadge(m)+'</div>';}).join('')+'</div>'+
+        '<div class="med-list">'+ensureMedObjects(e).filter(function(m){return m.estado==='pendiente';}).map(function(m){return '<div>💊 '+esc(nombreCompletoMed(m))+deaBadge(m)+deudaBadge(m)+'</div>';}).join('')+'</div>'+
         '<div class="item-row">'+locBadge(e.ubicacion)+'</div>'+
         '<div class="item-row">'+badge+'</div>'+
         (e.codigoBarras?'<div class="item-row">🔢 '+esc(e.codigoBarras)+'</div>':'')+
@@ -1746,7 +1812,7 @@ function recolectarDeudas(){
       var tieneDeuda = m.deuda && m.deuda.estado && m.deuda.estado!=='ninguna';
       if((m.estado==='pendiente') && tieneDeuda){
         filas.push({
-          medicamento: m.nombre,
+          medicamento: nombreCompletoMed(m),
           paciente: e.paciente,
           estado: m.deuda.estado,
           falta: m.deuda.monto||'',
@@ -1808,6 +1874,71 @@ function imprimirReporteDeudas(){
   setTimeout(function(){ document.body.classList.remove('printing-deudas'); }, 500);
 }
 
+// ---- Reporte de medicamentos controlados (DEA) ----
+function recolectarDEA(){
+  var desde = document.getElementById('deaDesde') ? document.getElementById('deaDesde').value : '';
+  var hasta = document.getElementById('deaHasta') ? document.getElementById('deaHasta').value : '';
+  var filas=[];
+  D.entregas.forEach(function(e){
+    ensureMedObjects(e).forEach(function(m){
+      if(!m.controlado) return;
+      var fechaRef = m.fecha || e.fechaRegistro;
+      if(desde && new Date(fechaRef) < new Date(desde+'T00:00:00')) return;
+      if(hasta && new Date(fechaRef) > new Date(hasta+'T23:59:59')) return;
+      var estadoTxt = m.estado==='entregado' ? 'Entregado' : (m.estado==='rechazado' ? 'Rechazado' : 'Pendiente');
+      filas.push({
+        fecha: fechaRef,
+        medicamento: nombreCompletoMed(m),
+        paciente: e.paciente,
+        estado: estadoTxt,
+        recogio: m.recogioPor||'-'
+      });
+    });
+  });
+  filas.sort(function(a,b){ return new Date(b.fecha)-new Date(a.fecha); });
+  return filas;
+}
+function abrirReporteDEA(){
+  document.getElementById('deaDesde').value='';
+  document.getElementById('deaHasta').value='';
+  renderReporteDEA();
+  document.getElementById('deaOverlay').classList.remove('hidden');
+}
+function renderReporteDEA(){
+  var filas = recolectarDEA();
+  var box = document.getElementById('deaContenido');
+  if(filas.length===0){
+    box.innerHTML='<div class="empty"><span class="em">🔴</span>No hay medicamentos controlados registrados en ese rango</div>';
+  } else {
+    var html='<div style="font-size:12px;color:#8892a0;margin-bottom:8px;">'+filas.length+' movimiento'+(filas.length>1?'s':'')+'</div>';
+    filas.forEach(function(f){
+      html+='<div class="item">'+
+        '<div class="item-name">💊 '+esc(f.medicamento)+'</div>'+
+        '<div class="item-row">👤 '+esc(f.paciente)+' — '+esc(f.estado)+'</div>'+
+        '<div class="item-row" style="color:#999;">🕒 '+fmtFecha(f.fecha)+(f.recogio!=='-'?' — Recogió: '+esc(f.recogio):'')+'</div>'+
+      '</div>';
+    });
+    box.innerHTML=html;
+  }
+}
+function imprimirReporteDEA(){
+  var filas = recolectarDEA();
+  var desde=document.getElementById('deaDesde').value, hasta=document.getElementById('deaHasta').value;
+  document.getElementById('printFechaDEA').textContent='Generado: '+new Date().toLocaleString('es-PR')+' — '+filas.length+' movimiento'+(filas.length!==1?'s':'')+(desde||hasta?' (rango filtrado)':'');
+  var rows='';
+  if(filas.length===0){
+    rows='<tr><td colspan="5" style="text-align:center;color:#888;">Sin resultados</td></tr>';
+  } else {
+    filas.forEach(function(f){
+      rows+='<tr><td>'+fmtFecha(f.fecha)+'</td><td>'+esc(f.medicamento)+'</td><td>'+esc(f.paciente)+'</td><td>'+esc(f.estado)+'</td><td>'+esc(f.recogio)+'</td></tr>';
+    });
+  }
+  document.getElementById('printBodyDEA').innerHTML=rows;
+  document.body.classList.add('printing-dea');
+  window.print();
+  setTimeout(function(){ document.body.classList.remove('printing-dea'); }, 500);
+}
+
 // ---- Recibo imprimible ----
 function imprimirRecibo(recordId){
   var rec=null;
@@ -1824,7 +1955,7 @@ function imprimirRecibo(recordId){
     else if(m.entregaParcialInfo){ estadoTxt='🟡 Entrega parcial — recogió: '+esc(m.entregaParcialInfo.recogioPor)+' — falta: '+esc(m.deuda&&m.deuda.monto?m.deuda.monto:(m.deuda?m.deuda.estado:'')); }
     else if(m.estado==='pendiente'){ estadoTxt='🔴 Pendiente de entregar'; }
     else { estadoTxt='✅ Entregado — recogió: '+esc(m.recogioPor||'-'); }
-    html+='<div class="recibo-med"><b>💊 '+esc(m.nombre)+'</b><br>'+estadoTxt;
+    html+='<div class="recibo-med"><b>💊 '+esc(nombreCompletoMed(m))+'</b>'+(m.controlado?' <span style="background:#1a1a2e;color:#fff;font-size:10px;padding:2px 6px;border-radius:6px;">DEA</span>':'')+'<br>'+estadoTxt;
     var firmaImg = m.firma || (m.entregaParcialInfo && m.entregaParcialInfo.firma);
     if(firmaImg){ html+='<br><img src="'+firmaImg+'" class="recibo-firma">'; }
     if(m.pagos && m.pagos.length){
@@ -1854,7 +1985,7 @@ function imprimirLista(){
       var cls = dias>=3 ? 'veryold' : (dias>=2 ? 'old' : '');
       rows+='<tr class="'+cls+'"><td>'+esc(e.paciente)+'</td><td>'+ensureMedObjects(e).filter(function(m){return m.estado==='pendiente';}).map(function(m){
         var d = (m.deuda&&m.deuda.estado!=='ninguna') ? ' ('+(m.deuda.estado==='parcial'?'entrega parcial':'no ha llegado')+(m.deuda.monto?' — falta: '+m.deuda.monto:'')+')' : '';
-        return esc(m.nombre)+d;
+        return esc(nombreCompletoMed(m))+(m.controlado?' [DEA]':'')+d;
       }).join(', ')+'</td><td>'+locBadge(e.ubicacion)+'</td><td>'+fmtFecha(e.fechaRegistro)+'</td><td>'+esc(e.autorizado||'-')+'</td></tr>';
     });
   }
@@ -1918,8 +2049,8 @@ function renderHistorial(){
       html+='<div class="item">'+
         '<div class="item-name">'+esc(e.paciente)+' <span class="badge done">Entregado</span></div>'+
         '<div class="med-list">'+ensureMedObjects(e).map(function(m){
-          if(m.estado==='rechazado') return '<div class="med-item"><span class="med-name">💊 '+esc(m.nombre)+deudaBadge(m)+'</span><span class="med-status st-rechazado">❌ No lo quiso'+(m.motivo?': '+esc(m.motivo):'')+'</span></div>';
-          return '<div><div class="med-item"><span class="med-name">💊 '+esc(m.nombre)+deudaBadge(m)+'</span><span class="med-status st-entregado">✅ '+esc(m.recogioPor||'-')+'</span>'+(m.firma?'<img src="'+m.firma+'" style="height:26px;background:#fff;border:1px solid #ddd;border-radius:4px;margin-left:6px;cursor:pointer;" onclick="verFotoGrande(\''+m.firma+'\')">':'')+'</div>'+pagosResumen(m)+'</div>';
+          if(m.estado==='rechazado') return '<div class="med-item"><span class="med-name">💊 '+esc(nombreCompletoMed(m))+deaBadge(m)+deudaBadge(m)+'</span><span class="med-status st-rechazado">❌ No lo quiso'+(m.motivo?': '+esc(m.motivo):'')+'</span></div>';
+          return '<div><div class="med-item"><span class="med-name">💊 '+esc(nombreCompletoMed(m))+deaBadge(m)+deudaBadge(m)+'</span><span class="med-status st-entregado">✅ '+esc(m.recogioPor||'-')+'</span>'+(m.firma?'<img src="'+m.firma+'" style="height:26px;background:#fff;border:1px solid #ddd;border-radius:4px;margin-left:6px;cursor:pointer;" onclick="verFotoGrande(\''+m.firma+'\')">':'')+'</div>'+pagosResumen(m)+'</div>';
         }).join('')+'</div>'+
         '<div class="item-row">📍 '+esc(e.ubicacion)+'</div>'+
         '<div class="item-row">🕒 '+fmtFecha(e.fechaEntrega)+'</div>'+
