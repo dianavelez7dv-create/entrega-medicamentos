@@ -68,7 +68,13 @@ textarea{resize:vertical;min-height:60px;}
   #app{max-width:100%;}
   .content{padding:0;}
   body.printing-pend #printSheet{display:block !important;}
+  body.printing-pend #pendList{display:none !important;}
   body.printing-aud #printSheetAud{display:block !important;}
+  body.printing-aud #audFiltros,
+  body.printing-aud #audList,
+  body.printing-aud #histInput,
+  body.printing-aud #histList,
+  body.printing-aud .pill-row{display:none !important;}
 }
 #printSheet{display:none;}
 #printSheet h2{font-size:22px;margin-bottom:4px;}
@@ -136,7 +142,7 @@ textarea{resize:vertical;min-height:60px;}
 <div id="app">
   <header>
     <h1>💊 Control de Entrega</h1>
-    <div class="sub" id="hSub">Farmacia · <span style="color:#ffd700;font-weight:700;" id="verTag">v29</span></div>
+    <div class="sub" id="hSub">Farmacia · <span style="color:#ffd700;font-weight:700;" id="verTag">v30</span></div>
     <div class="syncbar"><span class="dot" id="syncDot"></span><span id="syncText">Sin sincronizar</span></div>
     <div class="syncbar" style="margin-top:4px;cursor:pointer;" onclick="abrirLogin()">👤 <span id="empActual">Sin identificar</span> <span style="text-decoration:underline;">(cambiar sesión)</span></div>
   </header>
