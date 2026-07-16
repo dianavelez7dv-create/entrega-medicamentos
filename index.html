@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Control de Entrega - Farmacia</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
 body{font-family:-apple-system,'Segoe UI',Roboto,Arial,sans-serif;background:#f0f2f5;color:#1a1a2e;padding-bottom:80px;}
@@ -175,7 +176,7 @@ textarea{resize:vertical;min-height:60px;}
 <div id="app">
   <header>
     <h1>💊 Control de Entrega</h1>
-    <div class="sub" id="hSub">Farmacia · <span style="color:#ffd700;font-weight:700;" id="verTag">v37</span></div>
+    <div class="sub" id="hSub">Farmacia · <span style="color:#ffd700;font-weight:700;" id="verTag">v38-Supabase</span></div>
     <div class="syncbar"><span class="dot" id="syncDot"></span><span id="syncText">Sin sincronizar</span></div>
     <div class="syncbar" style="margin-top:4px;cursor:pointer;" onclick="abrirLogin()">👤 <span id="empActual">Sin identificar</span> <span style="text-decoration:underline;">(cambiar sesión)</span></div>
   </header>
@@ -521,11 +522,11 @@ textarea{resize:vertical;min-height:60px;}
         <button type="button" class="btn btn-outline" style="margin-top:10px;" onclick="revelarConfigAvanzada()">🔒 Ver/editar configuración avanzada</button>
         <div id="configAvanzadaBox" class="hidden" style="margin-top:12px;background:#fef3c7;border:1.5px solid #f59e0b;border-radius:10px;padding:12px;">
           <p style="font-size:12px;color:#92400e;font-weight:700;margin-bottom:8px;">⚠️ No cambies esto a menos que sepas lo que haces — puede desconectar la sincronización de todos los dispositivos.</p>
-          <p style="font-size:12px;color:#666;line-height:1.5;">Para que todos los dispositivos (tablet + celulares) vean la misma información, conecta un bin gratuito de <b>JSONBin.io</b>. Crea una cuenta gratis en jsonbin.io, crea un "Bin" nuevo, y pega aquí el Bin ID y tu API Key (Master Key).</p>
-          <label>API Key (X-Master-Key)</label>
-          <input class="inp" id="cfgApiKey" placeholder="Pega tu API key aquí">
-          <label>Bin ID</label>
-          <input class="inp" id="cfgBinId" placeholder="Pega tu Bin ID aquí">
+          <p style="font-size:12px;color:#666;line-height:1.5;">Conectado a <b>Supabase</b> (base de datos real). Pega la URL de tu proyecto y la llave <b>publishable/anon</b> (nunca la "secret").</p>
+          <label>Project URL</label>
+          <input class="inp" id="cfgSupaUrl" placeholder="https://xxxxx.supabase.co">
+          <label>Anon / Publishable Key</label>
+          <input class="inp" id="cfgSupaKey" placeholder="Pega tu anon/publishable key aquí">
           <button class="btn btn-primary" onclick="guardarConfig()">Guardar configuración</button>
           <button type="button" class="btn btn-outline" onclick="document.getElementById('configAvanzadaBox').classList.add('hidden')">Ocultar</button>
         </div>
@@ -595,8 +596,17 @@ var LSKEY='entregameds_v1';
 var CFGKEY='entregameds_cfg';
 var EMPKEY='entregameds_empleado';
 var D = { entregas: [], auditoria: [], empleados: [], pacientes: [], papelera: [] };
-var CFG = { apiKey:'', binId:'', emailWebhook:'' };
+var CFG = { supaUrl:'', supaKey:'', emailWebhook:'' };
 var EMPLEADO = '';
+var supabaseClient = null;
+function initSupabaseClient(){
+  if(CFG.supaUrl && CFG.supaKey && window.supabase){
+    try{ supabaseClient = window.supabase.createClient(CFG.supaUrl, CFG.supaKey); }
+    catch(err){ console.log('Error creando cliente Supabase', err); supabaseClient=null; }
+  } else {
+    supabaseClient = null;
+  }
+}
 var fotoActual = null;
 var html5QrCode = null;
 var pacienteSeleccionadoId = null;
@@ -659,7 +669,7 @@ function intentarLogin(){
     if(dup){ msg.textContent='Ya existe un empleado con ese nombre'; return; }
     if(!/^\d{6}$/.test(p1)){ msg.textContent='El PIN debe ser de 6 dígitos'; return; }
     if(p1!==p2){ msg.textContent='Los PIN no coinciden'; return; }
-    D.empleados.push({nombre:n, pin:p1});
+    D.empleados.push({id:'emp_'+n.toLowerCase().replace(/\s+/g,'_')+Date.now(), nombre:n, pin:p1});
     EMPLEADO=n;
     logAuditoria('Nuevo empleado', n+' se registró en el sistema');
   } else {
@@ -699,6 +709,7 @@ function logAuditoria(accion, detalle){
 function load(){
   try{ var raw=localStorage.getItem(LSKEY); if(raw) D=JSON.parse(raw); }catch(e){}
   try{ var craw=localStorage.getItem(CFGKEY); if(craw) CFG=JSON.parse(craw); }catch(e){}
+  initSupabaseClient();
 }
 function save(){
   localStorage.setItem(LSKEY, JSON.stringify(D));
@@ -777,10 +788,11 @@ function ensureMedObjects(e){
       return {nombre:m, estado: e.entregado?'entregado':'pendiente', motivo:null, fecha: e.entregado?e.fechaEntrega:null, recogioPor: e.entregado?e.recogioPor:null};
     });
   }
-  e.medicamentos.forEach(function(m){
+  e.medicamentos.forEach(function(m,mi){
     if(!m.deuda) m.deuda={estado:'ninguna', monto:''};
     if(m.presentacion===undefined) m.presentacion='';
     if(m.controlado===undefined) m.controlado=false;
+    if(!m.id) m.id = e.id+'_m'+mi;
   });
   return e.medicamentos;
 }
@@ -1455,7 +1467,7 @@ function registrarEntrega(){
   var reg={
     id: 'e'+Date.now()+Math.floor(Math.random()*1000),
     paciente: paciente,
-    medicamentos: medicamentos.map(function(m){ return {nombre:m.nombre, presentacion:m.presentacion, controlado:m.controlado, estado:'pendiente', motivo:null, fecha:null, recogioPor:null, deuda:m.deuda}; }),
+    medicamentos: medicamentos.map(function(m,mi){ return {id:'m'+Date.now()+mi+Math.floor(Math.random()*1000), nombre:m.nombre, presentacion:m.presentacion, controlado:m.controlado, estado:'pendiente', motivo:null, fecha:null, recogioPor:null, deuda:m.deuda}; }),
     ubicacion: ubicacion,
     autorizado: autorizado,
     notas: notas,
@@ -1483,7 +1495,7 @@ function registrarEntrega(){
       if(match){
         if(match.estado==='pendiente'){ match.deuda = m.deuda; match.presentacion = m.presentacion; match.controlado = m.controlado; }
       } else {
-        existentes.push({nombre:m.nombre, presentacion:m.presentacion, controlado:m.controlado, estado:'pendiente', motivo:null, fecha:null, recogioPor:null, deuda:m.deuda});
+        existentes.push({id:'m'+Date.now()+Math.floor(Math.random()*10000), nombre:m.nombre, presentacion:m.presentacion, controlado:m.controlado, estado:'pendiente', motivo:null, fecha:null, recogioPor:null, deuda:m.deuda});
       }
     });
     logAuditoria('Receta editada', paciente+' — '+medicamentos.map(function(m){return m.nombre;}).join(', '));
@@ -2249,63 +2261,139 @@ function mostrarTamanoDatos(){
   var box = document.getElementById('tamanoDatosBox');
   if(!box) return;
   var bytes = new Blob([JSON.stringify(D)]).size;
-  var kb = (bytes/1024).toFixed(1);
-  var pct = Math.min(100, Math.round((bytes/102400)*100));
-  var color, texto2, texto;
-  if(pct<70){ color='#dcfce7'; texto2='#166534'; texto='✅ '+kb+' KB usados de 100 KB (plan gratis)'; }
-  else if(pct<95){ color='#fef3c7'; texto2='#92400e'; texto='🟡 '+kb+' KB usados de 100 KB — se acerca al límite, considera borrar fotos viejas'; }
-  else { color='#fee2e2'; texto2='#991b1b'; texto='🔴 '+kb+' KB de 100 KB — ¡al límite! Los guardados van a fallar. Borra pacientes/fotos de prueba ahora.'; }
-  box.style.background=color; box.style.color=texto2; box.textContent=texto;
+  var mb = (bytes/1024/1024).toFixed(2);
+  box.style.background='#dcfce7'; box.style.color='#166534';
+  box.textContent='✅ Caché local: '+mb+' MB — guardado en Supabase (500 MB de base de datos + 1 GB de archivos disponibles)';
 }
 function revelarConfigAvanzada(){
   if(!confirm('⚠️ Esto muestra el API Key y Bin ID que conectan la app a la nube. Solo continúa si sabes lo que haces. ¿Ver de todas formas?')) return;
   document.getElementById('configAvanzadaBox').classList.remove('hidden');
 }
 function loadConfigUI(){
-  document.getElementById('cfgApiKey').value=CFG.apiKey||'';
-  document.getElementById('cfgBinId').value=CFG.binId||'';
+  document.getElementById('cfgSupaUrl').value=CFG.supaUrl||'';
+  document.getElementById('cfgSupaKey').value=CFG.supaKey||'';
   document.getElementById('cfgEmailWebhook').value=CFG.emailWebhook||'';
   updateSyncBadge();
 }
 function guardarConfig(){
-  CFG.apiKey=document.getElementById('cfgApiKey').value.trim();
-  CFG.binId=document.getElementById('cfgBinId').value.trim();
+  CFG.supaUrl=document.getElementById('cfgSupaUrl').value.trim().replace(/\/rest\/v1\/?$/,'').replace(/\/$/,'');
+  CFG.supaKey=document.getElementById('cfgSupaKey').value.trim();
   localStorage.setItem(CFGKEY, JSON.stringify(CFG));
+  initSupabaseClient();
   toast('Configuración guardada');
   updateSyncBadge();
-  if(CFG.apiKey && CFG.binId) pullRemote();
+  if(supabaseClient) pullRemote();
 }
 function updateSyncBadge(){
   var dot=document.getElementById('syncDot'), txt=document.getElementById('syncText');
-  if(CFG.apiKey && CFG.binId){
+  if(CFG.supaUrl && CFG.supaKey){
     dot.classList.remove('off');
-    txt.textContent='Sincronización activa';
+    txt.textContent='Sincronización activa (Supabase)';
   } else {
     dot.classList.add('off');
     txt.textContent='Sin sincronizar (solo este dispositivo)';
   }
 }
-function pushRemote(){
-  if(!CFG.apiKey || !CFG.binId) return;
-  fetch('https://api.jsonbin.io/v3/b/'+CFG.binId, {
-    method:'PUT',
-    headers:{'Content-Type':'application/json','X-Master-Key':CFG.apiKey},
-    body: JSON.stringify(D)
-  }).then(function(r){
-    if(!r.ok){
-      r.text().then(function(txt){
-        if(txt.indexOf('100kb')>=0 || txt.indexOf('over 100')>=0){
-          toast('🔴 Datos muy grandes para guardar (límite 100 KB). Borra fotos/pacientes de prueba.');
-        } else {
-          toast('⚠️ No se pudo guardar (HTTP '+r.status+')');
-        }
-        console.log('push error HTTP', r.status, txt);
-        mostrarTamanoDatos();
-      });
-    } else {
-      mostrarTamanoDatos();
+// ---- Subida de fotos/firmas a Supabase Storage ----
+function dataUrlToBlob(dataUrl){
+  var parts = dataUrl.split(',');
+  var mimeMatch = parts[0].match(/:(.*?);/);
+  var mime = mimeMatch ? mimeMatch[1] : 'image/jpeg';
+  var bytes = base64ToBytes(parts[1]);
+  return new Blob([bytes], {type: mime});
+}
+async function subirFotoSiEsBase64(bucket, dataUrl, nombreArchivo){
+  if(!dataUrl || dataUrl.indexOf('data:')!==0) return dataUrl; // ya es URL o está vacío
+  if(!supabaseClient) return dataUrl;
+  try{
+    var blob = dataUrlToBlob(dataUrl);
+    var ext = blob.type.indexOf('png')>=0 ? 'png' : 'jpg';
+    var path = nombreArchivo+'_'+Date.now()+'.'+ext;
+    var up = await supabaseClient.storage.from(bucket).upload(path, blob, {upsert:true, contentType: blob.type});
+    if(up.error){ console.log('Error subiendo foto', up.error); return dataUrl; }
+    var pub = supabaseClient.storage.from(bucket).getPublicUrl(path);
+    return pub.data.publicUrl;
+  }catch(err){ console.log('Error subiendo foto', err); return dataUrl; }
+}
+
+async function pushRemote(){
+  if(!supabaseClient) return;
+  try{
+    // Subir fotos pendientes (base64 -> URL) antes de guardar en la base de datos
+    for(var i=0;i<(D.pacientes||[]).length;i++){
+      var p=D.pacientes[i];
+      p.fotoId = await subirFotoSiEsBase64('fotos-id', p.fotoId, 'pac_'+p.id);
     }
-  }).catch(function(e){ toast('⚠️ Sin conexión a la nube, guardado solo local'); console.log('push error',e); });
+    for(var j=0;j<D.entregas.length;j++){
+      var e=D.entregas[j];
+      e.foto = await subirFotoSiEsBase64('fotos-frascos', e.foto, 'frasco_'+e.id);
+      var meds = ensureMedObjects(e);
+      for(var k=0;k<meds.length;k++){
+        var m=meds[k];
+        if(m.firma) m.firma = await subirFotoSiEsBase64('firmas', m.firma, 'firma_'+m.id);
+        if(m.entregaParcialInfo && m.entregaParcialInfo.firma){
+          m.entregaParcialInfo.firma = await subirFotoSiEsBase64('firmas', m.entregaParcialInfo.firma, 'firmaparcial_'+m.id);
+        }
+      }
+    }
+    localStorage.setItem(LSKEY, JSON.stringify(D));
+
+    // Empleados
+    if(D.empleados.length){
+      var r1 = await supabaseClient.from('empleados').upsert(D.empleados.map(function(emp){
+        return {id: emp.id || ('emp_'+emp.nombre), nombre: emp.nombre, pin: emp.pin};
+      }));
+      if(r1.error) console.log('error empleados', r1.error);
+    }
+    // Pacientes
+    if(D.pacientes.length){
+      var r2 = await supabaseClient.from('pacientes').upsert(D.pacientes.map(function(p){
+        return {id:p.id, nombre:p.nombre, plan_medico:p.planMedico||null, telefono:p.telefono||null, email:p.email||null, direccion:p.direccion||null, autorizado:p.autorizado||null, foto_id_url:p.fotoId||null};
+      }));
+      if(r2.error) console.log('error pacientes', r2.error);
+    }
+    // Entregas
+    if(D.entregas.length){
+      var r3 = await supabaseClient.from('entregas').upsert(D.entregas.map(function(e){
+        return {id:e.id, paciente_nombre:e.paciente, ubicacion:e.ubicacion, autorizado:e.autorizado||null, notas:e.notas||null, codigo_barras:e.codigoBarras||null, foto_frasco_url:e.foto||null, fecha_registro:e.fechaRegistro, entregado:e.entregado, fecha_entrega:e.fechaEntrega||null, recogio_por:e.recogioPor||null};
+      }));
+      if(r3.error) console.log('error entregas', r3.error);
+      // Medicamentos (todos los de todas las entregas)
+      var todosMeds=[];
+      D.entregas.forEach(function(e){
+        ensureMedObjects(e).forEach(function(m){
+          todosMeds.push({
+            id:m.id, entrega_id:e.id, nombre:m.nombre, presentacion:m.presentacion||null, controlado:!!m.controlado,
+            estado:m.estado, motivo:m.motivo||null, fecha:m.fecha||null, recogio_por:m.recogioPor||null, firma_url:m.firma||null,
+            deuda_estado:(m.deuda&&m.deuda.estado)||'ninguna', deuda_monto:(m.deuda&&m.deuda.monto)||null,
+            entrega_parcial:m.entregaParcialInfo||null, pagos:m.pagos||[]
+          });
+        });
+      });
+      if(todosMeds.length){
+        var r4 = await supabaseClient.from('medicamentos').upsert(todosMeds);
+        if(r4.error) console.log('error medicamentos', r4.error);
+      }
+    }
+    // Auditoría
+    if(D.auditoria.length){
+      var r5 = await supabaseClient.from('auditoria').upsert(D.auditoria.map(function(a){
+        return {id:a.id, fecha:a.fecha, empleado:a.empleado, accion:a.accion, detalle:a.detalle};
+      }));
+      if(r5.error) console.log('error auditoria', r5.error);
+    }
+    // Papelera
+    if((D.papelera||[]).length){
+      var r6 = await supabaseClient.from('papelera').upsert(D.papelera.map(function(p){
+        return {id:p.id, tipo:p.tipo, datos:p.datos, fecha_borrado:p.fechaBorrado, borrado_por:p.borradoPor};
+      }));
+      if(r6.error) console.log('error papelera', r6.error);
+    }
+    mostrarTamanoDatos();
+  }catch(err){
+    toast('⚠️ Error al guardar en la nube, ver consola');
+    console.log('push error', err);
+  }
 }
 function mergeById(localArr, remoteArr){
   var map={};
@@ -2335,29 +2423,58 @@ function fusionarConNube(remote){
   D.pacientes = mergeById(D.pacientes, remote.pacientes || []);
   D.papelera = mergeById(D.papelera||[], remote.papelera || []);
 }
-function pullRemote(silent){
-  if(!CFG.apiKey || !CFG.binId) { if(!silent) toast('Configura JSONBin primero'); return; }
-  fetch('https://api.jsonbin.io/v3/b/'+CFG.binId+'/latest', {
-    headers:{'X-Master-Key':CFG.apiKey}
-  }).then(function(r){
-    if(!r.ok){ throw new Error('HTTP '+r.status); }
-    return r.json();
-  }).then(function(res){
-    if(res && res.record){
-      var antes = D.entregas.length;
-      fusionarConNube(res.record);
-      localStorage.setItem(LSKEY, JSON.stringify(D));
-      renderStats(); renderBuscar(); renderPendientes(); renderHistorial();
-      if(!silent) toast('🔄 Combinado con la nube ('+D.entregas.length+' recetas totales)');
-      // Sube de vuelta la versión ya combinada, para que el otro dispositivo también la reciba completa
-      if(D.entregas.length !== antes || (res.record.entregas||[]).length !== antes) pushRemote();
-    } else {
-      if(!silent) toast('⚠️ El bin respondió pero está vacío o con formato distinto');
-    }
-  }).catch(function(e){
-    if(!silent) toast('❌ Error al sincronizar: '+e.message);
-    console.log(e);
-  });
+async function pullRemote(silent){
+  if(!supabaseClient){ if(!silent) toast('Configura Supabase primero'); return; }
+  try{
+    var rEmp = await supabaseClient.from('empleados').select('*');
+    var rPac = await supabaseClient.from('pacientes').select('*');
+    var rEnt = await supabaseClient.from('entregas').select('*');
+    var rMed = await supabaseClient.from('medicamentos').select('*');
+    var rAud = await supabaseClient.from('auditoria').select('*');
+    var rPap = await supabaseClient.from('papelera').select('*');
+    if(rEmp.error) throw rEmp.error;
+    if(rPac.error) throw rPac.error;
+    if(rEnt.error) throw rEnt.error;
+    if(rMed.error) throw rMed.error;
+    if(rAud.error) throw rAud.error;
+    if(rPap.error) throw rPap.error;
+
+    var medsPorEntrega = {};
+    (rMed.data||[]).forEach(function(row){
+      var m = {
+        id:row.id, nombre:row.nombre, presentacion:row.presentacion||'', controlado:!!row.controlado,
+        estado:row.estado, motivo:row.motivo, fecha:row.fecha, recogioPor:row.recogio_por, firma:row.firma_url,
+        deuda:{estado:row.deuda_estado||'ninguna', monto:row.deuda_monto||''},
+        entregaParcialInfo:row.entrega_parcial||null, pagos:row.pagos||[]
+      };
+      if(!medsPorEntrega[row.entrega_id]) medsPorEntrega[row.entrega_id]=[];
+      medsPorEntrega[row.entrega_id].push(m);
+    });
+    var remoteEntregas = (rEnt.data||[]).map(function(row){
+      return {
+        id:row.id, paciente:row.paciente_nombre, ubicacion:row.ubicacion, autorizado:row.autorizado,
+        notas:row.notas, codigoBarras:row.codigo_barras, foto:row.foto_frasco_url, fechaRegistro:row.fecha_registro,
+        entregado:row.entregado, fechaEntrega:row.fecha_entrega, recogioPor:row.recogio_por,
+        medicamentos: medsPorEntrega[row.id]||[]
+      };
+    });
+    var remotePacientes = (rPac.data||[]).map(function(row){
+      return {id:row.id, nombre:row.nombre, planMedico:row.plan_medico, telefono:row.telefono, email:row.email, direccion:row.direccion, autorizado:row.autorizado, fotoId:row.foto_id_url, fechaCreado:row.creado_en};
+    });
+    var remoteEmpleados = (rEmp.data||[]).map(function(row){ return {id:row.id, nombre:row.nombre, pin:row.pin}; });
+    var remoteAuditoria = (rAud.data||[]).map(function(row){ return {id:row.id, fecha:row.fecha, empleado:row.empleado, accion:row.accion, detalle:row.detalle}; });
+    var remotePapelera = (rPap.data||[]).map(function(row){ return {id:row.id, tipo:row.tipo, datos:row.datos, fechaBorrado:row.fecha_borrado, borradoPor:row.borrado_por}; });
+
+    var antes = D.entregas.length;
+    fusionarConNube({entregas:remoteEntregas, pacientes:remotePacientes, empleados:remoteEmpleados, auditoria:remoteAuditoria, papelera:remotePapelera});
+    localStorage.setItem(LSKEY, JSON.stringify(D));
+    renderStats(); renderBuscar(); renderPendientes(); renderHistorial();
+    if(!silent) toast('🔄 Combinado con la nube ('+D.entregas.length+' recetas totales)');
+    if(D.entregas.length !== antes || remoteEntregas.length !== antes) pushRemote();
+  }catch(err){
+    if(!silent) toast('❌ Error al sincronizar: '+(err.message||'revisa la consola'));
+    console.log(err);
+  }
 }
 function sincronizarManual(){ pullRemote(false); }
 
@@ -2538,10 +2655,10 @@ load();
 loadEmpleado();
 loadConfigUI();
 renderStats();
-if(CFG.apiKey && CFG.binId) pullRemote(true);
+if(supabaseClient) pullRemote(true);
 reiniciarTimerInactividad();
 // auto-sync every 20s so multiple devices stay in sync
-setInterval(function(){ if(CFG.apiKey && CFG.binId) pullRemote(true); }, 20000);
+setInterval(function(){ if(supabaseClient) pullRemote(true); }, 20000);
 </script>
 </body>
 </html>
