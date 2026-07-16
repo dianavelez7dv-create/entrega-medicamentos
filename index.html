@@ -63,7 +63,7 @@ textarea{resize:vertical;min-height:60px;}
 .pill span{font-size:11px;color:#8892a0;}
 .btn-print{background:#1a1a2e;color:#fff;margin-bottom:12px;}
 @media print{
-  header,.nav,.searchbox,.btn-print,.item-actions,.toast,#statRow{display:none !important;}
+  header,.nav,.searchbox,.btn-print,.item-actions,.toast,#statRow,.login-overlay{display:none !important;}
   body{background:#fff;padding:0;}
   #app{max-width:100%;}
   .content{padding:0;}
@@ -71,6 +71,13 @@ textarea{resize:vertical;min-height:60px;}
   body.printing-pend #pendList{display:none !important;}
   body.printing-deudas #printSheetDeudas{display:block !important;}
   body.printing-recibo #printSheetRecibo{display:block !important;}
+  body.printing-recibo #buscarList,
+  body.printing-recibo #pendList,
+  body.printing-recibo #histList,
+  body.printing-recibo #histInput,
+  body.printing-recibo .pill-row,
+  body.printing-recibo #pacienteSugerencias,
+  body.printing-recibo #pacienteSeleccionado{display:none !important;}
   body.printing-aud #printSheetAud{display:block !important;}
   body.printing-aud #audFiltros,
   body.printing-aud #audList,
@@ -156,7 +163,7 @@ textarea{resize:vertical;min-height:60px;}
 <div id="app">
   <header>
     <h1>💊 Control de Entrega</h1>
-    <div class="sub" id="hSub">Farmacia · <span style="color:#ffd700;font-weight:700;" id="verTag">v35</span></div>
+    <div class="sub" id="hSub">Farmacia · <span style="color:#ffd700;font-weight:700;" id="verTag">v36</span></div>
     <div class="syncbar"><span class="dot" id="syncDot"></span><span id="syncText">Sin sincronizar</span></div>
     <div class="syncbar" style="margin-top:4px;cursor:pointer;" onclick="abrirLogin()">👤 <span id="empActual">Sin identificar</span> <span style="text-decoration:underline;">(cambiar sesión)</span></div>
   </header>
