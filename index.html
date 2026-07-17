@@ -176,7 +176,7 @@ textarea{resize:vertical;min-height:60px;}
 <div id="app">
   <header>
     <h1>💊 Control de Entrega</h1>
-    <div class="sub" id="hSub">Farmacia · <span style="color:#ffd700;font-weight:700;" id="verTag">v38-Supabase</span></div>
+    <div class="sub" id="hSub">Farmacia · <span style="color:#ffd700;font-weight:700;" id="verTag">v39-Seguro</span></div>
     <div class="syncbar"><span class="dot" id="syncDot"></span><span id="syncText">Sin sincronizar</span></div>
     <div class="syncbar" style="margin-top:4px;cursor:pointer;" onclick="abrirLogin()">👤 <span id="empActual">Sin identificar</span> <span style="text-decoration:underline;">(cambiar sesión)</span></div>
   </header>
@@ -528,7 +528,16 @@ textarea{resize:vertical;min-height:60px;}
           <label>Anon / Publishable Key</label>
           <input class="inp" id="cfgSupaKey" placeholder="Pega tu anon/publishable key aquí">
           <button class="btn btn-primary" onclick="guardarConfig()">Guardar configuración</button>
-          <button type="button" class="btn btn-outline" onclick="document.getElementById('configAvanzadaBox').classList.add('hidden')">Ocultar</button>
+          <div style="border-top:1px dashed #f59e0b;margin-top:14px;padding-top:12px;">
+            <p style="font-size:12px;color:#666;line-height:1.5;">🔐 Este dispositivo necesita autenticarse <b>una sola vez</b> con la cuenta del sistema (la crea el administrador en Supabase → Authentication). Esto protege los datos aunque alguien encuentre la llave pública.</p>
+            <div id="authEstadoBox" style="font-size:12px;font-weight:700;padding:6px 10px;border-radius:8px;margin-bottom:8px;"></div>
+            <label>Email del sistema</label>
+            <input class="inp" id="cfgAuthEmail" type="email" placeholder="sistema@tufarmacia.com">
+            <label>Contraseña del sistema</label>
+            <input class="inp" id="cfgAuthPass" type="password" placeholder="Contraseña">
+            <button class="btn btn-primary" onclick="conectarDispositivo()">🔐 Conectar este dispositivo</button>
+          </div>
+          <button type="button" class="btn btn-outline" style="margin-top:10px;" onclick="document.getElementById('configAvanzadaBox').classList.add('hidden')">Ocultar</button>
         </div>
       </div>
       <div class="card">
@@ -2266,8 +2275,39 @@ function mostrarTamanoDatos(){
   box.textContent='✅ Caché local: '+mb+' MB — guardado en Supabase (500 MB de base de datos + 1 GB de archivos disponibles)';
 }
 function revelarConfigAvanzada(){
-  if(!confirm('⚠️ Esto muestra el API Key y Bin ID que conectan la app a la nube. Solo continúa si sabes lo que haces. ¿Ver de todas formas?')) return;
+  if(!confirm('⚠️ Esto muestra las credenciales que conectan la app a la nube. Solo continúa si sabes lo que haces. ¿Ver de todas formas?')) return;
   document.getElementById('configAvanzadaBox').classList.remove('hidden');
+  mostrarEstadoAuth();
+}
+async function conectarDispositivo(){
+  var email = document.getElementById('cfgAuthEmail').value.trim();
+  var pass = document.getElementById('cfgAuthPass').value;
+  if(!supabaseClient){ toast('Primero guarda la URL y la llave de Supabase'); return; }
+  if(!email || !pass){ toast('Escribe el email y la contraseña del sistema'); return; }
+  try{
+    var r = await supabaseClient.auth.signInWithPassword({email:email, password:pass});
+    if(r.error){ toast('❌ '+r.error.message); mostrarEstadoAuth(); return; }
+    toast('✅ Dispositivo conectado');
+    document.getElementById('cfgAuthPass').value='';
+    mostrarEstadoAuth();
+    pullRemote();
+  }catch(err){
+    toast('❌ Error de conexión');
+    console.log(err);
+  }
+}
+async function mostrarEstadoAuth(){
+  var box = document.getElementById('authEstadoBox');
+  if(!box) return;
+  if(!supabaseClient){ box.style.background='#fee2e2'; box.style.color='#991b1b'; box.textContent='⚪ Configura primero la URL y la llave arriba'; return; }
+  try{
+    var s = await supabaseClient.auth.getSession();
+    if(s.data && s.data.session){
+      box.style.background='#dcfce7'; box.style.color='#166534'; box.textContent='✅ Este dispositivo ya está conectado';
+    } else {
+      box.style.background='#fee2e2'; box.style.color='#991b1b'; box.textContent='🔴 Este dispositivo NO está conectado — la sincronización no va a funcionar hasta que conectes abajo';
+    }
+  }catch(err){ console.log(err); }
 }
 function loadConfigUI(){
   document.getElementById('cfgSupaUrl').value=CFG.supaUrl||'';
@@ -2284,14 +2324,25 @@ function guardarConfig(){
   updateSyncBadge();
   if(supabaseClient) pullRemote();
 }
-function updateSyncBadge(){
+async function updateSyncBadge(){
   var dot=document.getElementById('syncDot'), txt=document.getElementById('syncText');
-  if(CFG.supaUrl && CFG.supaKey){
-    dot.classList.remove('off');
-    txt.textContent='Sincronización activa (Supabase)';
-  } else {
+  if(!CFG.supaUrl || !CFG.supaKey){
     dot.classList.add('off');
     txt.textContent='Sin sincronizar (solo este dispositivo)';
+    return;
+  }
+  try{
+    var s = supabaseClient ? await supabaseClient.auth.getSession() : null;
+    if(s && s.data && s.data.session){
+      dot.classList.remove('off');
+      txt.textContent='Sincronización activa (Supabase)';
+    } else {
+      dot.classList.add('off');
+      txt.textContent='⚠️ Dispositivo sin conectar — ver configuración avanzada';
+    }
+  }catch(err){
+    dot.classList.add('off');
+    txt.textContent='⚠️ Dispositivo sin conectar — ver configuración avanzada';
   }
 }
 // ---- Subida de fotos/firmas a Supabase Storage ----
