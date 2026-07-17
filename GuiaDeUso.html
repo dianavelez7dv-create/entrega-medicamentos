@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Guía de uso — Control de Entrega Farmacia</title>
+<style>
+:root{
+  --azul:#0d7fb8; --azul-osc:#0a5c8a; --verde:#16a34a; --amarillo:#f59e0b; --rojo:#dc2626;
+  --gris:#8892a0; --fondo:#f4f6f9; --tarjeta:#ffffff; --borde:#e5e7eb;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:-apple-system,'Segoe UI',Roboto,Arial,sans-serif;background:var(--fondo);color:#1a1a2e;line-height:1.5;}
+.top{background:linear-gradient(135deg,var(--azul-osc),var(--azul));color:#fff;padding:36px 20px 60px;text-align:center;}
+.top h1{font-size:26px;font-weight:800;margin-bottom:6px;}
+.top p{font-size:14px;opacity:.9;max-width:480px;margin:0 auto;}
+.wrap{max-width:760px;margin:-36px auto 60px;padding:0 16px;}
+nav.toc{background:#fff;border-radius:16px;box-shadow:0 6px 24px rgba(10,92,138,.12);padding:18px;margin-bottom:24px;}
+nav.toc h2{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--gris);margin-bottom:10px;}
+nav.toc ol{list-style:none;display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:6px;counter-reset:tocnum;}
+nav.toc a{display:flex;align-items:center;gap:8px;text-decoration:none;color:#1a1a2e;font-size:13.5px;font-weight:600;padding:8px 10px;border-radius:8px;}
+nav.toc a:hover{background:#eff8ff;color:var(--azul-osc);}
+nav.toc .n{width:22px;height:22px;border-radius:50%;background:var(--azul);color:#fff;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+
+section.card{background:var(--tarjeta);border-radius:16px;box-shadow:0 2px 10px rgba(10,30,60,.06);padding:24px 22px;margin-bottom:20px;scroll-margin-top:16px;}
+section.card h2{font-size:19px;color:var(--azul-osc);display:flex;align-items:center;gap:10px;margin-bottom:4px;}
+section.card h2 .ic{font-size:24px;}
+section.card .desc{color:#555;font-size:14px;margin-bottom:16px;}
+
+.step{display:flex;gap:14px;padding:12px 0;border-top:1px dashed var(--borde);}
+.step:first-of-type{border-top:none;}
+.stepnum{width:28px;height:28px;border-radius:50%;background:#eff8ff;color:var(--azul-osc);font-weight:800;font-size:13px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.stepbody b{display:block;font-size:14.5px;margin-bottom:2px;}
+.stepbody span{font-size:13.5px;color:#555;}
+
+.tip{background:#eff8ff;border-left:4px solid var(--azul);border-radius:8px;padding:10px 14px;font-size:13px;color:#0a5c8a;margin-top:12px;}
+.tip b{color:var(--azul-osc);}
+.warn{background:#fef3c7;border-left:4px solid var(--amarillo);border-radius:8px;padding:10px 14px;font-size:13px;color:#92400e;margin-top:12px;}
+.danger{background:#fee2e2;border-left:4px solid var(--rojo);border-radius:8px;padding:10px 14px;font-size:13px;color:#991b1b;margin-top:12px;}
+
+.mockbar{display:flex;gap:6px;background:#f4f6f9;border-radius:10px;padding:8px;margin:14px 0;flex-wrap:wrap;}
+.mockbtn{background:#fff;border:1.5px solid var(--borde);border-radius:8px;padding:7px 11px;font-size:12px;font-weight:700;color:#333;}
+.mockbtn.primary{background:var(--azul);color:#fff;border-color:var(--azul);}
+.mockbtn.outline{border-color:var(--azul);color:var(--azul);}
+.mockbtn.ok{background:#16a34a;color:#fff;border-color:#16a34a;}
+.mockbtn.danger{border-color:var(--rojo);color:var(--rojo);}
+
+.badgeex{display:inline-block;font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px;margin:2px 4px 2px 0;}
+.b-parcial{background:#fef3c7;color:#92400e;}
+.b-completa{background:#fee2e2;color:#991b1b;}
+.b-dea{background:#1a1a2e;color:#fff;}
+.b-ok{background:#dcfce7;color:#166534;}
+
+.faq{border-top:1px dashed var(--borde);padding:12px 0;}
+.faq:first-of-type{border-top:none;}
+.faq b{display:block;font-size:14px;color:var(--azul-osc);margin-bottom:3px;}
+.faq span{font-size:13.5px;color:#555;}
+
+footer{text-align:center;color:var(--gris);font-size:12px;padding:20px 0 40px;}
+
+@media print{
+  .top{background:#0a5c8a !important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+  nav.toc{page-break-after:always;}
+  section.card{box-shadow:none;border:1px solid #ddd;page-break-inside:avoid;}
+}
+</style>
+</head>
+<body>
+
+<div class="top">
+  <h1>💊 Control de Entrega — Guía de uso</h1>
+  <p>Todo lo que el equipo de la farmacia necesita saber para usar la app, paso a paso.</p>
+</div>
+
+<div class="wrap">
+
+  <nav class="toc">
+    <h2>Contenido</h2>
+    <ol>
+      <li><a href="#login"><span class="n">1</span>Entrar a la app</a></li>
+      <li><a href="#pacientes"><span class="n">2</span>Directorio de pacientes</a></li>
+      <li><a href="#nueva"><span class="n">3</span>Registrar receta</a></li>
+      <li><a href="#entregar"><span class="n">4</span>Entregar medicamentos</a></li>
+      <li><a href="#pendientes"><span class="n">5</span>Pendientes y deudas</a></li>
+      <li><a href="#historial"><span class="n">6</span>Historial y auditoría</a></li>
+      <li><a href="#sync"><span class="n">7</span>Sincronización y respaldo</a></li>
+      <li><a href="#mensajes"><span class="n">8</span>Avisos a pacientes</a></li>
+      <li><a href="#faq"><span class="n">9</span>Preguntas frecuentes</a></li>
+    </ol>
+  </nav>
+
+  <section class="card" id="login">
+    <h2><span class="ic">🔒</span>1. Entrar a la app</h2>
+    <p class="desc">Cada empleado tiene su propio nombre y PIN — esto es lo que hace que la auditoría sepa quién hizo cada cosa.</p>
+    <div class="step"><div class="stepnum">1</div><div class="stepbody"><b>Abre la app</b><span>Desde el link de siempre. Si nunca has entrado en ese dispositivo, te pide identificarte.</span></div></div>
+    <div class="step"><div class="stepnum">2</div><div class="stepbody"><b>¿Ya tienes cuenta?</b><span>Selecciónate de la lista y escribe tu PIN de 6 dígitos.</span></div></div>
+    <div class="step"><div class="stepnum">3</div><div class="stepbody"><b>¿Eres nuevo empleado?</b><span>Elige "+ Registrarme", escribe tu nombre y crea un PIN de 6 dígitos (con confirmación).</span></div></div>
+    <div class="step"><div class="stepnum">4</div><div class="stepbody"><b>Cambiar de usuario</b><span>Toca tu nombre arriba del todo ("cambiar sesión"), o ve a Sync → "🚪 Salir / Cambiar de usuario".</span></div></div>
+    <div class="tip"><b>Por seguridad:</b> la sesión se cierra sola después de 10 minutos sin usar la app, para que un teléfono desatendido no quede abierto con información de pacientes.</div>
+  </section>
+
+  <section class="card" id="pacientes">
+    <h2><span class="ic">🪪</span>2. Directorio de pacientes</h2>
+    <p class="desc">Guarda el perfil de cada paciente una sola vez y reutilízalo en cada visita — evita escribir todo de nuevo y mezclar pacientes con nombres parecidos.</p>
+    <div class="step"><div class="stepnum">1</div><div class="stepbody"><b>Pestaña "Pac."</b><span>Ahí ves todos los pacientes guardados, con foto, plan médico, teléfono y dirección.</span></div></div>
+    <div class="step"><div class="stepnum">2</div><div class="stepbody"><b>➕ Nuevo paciente</b><span>Escribe nombre completo (con ambos apellidos + inicial si aplica), plan médico, teléfono, email, dirección, quién recoge, y toma la foto de identificación.</span></div></div>
+    <div class="step"><div class="stepnum">3</div><div class="stepbody"><b>✏️ Editar</b><span>Cambia cualquier dato o la foto en cualquier momento desde la misma tarjeta del paciente.</span></div></div>
+    <div class="step"><div class="stepnum">4</div><div class="stepbody"><b>🗺️ Mapa / 💬 WhatsApp</b><span>Si el paciente tiene dirección o teléfono guardado, salen botones directos para navegación o avisos.</span></div></div>
+    <div class="warn"><b>Ojo con nombres parecidos:</b> si hay dos pacientes con el mismo primer nombre, la app te avisa mientras escribes — confirma que sea la persona correcta antes de guardar.</div>
+  </section>
+
+  <section class="card" id="nueva">
+    <h2><span class="ic">➕</span>3. Registrar una receta</h2>
+    <p class="desc">Esto es lo que haces cada vez que una receta queda lista para recoger.</p>
+    <div class="step"><div class="stepnum">1</div><div class="stepbody"><b>Busca al paciente</b><span>Escribe su nombre — si ya existe en el directorio, selecciónalo de la lista (autocompleta todo). Si es nuevo, sale la opción "➕ Crear paciente nuevo".</span></div></div>
+    <div class="step"><div class="stepnum">2</div><div class="stepbody"><b>Agrega cada medicamento</b><span>Nombre + miligramos/presentación (obligatorio) + si es controlado por el DEA.</span></div></div>
+    <div class="step"><div class="stepnum">3</div><div class="stepbody"><b>Marca el estado de cada uno</b><span>
+      <span class="badgeex b-ok">✅ Completo</span>
+      <span class="badgeex b-parcial">🟡 Entrega parcial</span>
+      <span class="badgeex b-completa">🔴 No ha llegado</span>
+    </span></div></div>
+    <div class="step"><div class="stepnum">4</div><div class="stepbody"><b>➕ Agregar otro medicamento</b><span>Si el paciente tiene varias recetas en la misma bolsa, agrégalas todas aquí — no hace falta repetir ubicación ni notas.</span></div></div>
+    <div class="step"><div class="stepnum">5</div><div class="stepbody"><b>Ubicación física</b><span>Ej. "Casillero B-3" — se le asigna un color automático para identificarlo rápido.</span></div></div>
+    <div class="step"><div class="stepnum">6</div><div class="stepbody"><b>Opcional: código de barras y foto del frasco</b><span>El botón de escanear abre la cámara; la foto sirve de evidencia.</span></div></div>
+    <div class="step"><div class="stepnum">7</div><div class="stepbody"><b>Guardar</b><span>Aparece un botón para avisarle al paciente por WhatsApp que su receta está lista.</span></div></div>
+    <div class="tip"><b>Editar después:</b> si olvidaste un medicamento o algún dato, ve a Entregar → esa receta → "✏️ Editar" (los medicamentos ya entregados no se pueden tocar, para no dañar el historial).</div>
+  </section>
+
+  <section class="card" id="entregar">
+    <h2><span class="ic">🔍</span>4. Entregar medicamentos</h2>
+    <p class="desc">Aquí es donde trabajas cuando el paciente llega a recoger.</p>
+    <div class="step"><div class="stepnum">1</div><div class="stepbody"><b>Busca al paciente</b><span>Escribe su nombre en la lupa, o simplemente entra a la pestaña — muestra todo lo pendiente.</span></div></div>
+    <div class="step"><div class="stepnum">2</div><div class="stepbody"><b>Verifica su identidad</b><span>Si tiene foto de ID guardada, aparece junto a su nombre — compárala con la persona que tienes al frente.</span></div></div>
+    <div class="mockbar">
+      <span class="mockbtn ok">✅ Entregar</span>
+      <span class="mockbtn danger">❌ No lo quiso</span>
+      <span class="mockbtn outline">💵 Pago</span>
+    </div>
+    <div class="step"><div class="stepnum">3</div><div class="stepbody"><b>✅ Entregar</b><span>Pide nombre de quien recoge y su firma en pantalla. Si el medicamento tenía deuda (parcial o no había llegado), queda marcado "en espera de completar" en vez de cerrarse del todo.</span></div></div>
+    <div class="step"><div class="stepnum">4</div><div class="stepbody"><b>❌ No lo quiso</b><span>Registra que el paciente rechazó ese medicamento, con motivo opcional.</span></div></div>
+    <div class="step"><div class="stepnum">5</div><div class="stepbody"><b>💵 Pago</b><span>Anota cantidad y forma de pago (efectivo, tarjeta, ATH Móvil, etc.) — puedes registrar varios pagos por medicamento.</span></div></div>
+    <div class="step"><div class="stepnum">6</div><div class="stepbody"><b>🖨️ Recibo</b><span>Imprime un recibo con lo entregado, la firma, y los pagos de esa visita.</span></div></div>
+    <div class="warn"><b>Si hay ubicaciones distintas</b> para el mismo paciente (posible error al guardar), la app te avisa con una alerta roja antes de entregar.</div>
+  </section>
+
+  <section class="card" id="pendientes">
+    <h2><span class="ic">📋</span>5. Pendientes y reporte de deudas</h2>
+    <p class="desc">Vista general de todo lo que falta por entregar, para organizar el trabajo del día.</p>
+    <div class="step"><div class="stepnum">1</div><div class="stepbody"><b>Lista completa</b><span>Ordenada de más vieja a más nueva, con color de aviso a los 2 y 3+ días esperando.</span></div></div>
+    <div class="step"><div class="stepnum">2</div><div class="stepbody"><b>📊 Reporte de deudas pendientes</b><span>Agrupa por medicamento — ideal para preparar lo que falta antes de que lleguen los pacientes.</span></div></div>
+    <div class="step"><div class="stepnum">3</div><div class="stepbody"><b>🖨️ Imprimir</b><span>Tanto la lista completa como el reporte de deudas se pueden imprimir como respaldo físico.</span></div></div>
+    <div class="tip">Desde la pantalla "Nueva", las cajitas de arriba (Pendientes / Entregadas hoy / +2 días) son botones — tócalas para ir directo a esa vista filtrada.</div>
+  </section>
+
+  <section class="card" id="historial">
+    <h2><span class="ic">✅</span>6. Historial y auditoría</h2>
+    <p class="desc">Todo lo que ya se entregó, y un registro de quién hizo qué y cuándo.</p>
+    <div class="step"><div class="stepnum">1</div><div class="stepbody"><b>Pestaña "Entregas"</b><span>Historial completo, con firma, pagos, y botón de recibo reimprimible.</span></div></div>
+    <div class="step"><div class="stepnum">2</div><div class="stepbody"><b>Pestaña "Auditoría"</b><span>Cada acción del sistema queda registrada: quién, qué, cuándo. Filtrable por fecha, empleado, tipo de acción, o búsqueda libre.</span></div></div>
+    <div class="step"><div class="stepnum">3</div><div class="stepbody"><b>🔴 Reporte de medicamentos controlados (DEA)</b><span>Lista todo movimiento de medicamentos marcados como controlados, filtrable por fecha — para cumplimiento regulatorio.</span></div></div>
+    <div class="step"><div class="stepnum">4</div><div class="stepbody"><b>🖨️ Imprimir</b><span>Tanto la auditoría filtrada como el reporte DEA se pueden imprimir.</span></div></div>
+  </section>
+
+  <section class="card" id="sync">
+    <h2><span class="ic">☁️</span>7. Sincronización y respaldo</h2>
+    <p class="desc">Cómo se mantienen todos los dispositivos (tablet, celulares) viendo la misma información.</p>
+    <div class="step"><div class="stepnum">1</div><div class="stepbody"><b>🔐 Conectar el dispositivo (solo la primera vez)</b><span>Sync → 🔒 Configuración avanzada → escribe el <u>email y contraseña del sistema</u> (te lo da el administrador) → "Conectar este dispositivo". Sin este paso, el dispositivo no puede sincronizar aunque tenga la URL y la llave puestas — es una capa extra de seguridad. Solo se hace una vez por dispositivo.</span></div></div>
+    <div class="step"><div class="stepnum">2</div><div class="stepbody"><b>🔄 Sincronizar ahora</b><span>Combina lo que tienes en tu dispositivo con lo que hay en la nube — nunca borra, solo une.</span></div></div>
+    <div class="step"><div class="stepnum">3</div><div class="stepbody"><b>🔒 Configuración avanzada</b><span>Ahí están las credenciales de conexión (Supabase). No se debe tocar a menos que sepas lo que haces — pide confirmación antes de mostrarse.</span></div></div>
+    <div class="step"><div class="stepnum">4</div><div class="stepbody"><b>📢 Config. de correo</b><span>La URL del Web App de correos también está protegida detrás de "🔒 Ver/editar configuración de correo" — igual, no tocar sin saber lo que haces.</span></div></div>
+    <div class="step"><div class="stepnum">5</div><div class="stepbody"><b>Exportar / Importar respaldo</b><span>Descarga toda la información en un archivo (con opción de contraseña), y puedes volver a cargarlo si hace falta restaurar.</span></div></div>
+    <div class="step"><div class="stepnum">6</div><div class="stepbody"><b>🗑️ Papelera</b><span>Nada se borra para siempre al instante — queda guardado 30 días con opción de "↩️ Restaurar" por si fue un error.</span></div></div>
+    <div class="danger"><b>Nunca compartas</b> la llave "secret" de la base de datos con nadie ni la pegues en la app — solo la "anon/publishable". La contraseña del sistema (para conectar dispositivos) también debe guardarse segura, solo el administrador la reparte.</div>
+  </section>
+
+  <section class="card" id="mensajes">
+    <h2><span class="ic">💬</span>8. Avisos a pacientes</h2>
+    <p class="desc">Dos formas de avisar, según el caso.</p>
+    <div class="step"><div class="stepnum">1</div><div class="stepbody"><b>Individual (WhatsApp)</b><span>Botón "💬 Avisar" al registrar o en Entregar — abre WhatsApp con un mensaje ya escrito, editable antes de enviar. Por privacidad, no incluye el nombre del medicamento.</span></div></div>
+    <div class="step"><div class="stepnum">2</div><div class="stepbody"><b>Masivo (correo y WhatsApp)</b><span>Sync → "📢 Mensajes masivos" — selecciona pacientes, escribe el mensaje, y envía por correo automático o prepara enlaces de WhatsApp uno por uno.</span></div></div>
+  </section>
+
+  <section class="card" id="faq">
+    <h2><span class="ic">❓</span>9. Preguntas frecuentes</h2>
+    <div class="faq"><b>Olvidé mi PIN, ¿qué hago?</b><span>Pide a otro empleado que entre con el suyo y vaya a Sync → "Reiniciar PIN de un empleado".</span></div>
+    <div class="faq"><b>¿Qué pasa si no hay internet?</b><span>La app sigue funcionando y guardando todo localmente — se sincroniza sola cuando vuelva la conexión.</span></div>
+    <div class="faq"><b>Registré algo por error, ¿se puede borrar?</b><span>Sí — se va a la Papelera (Sync) y se puede restaurar dentro de los primeros 30 días.</span></div>
+    <div class="faq"><b>¿Por qué no veo lo que registró otro empleado?</b><span>Toca "🔄 Sincronizar ahora" en Sync. Si sigue sin funcionar, revisa que el dispositivo esté "🔐 Conectado" (Sync → configuración avanzada) — si no, hay que conectar ese dispositivo con el email y contraseña del sistema una vez.</span></div>
+    <div class="faq"><b>Un medicamento quedó "en espera de completar", ¿qué significa?</b><span>Que se entregó parte (o nada, si no había llegado) pero sigue pendiente. Cuando llegue el resto, usa el botón "✅ Completar entrega" en esa misma receta.</span></div>
+  </section>
+
+</div>
+
+<footer>Guía de uso — Control de Entrega Farmacia · Actualízala si la app cambia</footer>
+
+</body>
+</html>

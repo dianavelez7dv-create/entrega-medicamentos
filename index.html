@@ -176,7 +176,7 @@ textarea{resize:vertical;min-height:60px;}
 <div id="app">
   <header>
     <h1>💊 Control de Entrega</h1>
-    <div class="sub" id="hSub">Farmacia · <span style="color:#ffd700;font-weight:700;" id="verTag">v39-Seguro</span></div>
+    <div class="sub" id="hSub">Farmacia · <span style="color:#ffd700;font-weight:700;" id="verTag">v40</span></div>
     <div class="syncbar"><span class="dot" id="syncDot"></span><span id="syncText">Sin sincronizar</span></div>
     <div class="syncbar" style="margin-top:4px;cursor:pointer;" onclick="abrirLogin()">👤 <span id="empActual">Sin identificar</span> <span style="text-decoration:underline;">(cambiar sesión)</span></div>
   </header>
@@ -560,9 +560,14 @@ textarea{resize:vertical;min-height:60px;}
       <div class="card">
         <div class="section-title">📢 Mensajes masivos</div>
         <p style="font-size:12px;color:#666;">El correo se envía automático vía Google Apps Script. El mensaje de texto abre WhatsApp uno por uno (no existe envío masivo de SMS gratis).</p>
-        <label>URL del Web App de Google Apps Script (para correos)</label>
-        <input class="inp" id="cfgEmailWebhook" placeholder="https://script.google.com/macros/s/.../exec">
-        <button class="btn btn-outline" onclick="guardarEmailWebhook()">Guardar URL</button>
+        <button type="button" class="btn btn-outline" onclick="revelarConfigCorreo()">🔒 Ver/editar configuración de correo</button>
+        <div id="configCorreoBox" class="hidden" style="margin-top:10px;background:#fef3c7;border:1.5px solid #f59e0b;border-radius:10px;padding:12px;">
+          <p style="font-size:12px;color:#92400e;font-weight:700;margin-bottom:8px;">⚠️ No cambies esto a menos que sepas lo que haces.</p>
+          <label>URL del Web App de Google Apps Script (para correos)</label>
+          <input class="inp" id="cfgEmailWebhook" placeholder="https://script.google.com/macros/s/.../exec">
+          <button class="btn btn-primary" onclick="guardarEmailWebhook()">Guardar URL</button>
+          <button type="button" class="btn btn-outline" onclick="document.getElementById('configCorreoBox').classList.add('hidden')">Ocultar</button>
+        </div>
 
         <label style="margin-top:16px;">Destinatarios</label>
         <div style="display:flex;gap:8px;margin-bottom:8px;">
@@ -744,7 +749,7 @@ function goScreen(name){
   if(name==='pendientes') renderPendientes();
   if(name==='historial') renderHistorial();
   if(name==='nueva') renderStats();
-  if(name==='sync'){ renderEmpleados(); renderListaPacientesMensaje(); document.getElementById('syncEmpActual').textContent = EMPLEADO || 'Sin identificar'; document.getElementById('configAvanzadaBox').classList.add('hidden'); mostrarTamanoDatos(); renderPapelera(); }
+  if(name==='sync'){ renderEmpleados(); renderListaPacientesMensaje(); document.getElementById('syncEmpActual').textContent = EMPLEADO || 'Sin identificar'; document.getElementById('configAvanzadaBox').classList.add('hidden'); document.getElementById('configCorreoBox').classList.add('hidden'); mostrarTamanoDatos(); renderPapelera(); }
 }
 
 function medRowInnerHtml(placeholderMed){
@@ -2273,6 +2278,10 @@ function mostrarTamanoDatos(){
   var mb = (bytes/1024/1024).toFixed(2);
   box.style.background='#dcfce7'; box.style.color='#166534';
   box.textContent='✅ Caché local: '+mb+' MB — guardado en Supabase (500 MB de base de datos + 1 GB de archivos disponibles)';
+}
+function revelarConfigCorreo(){
+  if(!confirm('⚠️ Esto muestra la URL del Web App de correos. Solo continúa si sabes lo que haces. ¿Ver de todas formas?')) return;
+  document.getElementById('configCorreoBox').classList.remove('hidden');
 }
 function revelarConfigAvanzada(){
   if(!confirm('⚠️ Esto muestra las credenciales que conectan la app a la nube. Solo continúa si sabes lo que haces. ¿Ver de todas formas?')) return;
