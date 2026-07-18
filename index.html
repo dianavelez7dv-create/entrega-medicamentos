@@ -176,7 +176,7 @@ textarea{resize:vertical;min-height:60px;}
 <div id="app">
   <header>
     <h1>💊 Control de Entrega</h1>
-    <div class="sub" id="hSub">Farmacia · <span style="color:#ffd700;font-weight:700;" id="verTag">v41</span></div>
+    <div class="sub" id="hSub">Farmacia · <span style="color:#ffd700;font-weight:700;" id="verTag">v43</span></div>
     <div class="syncbar"><span class="dot" id="syncDot"></span><span id="syncText">Sin sincronizar</span></div>
     <div class="syncbar" style="margin-top:4px;cursor:pointer;" onclick="abrirLogin()">👤 <span id="empActual">Sin identificar</span> <span style="text-decoration:underline;">(cambiar sesión)</span></div>
   </header>
@@ -944,22 +944,31 @@ function entregarMed(recordId, idx){
   if(!rec) return;
   ensureMedObjects(rec);
   var med=rec.medicamentos[idx];
-  var tieneDeuda = med.deuda && med.deuda.estado && med.deuda.estado!=='ninguna';
-  var contexto = tieneDeuda ? 'Entrega PARCIAL: '+med.nombre+' (queda pendiente completar)' : 'Entregando: '+med.nombre;
+  var completo = confirm('¿"'+nombreCompletoMed(med)+'" se entrega COMPLETO ahora?\n\nAceptar = sí, completo.\nCancelar = no, me quedo corta — falta algo.');
+  var falta='';
+  if(!completo){
+    var f = prompt('¿Cuánto falta de "'+med.nombre+'"? (ej. 10 tabletas)', (med.deuda&&med.deuda.monto)||'');
+    if(f===null) return;
+    falta = f.trim();
+  }
+  var contexto = completo ? 'Entregando: '+med.nombre : 'Entrega PARCIAL: '+med.nombre+' (queda pendiente completar)';
   abrirFirmaOverlay(contexto, rec.autorizado||'', function(quien, firma){
-    if(tieneDeuda){
-      med.entregaParcialInfo = {recogioPor:quien, firma:firma, fecha:new Date().toISOString()};
-      logAuditoria('Entrega parcial registrada', rec.paciente+' — '+med.nombre+' — recogió: '+quien+' — queda pendiente: '+(med.deuda.monto||med.deuda.estado));
+    var fecha=new Date().toISOString();
+    if(!completo){
+      med.deuda = {estado:'parcial', monto:falta};
+      med.entregaParcialInfo = {recogioPor:quien, firma:firma, fecha:fecha};
+      logAuditoria('Entrega parcial registrada', rec.paciente+' — '+med.nombre+' — recogió: '+quien+' — queda pendiente: '+(falta||'sin especificar'));
       save();
       renderBuscar(); renderPendientes(); renderHistorial(); renderStats();
       toast('🟡 Entrega parcial registrada, queda pendiente completar');
       return;
     }
     med.estado='entregado';
-    med.fecha=new Date().toISOString();
+    med.fecha=fecha;
     med.recogioPor=quien;
     med.firma=firma;
     med.motivo=null;
+    med.deuda={estado:'ninguna', monto:''};
     logAuditoria('Entrega', rec.paciente+' — '+med.nombre+' — recogió: '+quien+(firma?' (firmado)':' (sin firma)'));
     finalizarSiCompleto(rec);
     save();
@@ -1695,6 +1704,15 @@ function renderBuscar(){
   document.getElementById('buscarList').innerHTML=html;
 }
 
+function preguntarEstadoEntregaLote(pend){
+  return pend.map(function(m){
+    var completo = confirm('¿"'+nombreCompletoMed(m)+'" se entrega COMPLETO ahora?\n\nAceptar = sí, completo.\nCancelar = no, me quedo corta — falta algo.');
+    if(completo) return {med:m, completo:true};
+    var falta = prompt('¿Cuánto falta de "'+m.nombre+'"? (ej. 10 tabletas)', (m.deuda&&m.deuda.monto)||'');
+    if(falta===null) falta='';
+    return {med:m, completo:false, falta:falta.trim()};
+  });
+}
 function marcarEntregado(id){
   var rec=null;
   for(var i=0;i<D.entregas.length;i++){ if(D.entregas[i].id===id){ rec=D.entregas[i]; break; } }
@@ -1703,22 +1721,25 @@ function marcarEntregado(id){
   var pend=meds.filter(function(m){return m.estado==='pendiente';});
   if(pend.length===0){ toast('No hay medicamentos pendientes en esta receta'); return; }
   var nombres=pend.map(function(m){return m.nombre;}).join(', ');
-  var hayConDeuda = pend.some(function(m){ return m.deuda && m.deuda.estado && m.deuda.estado!=='ninguna'; });
-  var contexto = hayConDeuda ? 'Entregando: '+nombres+' (algunos con deuda quedarán en espera de completar)' : 'Entregando: '+nombres;
+  var plan = preguntarEstadoEntregaLote(pend);
+  var hayCorto = plan.some(function(p){return !p.completo;});
+  var contexto = 'Entregando: '+nombres+(hayCorto?' (algunos quedarán en espera de completar)':'');
   abrirFirmaOverlay(contexto, rec.autorizado||'', function(quien, firma){
     var fecha=new Date().toISOString();
-    pend.forEach(function(m){
-      var tieneDeuda = m.deuda && m.deuda.estado && m.deuda.estado!=='ninguna';
-      if(tieneDeuda){
-        m.entregaParcialInfo = {recogioPor:quien, firma:firma, fecha:fecha};
-      } else {
+    plan.forEach(function(p){
+      var m=p.med;
+      if(p.completo){
         m.estado='entregado'; m.fecha=fecha; m.recogioPor=quien; m.firma=firma;
+        m.deuda={estado:'ninguna', monto:''};
+      } else {
+        m.deuda={estado:'parcial', monto:p.falta};
+        m.entregaParcialInfo = {recogioPor:quien, firma:firma, fecha:fecha};
       }
     });
     finalizarSiCompleto(rec);
-    logAuditoria('Entrega', rec.paciente+' ('+nombres+') — recogió: '+quien+(firma?' (firmado)':' (sin firma)')+(hayConDeuda?' — algunos quedan en espera de completar':''));
+    logAuditoria('Entrega', rec.paciente+' ('+nombres+') — recogió: '+quien+(firma?' (firmado)':' (sin firma)')+(hayCorto?' — algunos quedan en espera de completar':''));
     save();
-    toast(hayConDeuda ? '✅ Entregado lo disponible — algo queda pendiente por deuda' : '✅ Entregado a '+rec.paciente);
+    toast(hayCorto ? '✅ Entregado lo disponible — algo queda pendiente' : '✅ Entregado a '+rec.paciente);
     renderBuscar();
     renderPendientes();
     renderHistorial();
@@ -1729,34 +1750,31 @@ function marcarEntregado(id){
 function marcarGrupoEntregado(paciente){
   var recs = D.entregas.filter(function(e){ return !e.entregado && e.paciente.toLowerCase()===paciente.toLowerCase(); });
   if(recs.length===0) return;
-  var totalPend=0, hayConDeuda=false;
+  var todosPend=[];
   recs.forEach(function(r){
-    ensureMedObjects(r).filter(function(m){return m.estado==='pendiente';}).forEach(function(m){
-      totalPend++;
-      if(m.deuda && m.deuda.estado && m.deuda.estado!=='ninguna') hayConDeuda=true;
-    });
+    ensureMedObjects(r).filter(function(m){return m.estado==='pendiente';}).forEach(function(m){ todosPend.push(m); });
   });
-  if(totalPend===0){ toast('No hay medicamentos pendientes'); return; }
+  if(todosPend.length===0){ toast('No hay medicamentos pendientes'); return; }
+  var plan = preguntarEstadoEntregaLote(todosPend);
+  var hayCorto = plan.some(function(p){return !p.completo;});
   var autorizadoDefault = (recs[0] && recs[0].autorizado) || '';
-  var contexto = 'Entregando '+totalPend+' medicamentos a '+paciente+(hayConDeuda?' (algunos con deuda quedarán en espera de completar)':'');
+  var contexto = 'Entregando '+todosPend.length+' medicamentos a '+paciente+(hayCorto?' (algunos quedarán en espera de completar)':'');
   abrirFirmaOverlay(contexto, autorizadoDefault, function(quien, firma){
     var fecha = new Date().toISOString();
-    recs.forEach(function(rec){
-      rec.medicamentos.forEach(function(m){
-        if(m.estado==='pendiente'){
-          var tieneDeuda = m.deuda && m.deuda.estado && m.deuda.estado!=='ninguna';
-          if(tieneDeuda){
-            m.entregaParcialInfo = {recogioPor:quien, firma:firma, fecha:fecha};
-          } else {
-            m.estado='entregado'; m.fecha=fecha; m.recogioPor=quien; m.firma=firma;
-          }
-        }
-      });
-      finalizarSiCompleto(rec);
+    plan.forEach(function(p){
+      var m=p.med;
+      if(p.completo){
+        m.estado='entregado'; m.fecha=fecha; m.recogioPor=quien; m.firma=firma;
+        m.deuda={estado:'ninguna', monto:''};
+      } else {
+        m.deuda={estado:'parcial', monto:p.falta};
+        m.entregaParcialInfo = {recogioPor:quien, firma:firma, fecha:fecha};
+      }
     });
-    logAuditoria('Entrega grupal', paciente+' — '+totalPend+' medicamentos — recogió: '+quien+(firma?' (firmado)':' (sin firma)')+(hayConDeuda?' — algunos quedan en espera de completar':''));
+    recs.forEach(function(rec){ finalizarSiCompleto(rec); });
+    logAuditoria('Entrega grupal', paciente+' — '+todosPend.length+' medicamentos — recogió: '+quien+(firma?' (firmado)':' (sin firma)')+(hayCorto?' — algunos quedan en espera de completar':''));
     save();
-    toast(hayConDeuda ? '✅ Entregado lo disponible — algo queda pendiente por deuda' : '✅ '+totalPend+' entregados a '+paciente);
+    toast(hayCorto ? '✅ Entregado lo disponible — algo queda pendiente' : '✅ '+todosPend.length+' entregados a '+paciente);
     renderBuscar();
     renderPendientes();
     renderHistorial();
