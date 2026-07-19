@@ -176,7 +176,7 @@ textarea{resize:vertical;min-height:60px;}
 <div id="app">
   <header>
     <h1>💊 Control de Entrega</h1>
-    <div class="sub" id="hSub">Farmacia · <span style="color:#ffd700;font-weight:700;" id="verTag">v43</span></div>
+    <div class="sub" id="hSub">Farmacia · <span style="color:#ffd700;font-weight:700;" id="verTag">v44</span></div>
     <div class="syncbar"><span class="dot" id="syncDot"></span><span id="syncText">Sin sincronizar</span></div>
     <div class="syncbar" style="margin-top:4px;cursor:pointer;" onclick="abrirLogin()">👤 <span id="empActual">Sin identificar</span> <span style="text-decoration:underline;">(cambiar sesión)</span></div>
   </header>
@@ -268,6 +268,7 @@ textarea{resize:vertical;min-height:60px;}
         <label class="photo-label" id="nFotoLabel">📷 Tomar foto del frasco
           <input type="file" accept="*/*" capture="environment" id="nFotoInput" style="display:none">
         </label>
+        <button type="button" class="btn btn-outline" style="margin-top:6px;" onclick="abrirCamaraOverlay(function(dataUrl){ fotoActual=dataUrl; var p=document.getElementById('nFotoPreview'); p.src=dataUrl; p.classList.remove('hidden'); document.getElementById('nFotoRemove').classList.remove('hidden'); })">📷 Usar cámara web (laptop)</button>
         <img id="nFotoPreview" class="evid-thumb hidden">
         <button type="button" class="btn btn-outline hidden" id="nFotoRemove" onclick="quitarFoto()">Quitar foto</button>
 
@@ -335,6 +336,7 @@ textarea{resize:vertical;min-height:60px;}
         <label class="photo-label" id="pacFotoLabel">📷 Tomar foto del ID
           <input type="file" accept="*/*" capture="environment" id="pacFotoInput" style="display:none">
         </label>
+        <button type="button" class="btn btn-outline" style="margin-top:6px;" onclick="abrirCamaraOverlay(function(dataUrl){ pacienteFotoActual=dataUrl; var p=document.getElementById('pacFotoPreview'); p.src=dataUrl; p.classList.remove('hidden'); document.getElementById('pacFotoRemove').classList.remove('hidden'); })">📷 Usar cámara web (laptop)</button>
         <img id="pacFotoPreview" class="evid-thumb hidden">
         <button class="btn btn-outline hidden" id="pacFotoRemove" type="button" onclick="quitarFotoPaciente()">Quitar foto</button>
         <button class="btn btn-primary" onclick="guardarPaciente()">Guardar paciente</button>
@@ -377,6 +379,17 @@ textarea{resize:vertical;min-height:60px;}
         </select>
         <button class="btn btn-primary" onclick="confirmarPago()">✅ Registrar pago</button>
         <button class="btn btn-outline" onclick="cerrarPagoOverlay()">Cancelar</button>
+      </div>
+    </div>
+
+    <!-- OVERLAY: CÁMARA EN VIVO (para laptop/webcam) -->
+    <div id="camaraOverlay" class="login-overlay hidden" style="z-index:991;">
+      <div class="login-box" style="max-width:440px;">
+        <h2>📷 Tomar foto</h2>
+        <video id="camaraVideo" autoplay playsinline style="width:100%;border-radius:10px;background:#000;margin-top:8px;"></video>
+        <canvas id="camaraCanvas" style="display:none;"></canvas>
+        <button class="btn btn-primary" onclick="capturarFotoCamara()">📸 Capturar</button>
+        <button class="btn btn-outline" onclick="cerrarCamaraOverlay()">Cancelar</button>
       </div>
     </div>
 
@@ -2293,6 +2306,46 @@ function quitarFoto(){
 }
 
 // ---- Escáner de código de barras ----
+// ---- Cámara en vivo (para laptops/webcam donde el input capture no abre cámara) ----
+var camaraStream = null;
+var camaraCallback = null;
+async function abrirCamaraOverlay(callback){
+  camaraCallback = callback;
+  document.getElementById('camaraOverlay').classList.remove('hidden');
+  try{
+    camaraStream = await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}}});
+    document.getElementById('camaraVideo').srcObject = camaraStream;
+  }catch(err){
+    toast('No se pudo abrir la cámara: revisa los permisos del navegador');
+    console.log(err);
+    cerrarCamaraOverlay();
+  }
+}
+function capturarFotoCamara(){
+  var video = document.getElementById('camaraVideo');
+  var canvas = document.getElementById('camaraCanvas');
+  if(!video.videoWidth){ toast('La cámara aún no está lista, espera un segundo'); return; }
+  var maxW = 480;
+  var scale = Math.min(1, maxW/video.videoWidth);
+  canvas.width = Math.round(video.videoWidth*scale);
+  canvas.height = Math.round(video.videoHeight*scale);
+  var ctx = canvas.getContext('2d');
+  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+  var dataUrl = canvas.toDataURL('image/jpeg', 0.5);
+  var cb = camaraCallback;
+  cerrarCamaraOverlay();
+  if(cb) cb(dataUrl);
+  toast('📷 Foto capturada');
+}
+function cerrarCamaraOverlay(){
+  if(camaraStream){
+    camaraStream.getTracks().forEach(function(t){ t.stop(); });
+    camaraStream = null;
+  }
+  document.getElementById('camaraOverlay').classList.add('hidden');
+  camaraCallback = null;
+}
+
 function abrirScanner(){
   document.getElementById('scannerOverlay').classList.remove('hidden');
   html5QrCode = new Html5Qrcode("qrReader");
