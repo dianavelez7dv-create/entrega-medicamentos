@@ -176,7 +176,7 @@ textarea{resize:vertical;min-height:60px;}
 <div id="app">
   <header>
     <h1>💊 Control de Entrega</h1>
-    <div class="sub" id="hSub">Farmacia · <span style="color:#ffd700;font-weight:700;" id="verTag">v44</span></div>
+    <div class="sub" id="hSub">Farmacia · <span style="color:#ffd700;font-weight:700;" id="verTag">v45</span></div>
     <div class="syncbar"><span class="dot" id="syncDot"></span><span id="syncText">Sin sincronizar</span></div>
     <div class="syncbar" style="margin-top:4px;cursor:pointer;" onclick="abrirLogin()">👤 <span id="empActual">Sin identificar</span> <span style="text-decoration:underline;">(cambiar sesión)</span></div>
   </header>
@@ -540,6 +540,8 @@ textarea{resize:vertical;min-height:60px;}
           <input class="inp" id="cfgSupaUrl" placeholder="https://xxxxx.supabase.co">
           <label>Anon / Publishable Key</label>
           <input class="inp" id="cfgSupaKey" placeholder="Pega tu anon/publishable key aquí">
+          <label>Schema <span style="font-weight:400;color:#999;">(deja "public" para uso real; usa "pruebas" para probar sin afectar datos reales)</span></label>
+          <input class="inp" id="cfgSupaSchema" placeholder="public">
           <button class="btn btn-primary" onclick="guardarConfig()">Guardar configuración</button>
           <div style="border-top:1px dashed #f59e0b;margin-top:14px;padding-top:12px;">
             <p style="font-size:12px;color:#666;line-height:1.5;">🔐 Este dispositivo necesita autenticarse <b>una sola vez</b> con la cuenta del sistema (la crea el administrador en Supabase → Authentication). Esto protege los datos aunque alguien encuentre la llave pública.</p>
@@ -623,16 +625,22 @@ var LSKEY='entregameds_v1';
 var CFGKEY='entregameds_cfg';
 var EMPKEY='entregameds_empleado';
 var D = { entregas: [], auditoria: [], empleados: [], pacientes: [], papelera: [] };
-var CFG = { supaUrl:'', supaKey:'', emailWebhook:'' };
+var CFG = { supaUrl:'', supaKey:'', supaSchema:'public', emailWebhook:'' };
 var EMPLEADO = '';
 var supabaseClient = null;
 function initSupabaseClient(){
   if(CFG.supaUrl && CFG.supaKey && window.supabase){
-    try{ supabaseClient = window.supabase.createClient(CFG.supaUrl, CFG.supaKey); }
+    try{
+      var schema = CFG.supaSchema && CFG.supaSchema.trim() ? CFG.supaSchema.trim() : 'public';
+      supabaseClient = window.supabase.createClient(CFG.supaUrl, CFG.supaKey, {db:{schema:schema}});
+    }
     catch(err){ console.log('Error creando cliente Supabase', err); supabaseClient=null; }
   } else {
     supabaseClient = null;
   }
+}
+function nombreBucket(base){
+  return (CFG.supaSchema && CFG.supaSchema.trim() && CFG.supaSchema.trim()!=='public') ? base+'-pruebas' : base;
 }
 var fotoActual = null;
 var html5QrCode = null;
@@ -2429,15 +2437,17 @@ async function mostrarEstadoAuth(){
 function loadConfigUI(){
   document.getElementById('cfgSupaUrl').value=CFG.supaUrl||'';
   document.getElementById('cfgSupaKey').value=CFG.supaKey||'';
+  document.getElementById('cfgSupaSchema').value=CFG.supaSchema||'public';
   document.getElementById('cfgEmailWebhook').value=CFG.emailWebhook||'';
   updateSyncBadge();
 }
 function guardarConfig(){
   CFG.supaUrl=document.getElementById('cfgSupaUrl').value.trim().replace(/\/rest\/v1\/?$/,'').replace(/\/$/,'');
   CFG.supaKey=document.getElementById('cfgSupaKey').value.trim();
+  CFG.supaSchema=document.getElementById('cfgSupaSchema').value.trim() || 'public';
   localStorage.setItem(CFGKEY, JSON.stringify(CFG));
   initSupabaseClient();
-  toast('Configuración guardada');
+  toast('Configuración guardada'+(CFG.supaSchema!=='public' ? ' — usando schema "'+CFG.supaSchema+'" (modo pruebas)' : ''));
   updateSyncBadge();
   if(supabaseClient) pullRemote();
 }
@@ -2490,17 +2500,17 @@ async function pushRemote(){
     // Subir fotos pendientes (base64 -> URL) antes de guardar en la base de datos
     for(var i=0;i<(D.pacientes||[]).length;i++){
       var p=D.pacientes[i];
-      p.fotoId = await subirFotoSiEsBase64('fotos-id', p.fotoId, 'pac_'+p.id);
+      p.fotoId = await subirFotoSiEsBase64(nombreBucket('fotos-id'), p.fotoId, 'pac_'+p.id);
     }
     for(var j=0;j<D.entregas.length;j++){
       var e=D.entregas[j];
-      e.foto = await subirFotoSiEsBase64('fotos-frascos', e.foto, 'frasco_'+e.id);
+      e.foto = await subirFotoSiEsBase64(nombreBucket('fotos-frascos'), e.foto, 'frasco_'+e.id);
       var meds = ensureMedObjects(e);
       for(var k=0;k<meds.length;k++){
         var m=meds[k];
-        if(m.firma) m.firma = await subirFotoSiEsBase64('firmas', m.firma, 'firma_'+m.id);
+        if(m.firma) m.firma = await subirFotoSiEsBase64(nombreBucket('firmas'), m.firma, 'firma_'+m.id);
         if(m.entregaParcialInfo && m.entregaParcialInfo.firma){
-          m.entregaParcialInfo.firma = await subirFotoSiEsBase64('firmas', m.entregaParcialInfo.firma, 'firmaparcial_'+m.id);
+          m.entregaParcialInfo.firma = await subirFotoSiEsBase64(nombreBucket('firmas'), m.entregaParcialInfo.firma, 'firmaparcial_'+m.id);
         }
       }
     }
