@@ -194,7 +194,7 @@ textarea{resize:vertical;min-height:60px;}
 <div id="app">
   <header>
     <h1>💊 Control de Entrega</h1>
-    <div class="sub" id="hSub">Farmacia · <span style="color:#ffd700;font-weight:700;" id="verTag">v51</span></div>
+    <div class="sub" id="hSub">Farmacia · <span style="color:#ffd700;font-weight:700;" id="verTag">v52</span></div>
     <div class="syncbar"><span class="dot" id="syncDot"></span><span id="syncText">Sin sincronizar</span></div>
     <div class="syncbar" style="margin-top:4px;cursor:pointer;" onclick="abrirLogin()">👤 <span id="empActual">Sin identificar</span> <span style="text-decoration:underline;">(cambiar sesión)</span></div>
   </header>
@@ -1757,6 +1757,13 @@ function editarEntrega(id){
   var meds = ensureMedObjects(rec);
   var cont = document.getElementById('medsContainer');
   cont.innerHTML='';
+  if(meds.length===0){
+    var filaVacia=document.createElement('div');
+    filaVacia.className='med-row-full';
+    filaVacia.innerHTML = medRowInnerHtml('Ej. Metformina');
+    cont.appendChild(filaVacia);
+    toast('⚠️ Esta receta no tenía medicamentos — agrega al menos uno para guardar');
+  }
   meds.forEach(function(m){
     var row=document.createElement('div');
     row.className='med-row-full';
@@ -2007,7 +2014,11 @@ function renderBuscar(){
         var dias=diasDesde(e.fechaRegistro);
         var db = dias>=3 ? '<span class="badge danger">'+Math.floor(dias)+' días</span>' : (dias>=2 ? '<span class="badge warn">'+Math.floor(dias)+' días</span>' : '<span class="badge">'+fmtFecha(e.fechaRegistro)+'</span>');
         var meds = ensureMedObjects(e);
-        var medsHtml = meds.map(function(m,idx){
+        var medsHtml;
+        if(meds.length===0){
+          medsHtml = '<div style="background:#fee2e2;color:#991b1b;padding:8px 12px;border-radius:8px;font-size:13px;font-weight:700;">⚠️ Esta receta no tiene medicamentos registrados — bórrala o edítala para agregar uno.</div>';
+        } else {
+        medsHtml = meds.map(function(m,idx){
           var nombreEsc = esc(m.nombre).replace(/'/g,"\\'");
           if(m.estado==='pendiente'){
             if(m.entregaParcialInfo){
@@ -2031,6 +2042,7 @@ function renderBuscar(){
             return '<div class="med-item"><span class="med-name">💊 '+esc(nombreCompletoMed(m))+deaBadge(m)+deudaBadge(m)+'</span><span class="med-status st-rechazado">❌ No lo quiso'+(m.motivo?': '+esc(m.motivo):'')+'</span></div>';
           }
         }).join('');
+        }
         html+='<div style="border-top:1px dashed #e5e7eb;margin-top:10px;padding-top:10px;">'+
           medsHtml+
           '<div class="item-row" style="margin-top:8px;">'+locBadge(e.ubicacion)+' '+db+'</div>'+
@@ -2232,13 +2244,14 @@ function renderPendientes(){
       var badge = dias>=3 ? '<span class="badge danger">'+Math.floor(dias)+' días esperando</span>' : (dias>=2 ? '<span class="badge warn">'+Math.floor(dias)+' días esperando</span>' : '<span class="badge">Registrado '+fmtFecha(e.fechaRegistro)+'</span>');
       html+='<div class="item '+cls+'">'+
         '<div class="item-name">'+esc(e.paciente)+'</div>'+
-        '<div class="med-list">'+ensureMedObjects(e).filter(function(m){return m.estado==='pendiente';}).map(function(m){return '<div>💊 '+esc(nombreCompletoMed(m))+deaBadge(m)+deudaBadge(m)+'</div>';}).join('')+'</div>'+
+        (ensureMedObjects(e).length===0 ? '<div style="background:#fee2e2;color:#991b1b;padding:6px 10px;border-radius:8px;font-size:12px;font-weight:700;margin-top:6px;">⚠️ Sin medicamentos registrados — bórrala o edítala</div>' : '<div class="med-list">'+ensureMedObjects(e).filter(function(m){return m.estado==='pendiente';}).map(function(m){return '<div>💊 '+esc(nombreCompletoMed(m))+deaBadge(m)+deudaBadge(m)+'</div>';}).join('')+'</div>')+
         '<div class="item-row">'+locBadge(e.ubicacion)+'</div>'+
         '<div class="item-row">'+badge+'</div>'+
         (e.codigoBarras?'<div class="item-row">🔢 '+esc(e.codigoBarras)+'</div>':'')+
         (e.foto?'<img src="'+e.foto+'" class="evid-thumb" onclick="verFotoGrande(this.src)">':'')+
         '<div class="item-actions">'+
           '<button class="act-entregar" onclick="marcarEntregado(\''+e.id+'\')">✅ Marcar entregado</button>'+
+          '<button class="act-borrar" onclick="borrarEntrega(\''+e.id+'\')">🗑️</button>'+
         '</div>'+
       '</div>';
     });
