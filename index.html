@@ -194,7 +194,7 @@ textarea{resize:vertical;min-height:60px;}
 <div id="app">
   <header>
     <h1>💊 Control de Entrega</h1>
-    <div class="sub" id="hSub">Farmacia · <span style="color:#ffd700;font-weight:700;" id="verTag">v52</span></div>
+    <div class="sub" id="hSub">Farmacia · <span style="color:#ffd700;font-weight:700;" id="verTag">v53</span></div>
     <div class="syncbar"><span class="dot" id="syncDot"></span><span id="syncText">Sin sincronizar</span></div>
     <div class="syncbar" style="margin-top:4px;cursor:pointer;" onclick="abrirLogin()">👤 <span id="empActual">Sin identificar</span> <span style="text-decoration:underline;">(cambiar sesión)</span></div>
   </header>
@@ -1199,7 +1199,7 @@ function entregarMed(recordId, idx){
     med.motivo=null;
     med.deuda={estado:'ninguna', monto:''};
     ajustarInventarioPorNombre(med.nombre, med.presentacion, med.cantidad||1);
-    med.fechaUltimoProcesado = fecha;
+    med.fechaUltimoProcesado = obtenerFechaProceso(med.nombre, fecha);
     logAuditoria('Entrega', rec.paciente+' — '+med.nombre+' — recogió: '+quien+(firma?' (firmado)':' (sin firma)'));
     finalizarSiCompleto(rec);
     save();
@@ -1226,7 +1226,7 @@ function completarMedicamento(recordId, idx){
       med.deuda={estado:'ninguna', monto:''};
       med.entregaParcialInfo=null;
       ajustarInventarioPorNombre(med.nombre, med.presentacion, med.cantidad||1);
-    med.fechaUltimoProcesado = fecha;
+    med.fechaUltimoProcesado = obtenerFechaProceso(med.nombre, fecha);
       logAuditoria('Entrega completada', rec.paciente+' — '+med.nombre+' — recogió: '+quien);
       finalizarSiCompleto(rec);
       save();
@@ -1664,6 +1664,16 @@ function renderMedsAdherencia(){
   }).join('');
 }
 // ---- Adherencia Medicare y refills ----
+function obtenerFechaProceso(medNombre, fechaDefault){
+  if(!esMedAdherencia(medNombre)) return fechaDefault;
+  var hoy = new Date().toISOString().slice(0,10);
+  var resp = prompt('📅 "'+medNombre+'" es un medicamento de adherencia Medicare.\n\n¿Qué fecha lo procesaste en Pharmascan? (AAAA-MM-DD)', hoy);
+  if(resp===null || !resp.trim()) return fechaDefault;
+  var limpio = resp.trim();
+  if(/^\d{4}-\d{2}-\d{2}$/.test(limpio)) return new Date(limpio+'T12:00:00').toISOString();
+  toast('⚠️ Fecha no reconocida, se usó la fecha de hoy');
+  return fechaDefault;
+}
 function esMedAdherencia(nombre){
   return (D.medsAdherencia||[]).find(function(a){ return a.nombre.toLowerCase()===nombre.toLowerCase(); }) || null;
 }
@@ -2100,7 +2110,7 @@ function marcarEntregado(id){
         m.estado='entregado'; m.fecha=fecha; m.recogioPor=quien; m.firma=firma;
         m.deuda={estado:'ninguna', monto:''};
         ajustarInventarioPorNombre(m.nombre, m.presentacion, m.cantidad||1);
-        m.fechaUltimoProcesado = fecha;
+        m.fechaUltimoProcesado = obtenerFechaProceso(m.nombre, fecha);
       } else {
         m.deuda={estado:'parcial', monto:p.falta};
         m.entregaParcialInfo = {recogioPor:quien, firma:firma, fecha:fecha};
@@ -2137,7 +2147,7 @@ function marcarGrupoEntregado(paciente){
         m.estado='entregado'; m.fecha=fecha; m.recogioPor=quien; m.firma=firma;
         m.deuda={estado:'ninguna', monto:''};
         ajustarInventarioPorNombre(m.nombre, m.presentacion, m.cantidad||1);
-        m.fechaUltimoProcesado = fecha;
+        m.fechaUltimoProcesado = obtenerFechaProceso(m.nombre, fecha);
       } else {
         m.deuda={estado:'parcial', monto:p.falta};
         m.entregaParcialInfo = {recogioPor:quien, firma:firma, fecha:fecha};
@@ -2418,7 +2428,7 @@ function recolectarAdherencia(){
     return {
       paciente: item.paciente, medicamento: nombreCompletoMed(item.m), controlado: item.m.controlado,
       fechaUltimoProcesado: item.m.fechaUltimoProcesado, ventana: ventana, listo: listo, necesitaRx: necesitaRx,
-      repUsadas: item.m.repeticionesUsadas, repAutorizadas: item.m.repeticionesAutorizadas
+      repUsadas: item.m.repeticionesUsadas, repAutorizadas: item.m.repeticionesAutorizadas, medId: item.m.id
     };
   });
   filas.sort(function(a,b){ return (a.ventana?a.ventana.proximo:0) - (b.ventana?b.ventana.proximo:0); });
@@ -2431,6 +2441,25 @@ function setFiltroAdherenciaPanel(f){
     document.getElementById(idMap[k]).classList.toggle('activo', k===f);
   });
   renderPanelAdherencia();
+}
+function corregirFechaAdherencia(medId){
+  var medEncontrado=null, recEncontrado=null;
+  D.entregas.forEach(function(e){
+    ensureMedObjects(e).forEach(function(m){
+      if(m.id===medId){ medEncontrado=m; recEncontrado=e; }
+    });
+  });
+  if(!medEncontrado){ toast('No se encontró el medicamento'); return; }
+  var actual = medEncontrado.fechaUltimoProcesado ? medEncontrado.fechaUltimoProcesado.slice(0,10) : new Date().toISOString().slice(0,10);
+  var resp = prompt('Fecha real que se procesó "'+medEncontrado.nombre+'" en Pharmascan (AAAA-MM-DD):', actual);
+  if(resp===null) return;
+  var limpio = resp.trim();
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(limpio)){ toast('Formato de fecha no válido, usa AAAA-MM-DD'); return; }
+  medEncontrado.fechaUltimoProcesado = new Date(limpio+'T12:00:00').toISOString();
+  logAuditoria('Fecha de proceso corregida', recEncontrado.paciente+' — '+medEncontrado.nombre+' — nueva fecha: '+limpio);
+  save();
+  renderPanelAdherencia();
+  toast('✅ Fecha corregida');
 }
 function abrirPanelAdherencia(){
   filtroAdherenciaPanel='listos';
@@ -2455,6 +2484,7 @@ function renderPanelAdherencia(){
       (f.ventana?'<div class="item-row">📅 Próxima fecha: '+f.ventana.proximo.toISOString().slice(0,10)+' (ventana desde '+f.ventana.inicioVentana.toISOString().slice(0,10)+')</div>':'')+
       '<div class="item-row">'+(f.listo?'<span class="badge done">✅ Listo para procesar</span>':'<span class="badge">Aún no en ventana</span>')+'</div>'+
       '<div class="item-row">🔄 Refill '+f.repUsadas+' de '+f.repAutorizadas+(f.necesitaRx?' — <span style="color:#991b1b;font-weight:700;">🔴 Necesita Rx nueva</span>':'')+'</div>'+
+      '<button type="button" class="mini-btn" style="background:#fff;color:#0d7fb8;border:1.5px solid #0d7fb8;margin-top:6px;" onclick="corregirFechaAdherencia(\''+f.medId+'\')">✏️ Corregir fecha de proceso</button>'+
     '</div>';
   });
   box.innerHTML = html;
