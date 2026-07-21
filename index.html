@@ -194,7 +194,7 @@ textarea{resize:vertical;min-height:60px;}
 <div id="app">
   <header>
     <h1>💊 Control de Entrega</h1>
-    <div class="sub" id="hSub">Farmacia · <span style="color:#ffd700;font-weight:700;" id="verTag">v50</span></div>
+    <div class="sub" id="hSub">Farmacia · <span style="color:#ffd700;font-weight:700;" id="verTag">v51</span></div>
     <div class="syncbar"><span class="dot" id="syncDot"></span><span id="syncText">Sin sincronizar</span></div>
     <div class="syncbar" style="margin-top:4px;cursor:pointer;" onclick="abrirLogin()">👤 <span id="empActual">Sin identificar</span> <span style="text-decoration:underline;">(cambiar sesión)</span></div>
   </header>
@@ -829,6 +829,13 @@ function initSupabaseClient(){
 function nombreBucket(base){
   return (CFG.supaSchema && CFG.supaSchema.trim() && CFG.supaSchema.trim()!=='public') ? base+'-pruebas' : base;
 }
+async function eliminarDeSupabase(tabla, id){
+  if(!supabaseClient || !id) return;
+  try{
+    var r = await supabaseClient.from(tabla).delete().eq('id', id);
+    if(r.error) console.log('error borrando de '+tabla, r.error);
+  }catch(err){ console.log('error borrando de '+tabla, err); }
+}
 var fotoActual = null;
 var html5QrCode = null;
 var pacienteSeleccionadoId = null;
@@ -1327,11 +1334,17 @@ function splitNombreCompleto(nombre){
   else { r.pila=tokens.slice(0,tokens.length-2).join(' '); r.ap1=tokens[tokens.length-2]; r.ap2=tokens[tokens.length-1]; }
   return r;
 }
+function normalizarEspacios(s){
+  return (s||'').trim().replace(/\s+/g,' ');
+}
+function tituloCase(s){
+  return normalizarEspacios(s).toLowerCase().replace(/(^|\s|\.)([a-záéíóúñü])/g, function(m,p1,p2){ return p1+p2.toUpperCase(); });
+}
 function combinarNombrePaciente(){
-  var pila=document.getElementById('pacNombrePilaInput').value.trim();
-  var inicial=document.getElementById('pacInicialInput').value.trim();
-  var ap1=document.getElementById('pacApellido1Input').value.trim();
-  var ap2=document.getElementById('pacApellido2Input').value.trim();
+  var pila=tituloCase(document.getElementById('pacNombrePilaInput').value);
+  var inicial=normalizarEspacios(document.getElementById('pacInicialInput').value).toUpperCase();
+  var ap1=tituloCase(document.getElementById('pacApellido1Input').value);
+  var ap2=tituloCase(document.getElementById('pacApellido2Input').value);
   if(inicial && inicial.indexOf('.')<0) inicial+='.';
   var partes=[pila, inicial, ap1, ap2].filter(Boolean);
   var combinado = partes.join(' ');
@@ -1359,7 +1372,11 @@ function abrirPacienteOverlay(standalone){
       document.getElementById('pacEmailInput').value=p.email||'';
       document.getElementById('pacAutorizadoInput').value=p.autorizado||'';
       document.getElementById('pacDireccionInput').value=p.direccion||'';
-      split = splitNombreCompleto(p.nombre);
+      if(p.pila || p.ap1){
+        split = {pila:p.pila||'', inicial:p.inicial||'', ap1:p.ap1||'', ap2:p.ap2||''};
+      } else {
+        split = splitNombreCompleto(p.nombre);
+      }
       if(p.fotoId){
         pacienteFotoActual=p.fotoId;
         prev.src=p.fotoId; prev.classList.remove('hidden');
@@ -1412,7 +1429,9 @@ document.getElementById('pacFotoInput').addEventListener('change', function(e){
 function guardarPaciente(){
   var nombre=combinarNombrePaciente();
   var pilaCheck=document.getElementById('pacNombrePilaInput').value.trim();
+  var inicialCheck=document.getElementById('pacInicialInput').value.trim();
   var ap1Check=document.getElementById('pacApellido1Input').value.trim();
+  var ap2Check=document.getElementById('pacApellido2Input').value.trim();
   if(!pilaCheck || !ap1Check){ toast('Escribe al menos el nombre y el apellido paterno'); return; }
   var plan=document.getElementById('pacPlanInput').value.trim();
   var tel=document.getElementById('pacTelInput').value.trim();
@@ -1423,8 +1442,17 @@ function guardarPaciente(){
   D.pacientes = D.pacientes || [];
   var existing = pacienteSeleccionadoId ? D.pacientes.find(function(x){return x.id===pacienteSeleccionadoId;}) : D.pacientes.find(function(x){return x.nombre.toLowerCase()===nombre.toLowerCase();});
   var esNuevo = !existing;
+  if(esNuevo){
+    var parecido = D.pacientes.find(function(x){
+      return x.pila && x.ap1 && x.pila.toLowerCase()===pilaCheck.toLowerCase() && x.ap1.toLowerCase()===ap1Check.toLowerCase();
+    });
+    if(parecido){
+      if(!confirm('⚠️ Ya existe un paciente parecido: "'+parecido.nombre+'". ¿Es una persona DISTINTA? (Cancelar para seleccionar el existente en vez de crear uno nuevo)')) return;
+    }
+  }
   if(existing){
     existing.nombre=nombre;
+    existing.pila=pilaCheck; existing.inicial=inicialCheck; existing.ap1=ap1Check; existing.ap2=ap2Check;
     existing.planMedico=plan;
     existing.telefono=tel;
     existing.email=email;
@@ -1433,7 +1461,7 @@ function guardarPaciente(){
     existing.fotoId=pacienteFotoActual;
     pacienteSeleccionadoId=existing.id;
   } else {
-    var np={id:'p'+Date.now()+Math.floor(Math.random()*1000), nombre:nombre, planMedico:plan, telefono:tel, email:email, autorizado:autorizado, direccion:direccion, fotoId:pacienteFotoActual, fechaCreado:new Date().toISOString()};
+    var np={id:'p'+Date.now()+Math.floor(Math.random()*1000), nombre:nombre, pila:pilaCheck, inicial:inicialCheck, ap1:ap1Check, ap2:ap2Check, planMedico:plan, telefono:tel, email:email, autorizado:autorizado, direccion:direccion, fotoId:pacienteFotoActual, fechaCreado:new Date().toISOString()};
     D.pacientes.push(np);
     pacienteSeleccionadoId=np.id;
   }
@@ -1584,7 +1612,7 @@ function abrirGoogleMaps(direccion){
   var link='https://www.google.com/maps/dir/?api=1&destination='+encodeURIComponent(direccion);
   window.open(link,'_blank');
 }
-function borrarPaciente(id){
+async function borrarPaciente(id){
   var p=(D.pacientes||[]).find(function(x){return x.id===id;});
   if(!p) return;
   if(!confirm('¿Eliminar el perfil de '+p.nombre+'? Se guarda en la Papelera 30 días. Sus recetas anteriores no se borran.')) return;
@@ -1592,6 +1620,7 @@ function borrarPaciente(id){
   moverAPapelera('paciente', p);
   logAuditoria('Paciente eliminado', p.nombre+' — movido a papelera');
   save();
+  await eliminarDeSupabase('pacientes', id);
   renderDirectorioPacientesTab();
   toast('🗑️ Movido a la papelera (recuperable 30 días)');
 }
@@ -1613,13 +1642,14 @@ function agregarMedAdherencia(){
   renderMedsAdherencia();
   toast('✅ Agregado a la lista de adherencia');
 }
-function borrarMedAdherencia(id){
+async function borrarMedAdherencia(id){
   var a = (D.medsAdherencia||[]).find(function(x){return x.id===id;});
   if(!a) return;
   if(!confirm('¿Quitar "'+a.nombre+'" de la lista de adherencia?')) return;
   D.medsAdherencia = D.medsAdherencia.filter(function(x){return x.id!==id;});
   logAuditoria('Medicamento de adherencia eliminado', a.nombre);
   save();
+  await eliminarDeSupabase('meds_adherencia', id);
   renderMedsAdherencia();
   toast('Eliminado de la lista');
 }
@@ -1781,7 +1811,7 @@ function limpiarFormularioNueva(){
   quitarFoto();
 }
 function registrarEntrega(){
-  var paciente=document.getElementById('nPaciente').value.trim();
+  var paciente=tituloCase(document.getElementById('nPaciente').value);
   var filas=document.querySelectorAll('#medsContainer .med-row-full');
   var medicamentos=[];
   var faltaPresentacion=false;
@@ -2161,14 +2191,15 @@ function restaurarDePapelera(id){
   renderPapelera(); renderBuscar(); renderPendientes(); renderHistorial(); renderDirectorioPacientesTab();
   toast('✅ Restaurado');
 }
-function borrarDefinitivoPapelera(id){
+async function borrarDefinitivoPapelera(id){
   if(!confirm('Esto borra el registro para siempre, sin poder recuperarlo. ¿Continuar?')) return;
   D.papelera = (D.papelera||[]).filter(function(p){return p.id!==id;});
   save();
+  await eliminarDeSupabase('papelera', id);
   renderPapelera();
   toast('Eliminado definitivamente');
 }
-function borrarEntrega(id){
+async function borrarEntrega(id){
   if(!confirm('¿Borrar este registro? Se guarda en la Papelera por 30 días por si te equivocas.')) return;
   var rec=null;
   for(var i=0;i<D.entregas.length;i++){ if(D.entregas[i].id===id){ rec=D.entregas[i]; break; } }
@@ -2178,6 +2209,7 @@ function borrarEntrega(id){
     logAuditoria('Borrado', rec.paciente+' ('+rec.ubicacion+') — movido a papelera');
   }
   save();
+  await eliminarDeSupabase('entregas', id);
   renderBuscar();
   renderPendientes();
   renderStats();
@@ -3000,13 +3032,14 @@ function guardarProducto(){
   renderInventario();
   toast('✅ Producto guardado');
 }
-function borrarProducto(id){
+async function borrarProducto(id){
   var p = D.inventario.find(function(x){return x.id===id;});
   if(!p) return;
   if(!confirm('¿Eliminar "'+p.nombre+'" del inventario?')) return;
   D.inventario = D.inventario.filter(function(x){return x.id!==id;});
   logAuditoria('Producto eliminado', p.nombre);
   save();
+  await eliminarDeSupabase('inventario', id);
   renderInventario();
   toast('Producto eliminado');
 }
@@ -3615,11 +3648,13 @@ function renderEmpleados(){
   }
   document.getElementById('empleadosList').innerHTML=html;
 }
-function borrarEmpleado(nombre){
+async function borrarEmpleado(nombre){
   if(!confirm('¿Eliminar a '+nombre+' del sistema? Ya no podrá iniciar sesión.')) return;
+  var emp = (D.empleados||[]).find(function(e){ return e.nombre===nombre; });
   D.empleados = (D.empleados||[]).filter(function(e){ return e.nombre!==nombre; });
   logAuditoria('Empleado eliminado', nombre+' fue eliminado del sistema');
   save();
+  if(emp && emp.id) await eliminarDeSupabase('empleados', emp.id);
   renderEmpleados();
   toast('Empleado eliminado');
 }
