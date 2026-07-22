@@ -194,7 +194,7 @@ textarea{resize:vertical;min-height:60px;}
 <div id="app">
   <header>
     <h1>💊 Control de Entrega</h1>
-    <div class="sub" id="hSub">Farmacia · <span style="color:#ffd700;font-weight:700;" id="verTag">v54</span></div>
+    <div class="sub" id="hSub">Farmacia · <span style="color:#ffd700;font-weight:700;" id="verTag">v56</span></div>
     <div class="syncbar"><span class="dot" id="syncDot"></span><span id="syncText">Sin sincronizar</span></div>
     <div class="syncbar" style="margin-top:4px;cursor:pointer;" onclick="abrirLogin()">👤 <span id="empActual">Sin identificar</span> <span style="text-decoration:underline;">(cambiar sesión)</span></div>
   </header>
@@ -367,17 +367,24 @@ textarea{resize:vertical;min-height:60px;}
           <input type="checkbox" id="prodControladoInput" style="width:18px;height:18px;"> 🔴 Controlado por el DEA
         </label>
         <div style="display:flex;gap:8px;">
-          <div style="flex:1;"><label>Cantidad en existencia</label><input class="inp" id="prodCantidadInput" type="number" step="1" placeholder="0"></div>
-          <div style="flex:1;"><label>Alerta si baja de</label><input class="inp" id="prodMinimoInput" type="number" step="1" placeholder="0"></div>
+          <div style="flex:1;"><label>Cantidad en existencia</label><input class="inp" id="prodCantidadInput" type="text" inputmode="numeric" placeholder="0"></div>
+          <div style="flex:1;"><label>Alerta si baja de</label><input class="inp" id="prodMinimoInput" type="text" inputmode="numeric" placeholder="0"></div>
         </div>
         <div style="display:flex;gap:8px;">
-          <div style="flex:1;"><label>Costo ($)</label><input class="inp" id="prodCostoInput" type="number" step="0.01" placeholder="0.00"></div>
-          <div style="flex:1;"><label>Precio de venta ($)</label><input class="inp" id="prodPrecioInput" type="number" step="0.01" placeholder="0.00"></div>
+          <div style="flex:1;"><label>Costo ($)</label><input class="inp" id="prodCostoInput" type="text" inputmode="decimal" placeholder="0.00"></div>
+          <div style="flex:1;"><label>Precio de venta ($)</label><input class="inp" id="prodPrecioInput" type="text" inputmode="decimal" placeholder="0.00"></div>
         </div>
         <label>Proveedor</label>
         <input class="inp" id="prodProveedorInput" placeholder="Ej. Cardinal Health">
-        <label>Fecha de vencimiento</label>
-        <input class="inp" id="prodVenceInput" type="date">
+        <div style="display:flex;gap:8px;">
+          <div style="flex:1;"><label>Lote</label><input class="inp" id="prodLoteInput" placeholder="Ej. L2026A"></div>
+          <div style="flex:1;"><label>Fecha de vencimiento</label><input class="inp" id="prodVenceInput" type="date"></div>
+        </div>
+        <label>NDC (código nacional del medicamento)</label>
+        <div style="display:flex;gap:8px;">
+          <input class="inp" id="prodNdcInput" placeholder="Ej. 12345-6789-01" style="flex:1;">
+          <button type="button" class="btn btn-outline scan-btn" onclick="abrirScanner('prodNdcInput')">📷 Escanear</button>
+        </div>
         <button class="btn btn-primary" onclick="guardarProducto()">Guardar producto</button>
         <button class="btn btn-outline" onclick="document.getElementById('productoOverlay').classList.add('hidden')">Cancelar</button>
       </div>
@@ -841,6 +848,7 @@ async function eliminarDeSupabase(tabla, id){
 }
 var fotoActual = null;
 var html5QrCode = null;
+var scannerTargetId = 'nCodigoBarras';
 var pacienteSeleccionadoId = null;
 var pacienteFotoActual = null;
 var firmaCtx = null;
@@ -2831,14 +2839,15 @@ function cerrarCamaraOverlay(){
   camaraCallback = null;
 }
 
-function abrirScanner(){
+function abrirScanner(targetInputId){
+  scannerTargetId = targetInputId || 'nCodigoBarras';
   document.getElementById('scannerOverlay').classList.remove('hidden');
   html5QrCode = new Html5Qrcode("qrReader");
   html5QrCode.start(
     { facingMode: "environment" },
     { fps: 10, qrbox: { width: 260, height: 140 } },
     function(decodedText){
-      document.getElementById('nCodigoBarras').value = decodedText;
+      document.getElementById(scannerTargetId).value = decodedText;
       cerrarScanner();
       toast('✅ Código escaneado');
     },
@@ -2959,10 +2968,14 @@ function diasParaVencer(fechaStr){
 }
 function claseInventario(p){
   var vence = diasParaVencer(p.fechaVencimiento);
-  if(p.cantidad<=0) return 'agotado';
-  if(vence!==null && vence<=60) return 'vence';
-  if(p.cantidadMinima && p.cantidad<=p.cantidadMinima) return 'bajo';
-  return '';
+  var esBajo = p.cantidadMinima && p.cantidad<=p.cantidadMinima;
+  var esVence = vence!==null && vence<=60;
+  var esAgotado = p.cantidad<=0;
+  var clases=[];
+  if(esAgotado) clases.push('agotado');
+  if(esVence) clases.push('vence');
+  if(esBajo) clases.push('bajo');
+  return clases.join(' ');
 }
 function setFiltroInventario(f){
   filtroInventario = f;
@@ -2996,11 +3009,11 @@ function renderInventario(){
     list.forEach(function(p){
       var cls = claseInventario(p);
       var alerta='';
-      if(cls==='agotado') alerta='<span class="badge danger">🔴 Agotado</span>';
-      else if(cls==='bajo') alerta='<span class="badge warn">🟡 Stock bajo</span>';
-      if(cls==='vence'){
+      if(cls.indexOf('agotado')>=0) alerta += '<span class="badge danger">🔴 Agotado</span> ';
+      if(cls.indexOf('bajo')>=0) alerta += '<span class="badge warn">🟡 Stock bajo</span> ';
+      if(cls.indexOf('vence')>=0){
         var v=Math.floor(diasParaVencer(p.fechaVencimiento));
-        alerta += ' <span class="badge danger">🔴 Vence en '+v+' días</span>';
+        alerta += '<span class="badge danger">🔴 Vence en '+v+' días</span> ';
       }
       html += '<div class="inv-item '+cls+'">'+
         '<div class="item-name">'+(p.tipo==='otc'?'🛒':'💊')+' '+esc(p.nombre)+(p.presentacion?' '+esc(p.presentacion):'')+(p.controlado?' <span class="deuda-badge" style="background:#1a1a2e;color:#fff;">DEA</span>':'')+(p.cobraIvu?' <span class="deuda-badge" style="background:#eff8ff;color:#0a5c8a;">IVU 11.5%</span>':' <span class="deuda-badge" style="background:#dcfce7;color:#166534;">Exento IVU</span>')+'</div>'+
@@ -3008,7 +3021,8 @@ function renderInventario(){
         '<div class="item-row">📦 Cantidad: <b>'+p.cantidad+'</b>'+(p.cantidadMinima?' (alerta bajo '+p.cantidadMinima+')':'')+'</div>'+
         (p.costo||p.precioVenta?'<div class="item-row">💵 Costo: $'+(p.costo||0).toFixed(2)+' — Venta: $'+(p.precioVenta||0).toFixed(2)+'</div>':'')+
         (p.proveedor?'<div class="item-row">🏭 '+esc(p.proveedor)+'</div>':'')+
-        (p.fechaVencimiento?'<div class="item-row">📅 Vence: '+p.fechaVencimiento+'</div>':'')+
+        (p.fechaVencimiento?'<div class="item-row">📅 Vence: '+p.fechaVencimiento+(p.lote?' — Lote: '+esc(p.lote):'')+'</div>':'')+
+        (p.ndc?'<div class="item-row">🔢 NDC: '+esc(p.ndc)+'</div>':'')+
         '<div class="item-actions">'+
           '<button class="mini-btn" style="background:#fff;color:#0d7fb8;border:1.5px solid #0d7fb8;flex:1;" onclick="editarProducto(\''+p.id+'\')">✏️ Editar</button>'+
           '<button class="emp-del" style="flex:1;" onclick="borrarProducto(\''+p.id+'\')">🗑️ Eliminar</button>'+
@@ -3035,6 +3049,8 @@ function abrirProductoOverlay(nuevo){
   document.getElementById('prodPrecioInput').value='';
   document.getElementById('prodProveedorInput').value='';
   document.getElementById('prodVenceInput').value='';
+  document.getElementById('prodLoteInput').value='';
+  document.getElementById('prodNdcInput').value='';
   document.getElementById('productoOverlay').classList.remove('hidden');
 }
 function editarProducto(id){
@@ -3052,6 +3068,8 @@ function editarProducto(id){
   document.getElementById('prodPrecioInput').value=p.precioVenta||'';
   document.getElementById('prodProveedorInput').value=p.proveedor||'';
   document.getElementById('prodVenceInput').value=p.fechaVencimiento||'';
+  document.getElementById('prodLoteInput').value=p.lote||'';
+  document.getElementById('prodNdcInput').value=p.ndc||'';
   document.getElementById('productoOverlay').classList.remove('hidden');
 }
 function guardarProducto(){
@@ -3069,6 +3087,8 @@ function guardarProducto(){
     precioVenta: parseFloat(document.getElementById('prodPrecioInput').value)||0,
     proveedor: document.getElementById('prodProveedorInput').value.trim(),
     fechaVencimiento: document.getElementById('prodVenceInput').value || null,
+    lote: document.getElementById('prodLoteInput').value.trim(),
+    ndc: document.getElementById('prodNdcInput').value.trim(),
     actualizadoEn: new Date().toISOString()
   };
   if(productoSeleccionadoId){
@@ -3128,12 +3148,16 @@ function toggleInvTab(tab){
   }
 }
 function factItemRowHtml(){
-  return '<div style="display:flex;gap:6px;margin-bottom:6px;">'+
-    '<input class="inp fact-item-nombre" placeholder="Producto" style="flex:2;">'+
-    '<input class="inp fact-item-presentacion" placeholder="Presentación" style="flex:2;">'+
-    '<input class="inp fact-item-cantidad" type="number" step="1" min="1" value="1" placeholder="Cant." style="flex:1;">'+
-    '<input class="inp fact-item-costo" type="number" step="0.01" placeholder="Costo c/u" style="flex:1;">'+
-    '<button type="button" class="med-remove" onclick="this.parentElement.remove()">✕</button>'+
+  return '<div style="border:1.5px solid #e5e7eb;border-radius:10px;padding:10px;margin-bottom:8px;position:relative;background:#fafbfc;">'+
+    '<button type="button" class="med-row-remove" onclick="this.parentElement.remove()">✕</button>'+
+    '<label style="font-size:11px;">Producto</label>'+
+    '<input class="inp fact-item-nombre" placeholder="Ej. Metformina" style="margin-bottom:8px;">'+
+    '<label style="font-size:11px;">Presentación</label>'+
+    '<input class="inp fact-item-presentacion" placeholder="Ej. 500mg tabletas" style="margin-bottom:8px;">'+
+    '<div style="display:flex;gap:8px;">'+
+      '<div style="flex:1;"><label style="font-size:11px;">Cantidad</label><input class="inp fact-item-cantidad" type="text" inputmode="numeric" value="1" placeholder="Cant."></div>'+
+      '<div style="flex:1;"><label style="font-size:11px;">Costo c/u ($)</label><input class="inp fact-item-costo" type="text" inputmode="decimal" placeholder="0.00"></div>'+
+    '</div>'+
   '</div>';
 }
 function agregarFilaFacturaItem(){
@@ -3142,7 +3166,9 @@ function agregarFilaFacturaItem(){
   div.innerHTML = factItemRowHtml();
   cont.appendChild(div.firstChild);
 }
+var facturaEditandoId = null;
 function abrirFacturaOverlay(){
+  facturaEditandoId = null;
   document.getElementById('factNumeroInput').value='';
   document.getElementById('factProveedorInput').value='';
   document.getElementById('factFechaInput').value = new Date().toISOString().slice(0,10);
@@ -3155,6 +3181,50 @@ function abrirFacturaOverlay(){
   document.getElementById('factItemsContainer').innerHTML='';
   agregarFilaFacturaItem();
   document.getElementById('facturaOverlay').classList.remove('hidden');
+}
+function editarFactura(id){
+  var f = (D.facturas||[]).find(function(x){return x.id===id;});
+  if(!f) return;
+  facturaEditandoId = id;
+  document.getElementById('factNumeroInput').value = f.numeroFactura||'';
+  document.getElementById('factProveedorInput').value = f.proveedor||'';
+  document.getElementById('factFechaInput').value = f.fecha || new Date().toISOString().slice(0,10);
+  document.getElementById('factTotalInput').value = f.total||'';
+  document.getElementById('factNotasInput').value = f.notas||'';
+  facturaFotoActual = f.fotoUrl||null;
+  var prev=document.getElementById('factFotoPreview');
+  if(facturaFotoActual){ prev.src=facturaFotoActual; prev.classList.remove('hidden'); document.getElementById('factFotoRemove').classList.remove('hidden'); }
+  else { prev.classList.add('hidden'); document.getElementById('factFotoRemove').classList.add('hidden'); }
+  var cont = document.getElementById('factItemsContainer');
+  cont.innerHTML='';
+  (f.items||[]).forEach(function(it){
+    var div=document.createElement('div');
+    div.innerHTML = factItemRowHtml();
+    var row = div.firstChild;
+    row.querySelector('.fact-item-nombre').value = it.productoNombre||'';
+    row.querySelector('.fact-item-presentacion').value = it.presentacion||'';
+    row.querySelector('.fact-item-cantidad').value = it.cantidad||1;
+    row.querySelector('.fact-item-costo').value = it.costoUnitario||'';
+    cont.appendChild(row);
+  });
+  if((f.items||[]).length===0) agregarFilaFacturaItem();
+  document.getElementById('facturaOverlay').classList.remove('hidden');
+  toast('✏️ Editando factura — al guardar se ajusta el inventario automáticamente');
+}
+function borrarFactura(id){
+  var f = (D.facturas||[]).find(function(x){return x.id===id;});
+  if(!f) return;
+  if(!confirm('¿Eliminar esta factura de "'+f.proveedor+'"? Esto también resta del inventario las cantidades que había sumado.')) return;
+  (f.items||[]).forEach(function(it){
+    ajustarInventarioPorNombre(it.productoNombre, it.presentacion, it.cantidad);
+  });
+  D.facturas = D.facturas.filter(function(x){return x.id!==id;});
+  logAuditoria('Factura eliminada', f.proveedor+' — '+(f.numeroFactura||'sin número'));
+  save();
+  eliminarDeSupabase('facturas_compra', id);
+  renderFacturas();
+  renderInventario();
+  toast('Factura eliminada y descontada del inventario');
 }
 function quitarFotoFactura(){
   facturaFotoActual=null;
@@ -3207,6 +3277,14 @@ function guardarFactura(){
   if(!proveedor){ toast('Escribe el proveedor'); return; }
   if(items.length===0){ toast('Agrega al menos un producto recibido'); return; }
 
+  var facturaVieja = facturaEditandoId ? (D.facturas||[]).find(function(x){return x.id===facturaEditandoId;}) : null;
+  if(facturaVieja){
+    // Revertir las cantidades que había sumado la versión anterior de esta factura
+    (facturaVieja.items||[]).forEach(function(it){
+      ajustarInventarioPorNombre(it.productoNombre, it.presentacion, it.cantidad);
+    });
+  }
+
   items.forEach(function(it){
     var p = D.inventario.find(function(x){
       return x.nombre.toLowerCase()===it.productoNombre.toLowerCase() && (x.presentacion||'').toLowerCase()===(it.presentacion||'').toLowerCase();
@@ -3220,20 +3298,27 @@ function guardarFactura(){
     p.actualizadoEn = new Date().toISOString();
   });
 
-  var factura = {
-    id:'fc'+Date.now()+Math.floor(Math.random()*1000),
-    numeroFactura:numero, proveedor:proveedor, fecha:fecha, total:total, notas:notas,
-    fotoUrl:facturaFotoActual, empleado:EMPLEADO||'(sin identificar)', items:items,
-    creadoEn:new Date().toISOString()
-  };
-  D.facturas = D.facturas || [];
-  D.facturas.unshift(factura);
-  logAuditoria('Factura de compra', proveedor+' — '+(numero||'sin número')+' — $'+total.toFixed(2)+' — '+items.length+' producto(s)');
+  if(facturaVieja){
+    facturaVieja.numeroFactura=numero; facturaVieja.proveedor=proveedor; facturaVieja.fecha=fecha; facturaVieja.total=total; facturaVieja.notas=notas;
+    facturaVieja.fotoUrl=facturaFotoActual; facturaVieja.items=items;
+    logAuditoria('Factura editada', proveedor+' — '+(numero||'sin número')+' — $'+total.toFixed(2)+' — '+items.length+' producto(s)');
+  } else {
+    var factura = {
+      id:'fc'+Date.now()+Math.floor(Math.random()*1000),
+      numeroFactura:numero, proveedor:proveedor, fecha:fecha, total:total, notas:notas,
+      fotoUrl:facturaFotoActual, empleado:EMPLEADO||'(sin identificar)', items:items,
+      creadoEn:new Date().toISOString()
+    };
+    D.facturas = D.facturas || [];
+    D.facturas.unshift(factura);
+    logAuditoria('Factura de compra', proveedor+' — '+(numero||'sin número')+' — $'+total.toFixed(2)+' — '+items.length+' producto(s)');
+  }
+  facturaEditandoId = null;
   save();
   document.getElementById('facturaOverlay').classList.add('hidden');
   renderFacturas();
   renderInventario();
-  toast('✅ Factura guardada y sumada al inventario');
+  toast('✅ Factura guardada y el inventario quedó ajustado');
 }
 function renderFacturas(){
   D.facturas = D.facturas || [];
@@ -3255,6 +3340,10 @@ function renderFacturas(){
         '</div>'+
         (f.notas?'<div class="item-row">📝 '+esc(f.notas)+'</div>':'')+
         '<div class="item-row" style="color:#999;">Registrada por '+esc(f.empleado)+'</div>'+
+        '<div class="item-actions">'+
+          '<button class="mini-btn" style="background:#fff;color:#0d7fb8;border:1.5px solid #0d7fb8;flex:1;" onclick="editarFactura(\''+f.id+'\')">✏️ Editar</button>'+
+          '<button class="emp-del" style="flex:1;" onclick="borrarFactura(\''+f.id+'\')">🗑️ Eliminar</button>'+
+        '</div>'+
       '</div>';
     });
   }
@@ -3442,7 +3531,7 @@ async function pushRemote(){
     // Inventario
     if((D.inventario||[]).length){
       var r7 = await supabaseClient.from('inventario').upsert(D.inventario.map(function(p){
-        return {id:p.id, nombre:p.nombre, presentacion:p.presentacion||null, tipo:p.tipo||'medicamento', cantidad:p.cantidad||0, cantidad_minima:p.cantidadMinima||0, costo:p.costo||null, precio_venta:p.precioVenta||null, proveedor:p.proveedor||null, fecha_vencimiento:p.fechaVencimiento||null, controlado:!!p.controlado, cobra_ivu:!!p.cobraIvu, actualizado_en:p.actualizadoEn||new Date().toISOString()};
+        return {id:p.id, nombre:p.nombre, presentacion:p.presentacion||null, tipo:p.tipo||'medicamento', cantidad:p.cantidad||0, cantidad_minima:p.cantidadMinima||0, costo:p.costo||null, precio_venta:p.precioVenta||null, proveedor:p.proveedor||null, fecha_vencimiento:p.fechaVencimiento||null, lote:p.lote||null, ndc:p.ndc||null, controlado:!!p.controlado, cobra_ivu:!!p.cobraIvu, actualizado_en:p.actualizadoEn||new Date().toISOString()};
       }));
       if(r7.error) console.log('error inventario', r7.error);
     }
@@ -3552,7 +3641,7 @@ async function pullRemote(silent){
     var remoteAuditoria = (rAud.data||[]).map(function(row){ return {id:row.id, fecha:row.fecha, empleado:row.empleado, accion:row.accion, detalle:row.detalle}; });
     var remotePapelera = (rPap.data||[]).map(function(row){ return {id:row.id, tipo:row.tipo, datos:row.datos, fechaBorrado:row.fecha_borrado, borradoPor:row.borrado_por}; });
     var remoteInventario = (rInv.data||[]).map(function(row){
-      return {id:row.id, nombre:row.nombre, presentacion:row.presentacion, tipo:row.tipo, cantidad:row.cantidad, cantidadMinima:row.cantidad_minima, costo:row.costo, precioVenta:row.precio_venta, proveedor:row.proveedor, fechaVencimiento:row.fecha_vencimiento, controlado:!!row.controlado, cobraIvu:!!row.cobra_ivu, actualizadoEn:row.actualizado_en};
+      return {id:row.id, nombre:row.nombre, presentacion:row.presentacion, tipo:row.tipo, cantidad:row.cantidad, cantidadMinima:row.cantidad_minima, costo:row.costo, precioVenta:row.precio_venta, proveedor:row.proveedor, fechaVencimiento:row.fecha_vencimiento, lote:row.lote, ndc:row.ndc, controlado:!!row.controlado, cobraIvu:!!row.cobra_ivu, actualizadoEn:row.actualizado_en};
     });
     var remoteVentasOtc = (rVta.data||[]).map(function(row){
       return {id:row.id, productoId:row.producto_id, productoNombre:row.producto_nombre, cantidad:row.cantidad, precioUnitario:row.precio_unitario, subtotal:row.subtotal, ivu:row.ivu, total:row.total, formaPago:row.forma_pago, empleado:row.empleado, fecha:row.fecha};
