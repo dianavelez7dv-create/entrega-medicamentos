@@ -194,7 +194,7 @@ textarea{resize:vertical;min-height:60px;}
 <div id="app">
   <header>
     <h1>💊 Control de Entrega</h1>
-    <div class="sub" id="hSub">Farmacia · <span style="color:#ffd700;font-weight:700;" id="verTag">v53</span></div>
+    <div class="sub" id="hSub">Farmacia · <span style="color:#ffd700;font-weight:700;" id="verTag">v54</span></div>
     <div class="syncbar"><span class="dot" id="syncDot"></span><span id="syncText">Sin sincronizar</span></div>
     <div class="syncbar" style="margin-top:4px;cursor:pointer;" onclick="abrirLogin()">👤 <span id="empActual">Sin identificar</span> <span style="text-decoration:underline;">(cambiar sesión)</span></div>
   </header>
@@ -261,6 +261,9 @@ textarea{resize:vertical;min-height:60px;}
             </label>
             <div style="display:flex;gap:8px;margin-top:8px;">
               <div style="flex:1;"><label style="font-size:11px;">Repeticiones autorizadas (Rx)</label><input class="inp med-repeticiones" type="number" step="1" min="1" max="5" placeholder="1-5"></div>
+            </div>
+            <div style="display:flex;gap:8px;margin-top:8px;">
+              <div style="flex:1;"><label style="font-size:11px;">Fecha de proceso en Pharmascan (si ya se procesó)</label><input class="inp med-fecha-proceso" type="date"></div>
             </div>
             <div style="display:flex;gap:8px;margin-top:8px;">
               <select class="inp med-deuda" style="flex:1;" onchange="toggleMontoDeuda(this)">
@@ -983,6 +986,9 @@ function medRowInnerHtml(placeholderMed){
       '<div style="flex:1;"><label style="font-size:11px;">Repeticiones autorizadas (Rx)</label><input class="inp med-repeticiones" type="number" step="1" min="1" max="5" placeholder="1-5"></div>'+
     '</div>'+
     '<div style="display:flex;gap:8px;margin-top:8px;">'+
+      '<div style="flex:1;"><label style="font-size:11px;">Fecha de proceso en Pharmascan (si ya se procesó)</label><input class="inp med-fecha-proceso" type="date"></div>'+
+    '</div>'+
+    '<div style="display:flex;gap:8px;margin-top:8px;">'+
       '<select class="inp med-deuda" style="flex:1;" onchange="toggleMontoDeuda(this)">'+
         '<option value="ninguna">✅ Medicamento completo</option>'+
         '<option value="parcial">🟡 Entrega parcial (falta parte)</option>'+
@@ -1199,7 +1205,7 @@ function entregarMed(recordId, idx){
     med.motivo=null;
     med.deuda={estado:'ninguna', monto:''};
     ajustarInventarioPorNombre(med.nombre, med.presentacion, med.cantidad||1);
-    med.fechaUltimoProcesado = obtenerFechaProceso(med.nombre, fecha);
+    med.fechaUltimoProcesado = obtenerFechaProceso(med, fecha);
     logAuditoria('Entrega', rec.paciente+' — '+med.nombre+' — recogió: '+quien+(firma?' (firmado)':' (sin firma)'));
     finalizarSiCompleto(rec);
     save();
@@ -1226,7 +1232,7 @@ function completarMedicamento(recordId, idx){
       med.deuda={estado:'ninguna', monto:''};
       med.entregaParcialInfo=null;
       ajustarInventarioPorNombre(med.nombre, med.presentacion, med.cantidad||1);
-    med.fechaUltimoProcesado = obtenerFechaProceso(med.nombre, fecha);
+    med.fechaUltimoProcesado = obtenerFechaProceso(med, fecha);
       logAuditoria('Entrega completada', rec.paciente+' — '+med.nombre+' — recogió: '+quien);
       finalizarSiCompleto(rec);
       save();
@@ -1664,10 +1670,11 @@ function renderMedsAdherencia(){
   }).join('');
 }
 // ---- Adherencia Medicare y refills ----
-function obtenerFechaProceso(medNombre, fechaDefault){
-  if(!esMedAdherencia(medNombre)) return fechaDefault;
+function obtenerFechaProceso(med, fechaDefault){
+  if(med.fechaUltimoProcesado) return med.fechaUltimoProcesado;
+  if(!esMedAdherencia(med.nombre)) return fechaDefault;
   var hoy = new Date().toISOString().slice(0,10);
-  var resp = prompt('📅 "'+medNombre+'" es un medicamento de adherencia Medicare.\n\n¿Qué fecha lo procesaste en Pharmascan? (AAAA-MM-DD)', hoy);
+  var resp = prompt('📅 "'+med.nombre+'" es un medicamento de adherencia Medicare.\n\n¿Qué fecha lo procesaste en Pharmascan? (AAAA-MM-DD)', hoy);
   if(resp===null || !resp.trim()) return fechaDefault;
   var limpio = resp.trim();
   if(/^\d{4}-\d{2}-\d{2}$/.test(limpio)) return new Date(limpio+'T12:00:00').toISOString();
@@ -1787,6 +1794,7 @@ function editarEntrega(id){
         '<input type="checkbox" class="med-controlado" style="width:18px;height:18px;" '+(m.controlado?'checked':'')+'> 🔴 Controlado por el DEA'+
       '</label>'+
       '<div style="display:flex;gap:8px;margin-top:8px;"><div style="flex:1;"><label style="font-size:11px;">Repeticiones autorizadas (Rx)</label><input class="inp med-repeticiones" type="number" step="1" min="1" max="5" value="'+(m.repeticionesAutorizadas||'')+'" placeholder="1-5"></div></div>'+
+      '<div style="display:flex;gap:8px;margin-top:8px;"><div style="flex:1;"><label style="font-size:11px;">Fecha de proceso en Pharmascan (si ya se procesó)</label><input class="inp med-fecha-proceso" type="date" value="'+(m.fechaUltimoProcesado?m.fechaUltimoProcesado.slice(0,10):'')+'"></div></div>'+
       '<div style="display:flex;gap:8px;margin-top:8px;">'+
         '<select class="inp med-deuda" style="flex:1;" onchange="toggleMontoDeuda(this)">'+
           '<option value="ninguna">✅ Medicamento completo</option>'+
@@ -1840,9 +1848,10 @@ function registrarEntrega(){
     var controlado=fila.querySelector('.med-controlado').checked;
     var cantidad=parseFloat(fila.querySelector('.med-cantidad').value)||1;
     var repInput = parseFloat(fila.querySelector('.med-repeticiones').value)||0;
+    var fechaProcesoInput = fila.querySelector('.med-fecha-proceso').value;
     var deudaEstado=fila.querySelector('.med-deuda').value;
     var deudaMonto=fila.querySelector('.med-deuda-monto').value.trim();
-    medicamentos.push({nombre:nombre, presentacion:presentacion, controlado:controlado, cantidad:cantidad, repeticionesInput:repInput, deuda:{estado:deudaEstado, monto:deudaMonto}});
+    medicamentos.push({nombre:nombre, presentacion:presentacion, controlado:controlado, cantidad:cantidad, repeticionesInput:repInput, fechaProcesoInput:fechaProcesoInput, deuda:{estado:deudaEstado, monto:deudaMonto}});
   });
   var ubicacion=document.getElementById('nUbicacion').value.trim();
   var autorizado=document.getElementById('nAutorizado').value.trim();
@@ -1873,7 +1882,8 @@ function registrarEntrega(){
         repAutorizadas = m.repeticionesInput || 1;
         repUsadas = 1;
       }
-      return {id:'m'+Date.now()+mi+Math.floor(Math.random()*1000), nombre:m.nombre, presentacion:m.presentacion, controlado:m.controlado, cantidad:m.cantidad||1, repeticionesAutorizadas:repAutorizadas, repeticionesUsadas:repUsadas, fechaUltimoProcesado:null, estado:'pendiente', motivo:null, fecha:null, recogioPor:null, deuda:m.deuda};
+      var fechaProcesoManual = m.fechaProcesoInput ? new Date(m.fechaProcesoInput+'T12:00:00').toISOString() : null;
+      return {id:'m'+Date.now()+mi+Math.floor(Math.random()*1000), nombre:m.nombre, presentacion:m.presentacion, controlado:m.controlado, cantidad:m.cantidad||1, repeticionesAutorizadas:repAutorizadas, repeticionesUsadas:repUsadas, fechaUltimoProcesado:fechaProcesoManual, estado:'pendiente', motivo:null, fecha:null, recogioPor:null, deuda:m.deuda};
     }),
     ubicacion: ubicacion,
     autorizado: autorizado,
@@ -1900,7 +1910,7 @@ function registrarEntrega(){
     medicamentos.forEach(function(m){
       var match = existentes.find(function(em){ return em.nombre.toLowerCase()===m.nombre.toLowerCase(); });
       if(match){
-        if(match.estado==='pendiente'){ match.deuda = m.deuda; match.presentacion = m.presentacion; match.controlado = m.controlado; match.cantidad = m.cantidad; if(m.repeticionesInput) match.repeticionesAutorizadas = m.repeticionesInput; }
+        if(match.estado==='pendiente'){ match.deuda = m.deuda; match.presentacion = m.presentacion; match.controlado = m.controlado; match.cantidad = m.cantidad; if(m.repeticionesInput) match.repeticionesAutorizadas = m.repeticionesInput; if(m.fechaProcesoInput) match.fechaUltimoProcesado = new Date(m.fechaProcesoInput+'T12:00:00').toISOString(); }
       } else {
         var histE = buscarHistorialMedicamento(rec.paciente, m.nombre);
         var repAutE, repUsaE;
@@ -2110,7 +2120,7 @@ function marcarEntregado(id){
         m.estado='entregado'; m.fecha=fecha; m.recogioPor=quien; m.firma=firma;
         m.deuda={estado:'ninguna', monto:''};
         ajustarInventarioPorNombre(m.nombre, m.presentacion, m.cantidad||1);
-        m.fechaUltimoProcesado = obtenerFechaProceso(m.nombre, fecha);
+        m.fechaUltimoProcesado = obtenerFechaProceso(m, fecha);
       } else {
         m.deuda={estado:'parcial', monto:p.falta};
         m.entregaParcialInfo = {recogioPor:quien, firma:firma, fecha:fecha};
@@ -2147,7 +2157,7 @@ function marcarGrupoEntregado(paciente){
         m.estado='entregado'; m.fecha=fecha; m.recogioPor=quien; m.firma=firma;
         m.deuda={estado:'ninguna', monto:''};
         ajustarInventarioPorNombre(m.nombre, m.presentacion, m.cantidad||1);
-        m.fechaUltimoProcesado = obtenerFechaProceso(m.nombre, fecha);
+        m.fechaUltimoProcesado = obtenerFechaProceso(m, fecha);
       } else {
         m.deuda={estado:'parcial', monto:p.falta};
         m.entregaParcialInfo = {recogioPor:quien, firma:firma, fecha:fecha};
