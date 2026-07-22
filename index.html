@@ -64,10 +64,17 @@ textarea{resize:vertical;min-height:60px;}
 .pill span{font-size:11px;color:#8892a0;}
 .btn-print{background:#1a1a2e;color:#fff;margin-bottom:12px;}
 @media print{
-  header,.nav,.searchbox,.btn-print,.item-actions,.toast,#statRow,.login-overlay{display:none !important;}
+  header,.nav,.searchbox,.btn-print,.item-actions,.toast,#statRow{display:none !important;}
+  .login-overlay{display:none !important;}
   body{background:#fff;padding:0;}
   #app{max-width:100%;}
   .content{padding:0;}
+  body.printing-preview #vistaPreviaOverlay{display:flex !important;}
+  body.printing-preview #vistaPreviaOverlay .login-box{max-width:100% !important;width:100% !important;box-shadow:none !important;margin:0 !important;max-height:none !important;overflow:visible !important;padding:0 !important;}
+  body.printing-preview #vistaPreviaOverlay h2,
+  body.printing-preview #vistaPreviaOverlay .btn-outline,
+  body.printing-preview #vistaPreviaOverlay .btn-print{display:none !important;}
+  body.printing-preview #vistaPreviaContenido{border:none !important;padding:0 !important;}
   body.printing-pend #printSheet{display:block !important;}
   body.printing-pend #pendList{display:none !important;}
   body.printing-deudas #printSheetDeudas{display:block !important;}
@@ -123,9 +130,9 @@ textarea{resize:vertical;min-height:60px;}
 #printSheetRecibo{display:none;}
 #printSheetRecibo h2{font-size:20px;margin-bottom:2px;}
 #printSheetRecibo .psub{font-size:12px;color:#555;margin-bottom:14px;}
-#printSheetRecibo .recibo-med{border-bottom:1px dashed #ccc;padding:8px 0;font-size:13px;}
-#printSheetRecibo .recibo-firma{max-height:60px;border:1px solid #ccc;border-radius:4px;margin-top:6px;}
-#printSheetRecibo .recibo-total{font-size:15px;font-weight:700;margin-top:12px;border-top:2px solid #333;padding-top:8px;}
+#printSheetRecibo .recibo-med,.recibo-med{border-bottom:1px dashed #ccc;padding:8px 0;font-size:13px;}
+#printSheetRecibo .recibo-firma,.recibo-firma{max-height:60px;border:1px solid #ccc;border-radius:4px;margin-top:6px;}
+#printSheetRecibo .recibo-total,.recibo-total{font-size:15px;font-weight:700;margin-top:12px;border-top:2px solid #333;padding-top:8px;}
 #printSheetDEA{display:none;}
 #printSheetDEA h2{font-size:20px;margin-bottom:4px;}
 #printSheetDEA .psub{font-size:13px;color:#555;margin-bottom:16px;}
@@ -194,7 +201,7 @@ textarea{resize:vertical;min-height:60px;}
 <div id="app">
   <header>
     <h1>💊 Control de Entrega</h1>
-    <div class="sub" id="hSub">Farmacia · <span style="color:#ffd700;font-weight:700;" id="verTag">v61</span></div>
+    <div class="sub" id="hSub">Farmacia · <span style="color:#ffd700;font-weight:700;" id="verTag">v63</span></div>
     <div class="syncbar"><span class="dot" id="syncDot"></span><span id="syncText">Sin sincronizar</span></div>
     <div class="syncbar" style="margin-top:4px;cursor:pointer;" onclick="abrirLogin()">👤 <span id="empActual">Sin identificar</span> <span style="text-decoration:underline;">(cambiar sesión)</span></div>
   </header>
@@ -546,6 +553,18 @@ textarea{resize:vertical;min-height:60px;}
         </select>
         <button class="btn btn-primary" onclick="confirmarPago()">✅ Registrar pago</button>
         <button class="btn btn-outline" onclick="cerrarPagoOverlay()">Cancelar</button>
+      </div>
+    </div>
+
+    <!-- OVERLAY: VISTA PREVIA DE IMPRESIÓN -->
+    <div id="vistaPreviaOverlay" class="login-overlay hidden" style="z-index:996;align-items:flex-start;">
+      <div class="login-box" style="max-width:650px;width:100%;max-height:94vh;overflow-y:auto;margin:16px auto;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+          <h2 style="margin:0;">👁️ Vista previa</h2>
+          <button type="button" class="btn btn-outline" style="margin:0;width:auto;padding:8px 14px;" onclick="document.getElementById('vistaPreviaOverlay').classList.add('hidden')">✕ Cerrar</button>
+        </div>
+        <div id="vistaPreviaContenido" style="background:#fff;border:1px solid #ddd;border-radius:8px;padding:18px;color:#1a1a2e;"></div>
+        <button class="btn btn-print" style="margin-top:14px;" onclick="imprimirVistaPrevia()">🖨️ Imprimir</button>
       </div>
     </div>
 
@@ -1621,7 +1640,7 @@ function avisarPacienteWhatsApp(nombrePaciente, medsTexto){
   var soloDigitos = tel.replace(/\D/g,'');
   if(soloDigitos.length===10) soloDigitos='1'+soloDigitos;
   var link='https://wa.me/'+soloDigitos+'?text='+encodeURIComponent(mensaje);
-  window.open(link,'_blank');
+  location.href=link;
   logAuditoria('Aviso WhatsApp', nombrePaciente+' — '+mensaje.substring(0,80));
   save();
 }
@@ -1635,7 +1654,7 @@ function prepararWhatsApp(){
     var soloDigitos = p.telefono.replace(/\D/g,'');
     if(soloDigitos.length===10) soloDigitos = '1'+soloDigitos;
     var link = 'https://wa.me/'+soloDigitos+'?text='+encodeURIComponent(cuerpo);
-    html += '<a href="'+link+'" target="_blank" style="display:block;background:#dcfce7;color:#166534;padding:10px 12px;border-radius:8px;margin-bottom:6px;font-weight:600;font-size:13px;text-decoration:none;">💬 Enviar a '+esc(p.nombre)+'</a>';
+    html += '<a href="'+link+'" style="display:block;background:#dcfce7;color:#166534;padding:10px 12px;border-radius:8px;margin-bottom:6px;font-weight:600;font-size:13px;text-decoration:none;">💬 Enviar a '+esc(p.nombre)+'</a>';
   });
   document.getElementById('whatsappLinks').innerHTML=html;
   logAuditoria('WhatsApp preparado', seleccionados.length+' paciente(s)');
@@ -2370,7 +2389,6 @@ function abrirReporteDeudas(){
 }
 function imprimirReporteDeudas(){
   var filas = recolectarDeudas();
-  document.getElementById('printFechaDeudas').textContent='Generado: '+new Date().toLocaleString('es-PR')+' — '+filas.length+' pendiente'+(filas.length!==1?'s':'');
   var rows='';
   if(filas.length===0){
     rows='<tr><td colspan="5" style="text-align:center;color:#888;">No hay deudas pendientes</td></tr>';
@@ -2378,13 +2396,19 @@ function imprimirReporteDeudas(){
     filas.sort(function(a,b){ return a.medicamento.localeCompare(b.medicamento); });
     filas.forEach(function(f){
       var estadoTxt = f.estado==='parcial' ? 'Entrega parcial' : 'No ha llegado';
-      rows+='<tr><td>'+esc(f.medicamento)+'</td><td>'+esc(f.paciente)+'</td><td>'+estadoTxt+'</td><td>'+esc(f.falta||'-')+'</td><td>'+esc(f.ubicacion)+'</td></tr>';
+      rows+='<tr><td style="border:1px solid #ccc;padding:6px 8px;">'+esc(f.medicamento)+'</td><td style="border:1px solid #ccc;padding:6px 8px;">'+esc(f.paciente)+'</td><td style="border:1px solid #ccc;padding:6px 8px;">'+estadoTxt+'</td><td style="border:1px solid #ccc;padding:6px 8px;">'+esc(f.falta||'-')+'</td><td style="border:1px solid #ccc;padding:6px 8px;">'+esc(f.ubicacion)+'</td></tr>';
     });
   }
-  document.getElementById('printBodyDeudas').innerHTML=rows;
-  document.body.classList.add('printing-deudas');
-  window.print();
-  setTimeout(function(){ document.body.classList.remove('printing-deudas'); }, 500);
+  var html = '<h2 style="margin-bottom:4px;">📊 Reporte de deudas pendientes</h2>'+
+    '<div style="font-size:12px;color:#666;margin-bottom:14px;">Generado: '+new Date().toLocaleString('es-PR')+' — '+filas.length+' pendiente'+(filas.length!==1?'s':'')+'</div>'+
+    '<table style="width:100%;border-collapse:collapse;"><thead><tr style="background:#eee;">'+
+    '<th style="border:1px solid #999;padding:8px;text-align:left;">Medicamento</th>'+
+    '<th style="border:1px solid #999;padding:8px;text-align:left;">Paciente</th>'+
+    '<th style="border:1px solid #999;padding:8px;text-align:left;">Estado</th>'+
+    '<th style="border:1px solid #999;padding:8px;text-align:left;">Falta</th>'+
+    '<th style="border:1px solid #999;padding:8px;text-align:left;">Ubicación</th>'+
+    '</tr></thead><tbody style="font-size:13px;">'+rows+'</tbody></table>';
+  abrirVistaPrevia(html);
 }
 
 // ---- Reporte de medicamentos controlados (DEA) ----
@@ -2437,19 +2461,24 @@ function renderReporteDEA(){
 function imprimirReporteDEA(){
   var filas = recolectarDEA();
   var desde=document.getElementById('deaDesde').value, hasta=document.getElementById('deaHasta').value;
-  document.getElementById('printFechaDEA').textContent='Generado: '+new Date().toLocaleString('es-PR')+' — '+filas.length+' movimiento'+(filas.length!==1?'s':'')+(desde||hasta?' (rango filtrado)':'');
   var rows='';
   if(filas.length===0){
     rows='<tr><td colspan="5" style="text-align:center;color:#888;">Sin resultados</td></tr>';
   } else {
     filas.forEach(function(f){
-      rows+='<tr><td>'+fmtFecha(f.fecha)+'</td><td>'+esc(f.medicamento)+'</td><td>'+esc(f.paciente)+'</td><td>'+esc(f.estado)+'</td><td>'+esc(f.recogio)+'</td></tr>';
+      rows+='<tr><td style="border:1px solid #ccc;padding:6px 8px;">'+fmtFecha(f.fecha)+'</td><td style="border:1px solid #ccc;padding:6px 8px;">'+esc(f.medicamento)+'</td><td style="border:1px solid #ccc;padding:6px 8px;">'+esc(f.paciente)+'</td><td style="border:1px solid #ccc;padding:6px 8px;">'+esc(f.estado)+'</td><td style="border:1px solid #ccc;padding:6px 8px;">'+esc(f.recogio)+'</td></tr>';
     });
   }
-  document.getElementById('printBodyDEA').innerHTML=rows;
-  document.body.classList.add('printing-dea');
-  window.print();
-  setTimeout(function(){ document.body.classList.remove('printing-dea'); }, 500);
+  var html = '<h2 style="margin-bottom:4px;">🔴 Reporte de medicamentos controlados (DEA)</h2>'+
+    '<div style="font-size:12px;color:#666;margin-bottom:14px;">Generado: '+new Date().toLocaleString('es-PR')+' — '+filas.length+' movimiento'+(filas.length!==1?'s':'')+(desde||hasta?' (rango filtrado)':'')+'</div>'+
+    '<table style="width:100%;border-collapse:collapse;"><thead><tr style="background:#eee;">'+
+    '<th style="border:1px solid #999;padding:8px;text-align:left;">Fecha</th>'+
+    '<th style="border:1px solid #999;padding:8px;text-align:left;">Medicamento</th>'+
+    '<th style="border:1px solid #999;padding:8px;text-align:left;">Paciente</th>'+
+    '<th style="border:1px solid #999;padding:8px;text-align:left;">Estado</th>'+
+    '<th style="border:1px solid #999;padding:8px;text-align:left;">Recogió</th>'+
+    '</tr></thead><tbody style="font-size:13px;">'+rows+'</tbody></table>';
+  abrirVistaPrevia(html);
 }
 
 // ---- Panel de adherencia Medicare ----
@@ -2540,19 +2569,25 @@ function imprimirPanelAdherencia(){
   var filas = recolectarAdherencia();
   if(filtroAdherenciaPanel==='listos') filas = filas.filter(function(f){return f.listo;});
   if(filtroAdherenciaPanel==='sinrx') filas = filas.filter(function(f){return f.necesitaRx;});
-  document.getElementById('printFechaAdherencia').textContent = 'Generado: '+new Date().toLocaleString('es-PR')+' — '+filas.length+' resultado'+(filas.length!==1?'s':'');
   var rows='';
   if(filas.length===0){
     rows='<tr><td colspan="6" style="text-align:center;color:#888;">Sin resultados</td></tr>';
   } else {
     filas.forEach(function(f){
-      rows += '<tr><td>'+esc(f.paciente)+'</td><td>'+esc(f.medicamento)+'</td><td>'+f.fechaUltimoProcesado.slice(0,10)+'</td><td>'+(f.ventana?f.ventana.proximo.toISOString().slice(0,10):'-')+'</td><td>'+(f.ventana?f.ventana.inicioVentana.toISOString().slice(0,10):'-')+'</td><td>'+f.repUsadas+'/'+f.repAutorizadas+(f.necesitaRx?' (Rx nueva)':'')+'</td></tr>';
+      rows += '<tr><td style="border:1px solid #ccc;padding:6px 8px;">'+esc(f.paciente)+'</td><td style="border:1px solid #ccc;padding:6px 8px;">'+esc(f.medicamento)+'</td><td style="border:1px solid #ccc;padding:6px 8px;">'+f.fechaUltimoProcesado.slice(0,10)+'</td><td style="border:1px solid #ccc;padding:6px 8px;">'+(f.ventana?f.ventana.proximo.toISOString().slice(0,10):'-')+'</td><td style="border:1px solid #ccc;padding:6px 8px;">'+(f.ventana?f.ventana.inicioVentana.toISOString().slice(0,10):'-')+'</td><td style="border:1px solid #ccc;padding:6px 8px;">'+f.repUsadas+'/'+f.repAutorizadas+(f.necesitaRx?' (Rx nueva)':'')+'</td></tr>';
     });
   }
-  document.getElementById('printBodyAdherencia').innerHTML = rows;
-  document.body.classList.add('printing-adherencia');
-  window.print();
-  setTimeout(function(){ document.body.classList.remove('printing-adherencia'); }, 500);
+  var html = '<h2 style="margin-bottom:4px;">📅 Panel de adherencia (Medicare)</h2>'+
+    '<div style="font-size:12px;color:#666;margin-bottom:14px;">Generado: '+new Date().toLocaleString('es-PR')+' — '+filas.length+' resultado'+(filas.length!==1?'s':'')+'</div>'+
+    '<table style="width:100%;border-collapse:collapse;"><thead><tr style="background:#eee;">'+
+    '<th style="border:1px solid #999;padding:8px;text-align:left;">Paciente</th>'+
+    '<th style="border:1px solid #999;padding:8px;text-align:left;">Medicamento</th>'+
+    '<th style="border:1px solid #999;padding:8px;text-align:left;">Último proceso</th>'+
+    '<th style="border:1px solid #999;padding:8px;text-align:left;">Próxima fecha</th>'+
+    '<th style="border:1px solid #999;padding:8px;text-align:left;">Ventana desde</th>'+
+    '<th style="border:1px solid #999;padding:8px;text-align:left;">Refills</th>'+
+    '</tr></thead><tbody style="font-size:13px;">'+rows+'</tbody></table>';
+  abrirVistaPrevia(html);
 }
 
 // ---- Recibo imprimible ----
@@ -2561,11 +2596,11 @@ function imprimirRecibo(recordId){
   for(var i=0;i<D.entregas.length;i++){ if(D.entregas[i].id===recordId){ rec=D.entregas[i]; break; } }
   if(!rec) return;
   var meds = ensureMedObjects(rec);
-  document.getElementById('reciboSub').textContent = 'Paciente: '+rec.paciente+' — '+new Date().toLocaleString('es-PR');
-  var html='';
+  var html='<h2 style="margin-bottom:4px;">💊 Recibo de entrega — Farmacia</h2>'+
+    '<div style="font-size:13px;color:#555;margin-bottom:14px;">Paciente: '+esc(rec.paciente)+' — '+new Date().toLocaleString('es-PR')+'</div>';
   var totalPagado=0;
   meds.forEach(function(m){
-    var estadoTxt, colorTxt;
+    var estadoTxt;
     if(m.estado==='rechazado'){ estadoTxt='❌ No lo quiso'+(m.motivo?': '+esc(m.motivo):''); }
     else if(m.estado==='entregado' && (!m.deuda || m.deuda.estado==='ninguna')){ estadoTxt='✅ Entregado completo — recogió: '+esc(m.recogioPor||'-'); }
     else if(m.entregaParcialInfo){ estadoTxt='🟡 Entrega parcial — recogió: '+esc(m.entregaParcialInfo.recogioPor)+' — falta: '+esc(m.deuda&&m.deuda.monto?m.deuda.monto:(m.deuda?m.deuda.estado:'')); }
@@ -2579,19 +2614,15 @@ function imprimirRecibo(recordId){
     }
     html+='</div>';
   });
-  html+='<div class="item-row" style="margin-top:8px;">📍 Ubicación: '+esc(rec.ubicacion)+'</div>';
-  if(rec.autorizado){ html+='<div class="item-row">👤 Autorizado a recoger: '+esc(rec.autorizado)+'</div>'; }
+  html+='<div style="margin-top:8px;font-size:13px;">📍 Ubicación: '+esc(rec.ubicacion)+'</div>';
+  if(rec.autorizado){ html+='<div style="font-size:13px;">👤 Autorizado a recoger: '+esc(rec.autorizado)+'</div>'; }
   if(totalPagado>0){ html+='<div class="recibo-total">Total pagado en esta visita: $'+totalPagado.toFixed(2)+'</div>'; }
-  document.getElementById('reciboContenido').innerHTML=html;
-  document.body.classList.add('printing-recibo');
-  window.print();
-  setTimeout(function(){ document.body.classList.remove('printing-recibo'); }, 500);
+  abrirVistaPrevia(html);
 }
 
 function imprimirLista(){
   var list=D.entregas.filter(function(e){ return !e.entregado; });
   list.sort(function(a,b){ return new Date(a.fechaRegistro)-new Date(b.fechaRegistro); });
-  document.getElementById('printFecha').textContent='Generado: '+new Date().toLocaleString('es-PR');
   var rows='';
   if(list.length===0){
     rows='<tr><td colspan="5" style="text-align:center;color:#888;">No hay pendientes</td></tr>';
@@ -2605,10 +2636,16 @@ function imprimirLista(){
       }).join(', ')+'</td><td>'+locBadge(e.ubicacion)+'</td><td>'+fmtFecha(e.fechaRegistro)+'</td><td>'+esc(e.autorizado||'-')+'</td></tr>';
     });
   }
-  document.getElementById('printBody').innerHTML=rows;
-  document.body.classList.add('printing-pend');
-  window.print();
-  setTimeout(function(){ document.body.classList.remove('printing-pend'); }, 500);
+  var html = '<h2 style="margin-bottom:4px;">📋 Recetas pendientes</h2>'+
+    '<div style="font-size:12px;color:#666;margin-bottom:14px;">Generado: '+new Date().toLocaleString('es-PR')+'</div>'+
+    '<table style="width:100%;border-collapse:collapse;"><thead><tr style="background:#eee;">'+
+    '<th style="border:1px solid #999;padding:8px;text-align:left;">Paciente</th>'+
+    '<th style="border:1px solid #999;padding:8px;text-align:left;">Medicamento(s)</th>'+
+    '<th style="border:1px solid #999;padding:8px;text-align:left;">Ubicación</th>'+
+    '<th style="border:1px solid #999;padding:8px;text-align:left;">Fecha</th>'+
+    '<th style="border:1px solid #999;padding:8px;text-align:left;">Autorizado</th>'+
+    '</tr></thead><tbody style="font-size:13px;">'+rows.replace(/<tr class="veryold">/g,'<tr style="background:#fee2e2;">').replace(/<tr class="old">/g,'<tr style="background:#fef3c7;">').replace(/<tr class="">/g,'<tr>').replace(/<td>/g,'<td style="border:1px solid #ccc;padding:6px 8px;">')+'</tbody></table>';
+  abrirVistaPrevia(html);
 }
 
 function imprimirAuditoria(){
@@ -2630,19 +2667,23 @@ function imprimirAuditoria(){
   if(empFiltro){ list=list.filter(function(a){return a.empleado===empFiltro;}); }
   if(accFiltro){ list=list.filter(function(a){return a.accion===accFiltro;}); }
 
-  document.getElementById('printFechaAud').textContent='Generado: '+new Date().toLocaleString('es-PR')+' — '+list.length+' registro'+(list.length!==1?'s':'')+(busq||desde||hasta||empFiltro||accFiltro?' (filtrado)':'');
   var rows='';
   if(list.length===0){
     rows='<tr><td colspan="4" style="text-align:center;color:#888;">Sin resultados</td></tr>';
   } else {
     list.forEach(function(a){
-      rows+='<tr><td>'+fmtFecha(a.fecha)+'</td><td>'+esc(a.empleado)+'</td><td>'+esc(a.accion)+'</td><td>'+esc(a.detalle)+'</td></tr>';
+      rows+='<tr><td style="border:1px solid #ccc;padding:6px 8px;">'+fmtFecha(a.fecha)+'</td><td style="border:1px solid #ccc;padding:6px 8px;">'+esc(a.empleado)+'</td><td style="border:1px solid #ccc;padding:6px 8px;">'+esc(a.accion)+'</td><td style="border:1px solid #ccc;padding:6px 8px;">'+esc(a.detalle)+'</td></tr>';
     });
   }
-  document.getElementById('printBodyAud').innerHTML=rows;
-  document.body.classList.add('printing-aud');
-  window.print();
-  setTimeout(function(){ document.body.classList.remove('printing-aud'); }, 500);
+  var html = '<h2 style="margin-bottom:4px;">🕵️ Auditoría</h2>'+
+    '<div style="font-size:12px;color:#666;margin-bottom:14px;">Generado: '+new Date().toLocaleString('es-PR')+' — '+list.length+' registro'+(list.length!==1?'s':'')+(busq||desde||hasta||empFiltro||accFiltro?' (filtrado)':'')+'</div>'+
+    '<table style="width:100%;border-collapse:collapse;"><thead><tr style="background:#eee;">'+
+    '<th style="border:1px solid #999;padding:8px;text-align:left;">Fecha</th>'+
+    '<th style="border:1px solid #999;padding:8px;text-align:left;">Empleado</th>'+
+    '<th style="border:1px solid #999;padding:8px;text-align:left;">Acción</th>'+
+    '<th style="border:1px solid #999;padding:8px;text-align:left;">Detalle</th>'+
+    '</tr></thead><tbody style="font-size:12.5px;">'+rows+'</tbody></table>';
+  abrirVistaPrevia(html);
 }
 
 // ---- Historial ----
@@ -2831,6 +2872,16 @@ function quitarFoto(){
 // ---- Cámara en vivo (para laptops/webcam donde el input capture no abre cámara) ----
 var camaraStream = null;
 var camaraCallback = null;
+// ---- Vista previa de impresión (unificado) ----
+function abrirVistaPrevia(html){
+  document.getElementById('vistaPreviaContenido').innerHTML = html;
+  document.getElementById('vistaPreviaOverlay').classList.remove('hidden');
+}
+function imprimirVistaPrevia(){
+  document.body.classList.add('printing-preview');
+  window.print();
+  setTimeout(function(){ document.body.classList.remove('printing-preview'); }, 500);
+}
 async function abrirCamaraOverlay(callback){
   camaraCallback = callback;
   document.getElementById('camaraOverlay').classList.remove('hidden');
@@ -3287,6 +3338,8 @@ function factItemRowHtml(){
       '<div style="flex:1;"><label style="font-size:11px;">Cantidad</label><input class="inp fact-item-cantidad" type="text" inputmode="numeric" value="1" placeholder="Cant."></div>'+
       '<div style="flex:1;"><label style="font-size:11px;">Costo c/u ($)</label><input class="inp fact-item-costo" type="text" inputmode="decimal" placeholder="0.00"></div>'+
     '</div>'+
+    '<label style="font-size:11px;margin-top:8px;">Precio de venta ($)</label>'+
+    '<input class="inp fact-item-precio" type="text" inputmode="decimal" placeholder="0.00">'+
     '<div style="display:flex;gap:8px;margin-top:8px;">'+
       '<div style="flex:1;"><label style="font-size:11px;">Lote</label><input class="inp fact-item-lote" placeholder="Ej. L2026A"></div>'+
       '<div style="flex:1;"><label style="font-size:11px;">Fecha de vencimiento</label><input class="inp fact-item-vence" type="date"></div>'+
@@ -3341,6 +3394,7 @@ function editarFactura(id){
     row.querySelector('.fact-item-presentacion').value = it.presentacion||'';
     row.querySelector('.fact-item-cantidad').value = it.cantidad||1;
     row.querySelector('.fact-item-costo').value = it.costoUnitario||'';
+    row.querySelector('.fact-item-precio').value = it.precioVenta||'';
     row.querySelector('.fact-item-lote').value = it.lote||'';
     row.querySelector('.fact-item-vence').value = it.fechaVencimiento||'';
     row.querySelector('.fact-item-controlado').checked = !!it.controlado;
@@ -3411,10 +3465,11 @@ function guardarFactura(){
     var presentacion = fila.querySelector('.fact-item-presentacion').value.trim();
     var cantidad = parseFloat(fila.querySelector('.fact-item-cantidad').value)||0;
     var costo = parseFloat(fila.querySelector('.fact-item-costo').value)||0;
+    var precioVentaItem = parseFloat(fila.querySelector('.fact-item-precio').value)||0;
     var lote = fila.querySelector('.fact-item-lote').value.trim();
     var vence = fila.querySelector('.fact-item-vence').value || null;
     var controladoItem = fila.querySelector('.fact-item-controlado').checked;
-    items.push({productoNombre:nombre, presentacion:presentacion, cantidad:cantidad, costoUnitario:costo, lote:lote, fechaVencimiento:vence, controlado:controladoItem});
+    items.push({productoNombre:nombre, presentacion:presentacion, cantidad:cantidad, costoUnitario:costo, precioVenta:precioVentaItem, lote:lote, fechaVencimiento:vence, controlado:controladoItem});
   });
   if(!proveedor){ toast('Escribe el proveedor'); return; }
   if(items.length===0){ toast('Agrega al menos un producto recibido'); return; }
@@ -3432,7 +3487,7 @@ function guardarFactura(){
       return x.nombre.toLowerCase()===it.productoNombre.toLowerCase() && (x.presentacion||'').toLowerCase()===(it.presentacion||'').toLowerCase();
     });
     if(!p){
-      p = { id:'inv'+Date.now()+Math.floor(Math.random()*10000), nombre:it.productoNombre, presentacion:it.presentacion, tipo:'medicamento', cantidad:0, cantidadMinima:0, costo:it.costoUnitario||0, precioVenta:0, proveedor:proveedor, fechaVencimiento:null, lotes:[], controlado:!!it.controlado, actualizadoEn:new Date().toISOString() };
+      p = { id:'inv'+Date.now()+Math.floor(Math.random()*10000), nombre:it.productoNombre, presentacion:it.presentacion, tipo:'medicamento', cantidad:0, cantidadMinima:0, costo:it.costoUnitario||0, precioVenta:it.precioVenta||0, proveedor:proveedor, fechaVencimiento:null, lotes:[], controlado:!!it.controlado, actualizadoEn:new Date().toISOString() };
       D.inventario.push(p);
     }
     p.lotes = p.lotes || [];
@@ -3446,6 +3501,7 @@ function guardarFactura(){
     p.fechaVencimiento = proximo ? proximo.fechaVencimiento : null;
     p.lote = proximo ? proximo.numero : '';
     if(it.costoUnitario) p.costo = it.costoUnitario;
+    if(it.precioVenta) p.precioVenta = it.precioVenta;
     p.controlado = p.controlado || !!it.controlado;
     if(it.controlado) p.controlado = true;
     p.actualizadoEn = new Date().toISOString();
