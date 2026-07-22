@@ -194,7 +194,7 @@ textarea{resize:vertical;min-height:60px;}
 <div id="app">
   <header>
     <h1>💊 Control de Entrega</h1>
-    <div class="sub" id="hSub">Farmacia · <span style="color:#ffd700;font-weight:700;" id="verTag">v57</span></div>
+    <div class="sub" id="hSub">Farmacia · <span style="color:#ffd700;font-weight:700;" id="verTag">v61</span></div>
     <div class="syncbar"><span class="dot" id="syncDot"></span><span id="syncText">Sin sincronizar</span></div>
     <div class="syncbar" style="margin-top:4px;cursor:pointer;" onclick="abrirLogin()">👤 <span id="empActual">Sin identificar</span> <span style="text-decoration:underline;">(cambiar sesión)</span></div>
   </header>
@@ -1220,7 +1220,6 @@ function entregarMed(recordId, idx){
     med.firma=firma;
     med.motivo=null;
     med.deuda={estado:'ninguna', monto:''};
-    ajustarInventarioPorNombre(med.nombre, med.presentacion, med.cantidad||1);
     med.fechaUltimoProcesado = obtenerFechaProceso(med, fecha);
     logAuditoria('Entrega', rec.paciente+' — '+med.nombre+' — recogió: '+quien+(firma?' (firmado)':' (sin firma)'));
     finalizarSiCompleto(rec);
@@ -1247,8 +1246,7 @@ function completarMedicamento(recordId, idx){
       med.firma=firmaFinal;
       med.deuda={estado:'ninguna', monto:''};
       med.entregaParcialInfo=null;
-      ajustarInventarioPorNombre(med.nombre, med.presentacion, med.cantidad||1);
-    med.fechaUltimoProcesado = obtenerFechaProceso(med, fecha);
+      med.fechaUltimoProcesado = obtenerFechaProceso(med, fecha);
       logAuditoria('Entrega completada', rec.paciente+' — '+med.nombre+' — recogió: '+quien);
       finalizarSiCompleto(rec);
       save();
@@ -1279,7 +1277,8 @@ function rechazarMed(recordId, idx){
   med.fecha=new Date().toISOString();
   med.motivo=motivo.trim()||'(sin especificar)';
   med.recogioPor=null;
-  logAuditoria('Rechazado', rec.paciente+' — '+med.nombre+' — motivo: '+med.motivo);
+  restaurarInventarioPorNombre(med.nombre, med.presentacion, med.cantidad||1);
+  logAuditoria('Rechazado', rec.paciente+' — '+med.nombre+' — motivo: '+med.motivo+' — repuesto al inventario');
   finalizarSiCompleto(rec);
   save();
   renderBuscar(); renderPendientes(); renderHistorial(); renderStats();
@@ -1305,15 +1304,25 @@ function renderSugerenciasPaciente(val){
       '<span style="font-weight:600;font-size:14px;">'+esc(p.nombre)+'</span>'+
     '</div>';
   }).join('');
-  if(!hayExacto){
-    html += '<div style="padding:10px 12px;display:flex;align-items:center;gap:10px;cursor:pointer;background:#eff8ff;" onclick="abrirPacienteOverlay()">'+
+  if(!hayExacto && val.length>=3){
+    html += '<div style="padding:10px 12px;display:flex;align-items:center;gap:10px;cursor:pointer;background:#eff8ff;" onclick="irACrearPaciente(\''+esc(val).replace(/'/g,"\\'")+'\')">'+
       '<div style="width:36px;height:36px;border-radius:8px;background:#0d7fb8;color:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:18px;">➕</div>'+
-      '<span style="font-weight:700;font-size:14px;color:#0d7fb8;">Crear paciente nuevo: "'+esc(val)+'"</span>'+
+      '<span style="font-weight:700;font-size:14px;color:#0d7fb8;">No está en el directorio — crear su perfil primero</span>'+
     '</div>';
   }
   if(matches.length===0 && hayExacto){ box.classList.add('hidden'); box.innerHTML=''; return; }
+  if(!html){ box.classList.add('hidden'); box.innerHTML=''; return; }
   box.innerHTML = html;
   box.classList.remove('hidden');
+}
+var nombrePendienteParaNueva = null;
+function irACrearPaciente(nombreEscrito){
+  nombrePendienteParaNueva = nombreEscrito;
+  goScreen('pacientes');
+  abrirPacienteOverlay(true);
+  document.getElementById('pacNombrePilaInput').value = nombreEscrito;
+  combinarNombrePaciente();
+  toast('Completa el perfil y guarda — volverás a la receta con este paciente ya seleccionado');
 }
 function seleccionarPaciente(id){
   var p=(D.pacientes||[]).find(function(x){return x.id===id;});
@@ -1493,7 +1502,15 @@ function guardarPaciente(){
   seleccionarPaciente(pacienteSeleccionadoId);
   cerrarPacienteOverlay();
   renderDirectorioPacientesTab();
-  toast('✅ Paciente guardado: '+nombre);
+  if(nombrePendienteParaNueva!==null){
+    nombrePendienteParaNueva = null;
+    goScreen('nueva');
+    document.getElementById('nPaciente').value=nombre;
+    seleccionarPaciente(pacienteSeleccionadoId);
+    toast('✅ Paciente creado — ya está seleccionado, continúa con la receta');
+  } else {
+    toast('✅ Paciente guardado: '+nombre);
+  }
 }
 function renderDirectorioPacientesTab(){
   D.pacientes = D.pacientes || [];
@@ -1873,6 +1890,7 @@ function registrarEntrega(){
   var autorizado=document.getElementById('nAutorizado').value.trim();
   var notas=document.getElementById('nNotas').value.trim();
   if(!paciente || medicamentos.length===0 || !ubicacion){ toast('Falta nombre, al menos un medicamento, o ubicación'); return; }
+  if(!editandoEntregaId && !pacienteSeleccionadoId){ toast('⚠️ Selecciona el paciente de la lista (o créalo primero) — no se puede guardar con un nombre suelto'); return; }
   if(faltaPresentacion){ toast('Falta escribir miligramos/presentación en algún medicamento'); return; }
 
   // Alertar si el paciente ya tiene otra receta pendiente en ubicación distinta
@@ -1899,6 +1917,7 @@ function registrarEntrega(){
         repUsadas = 1;
       }
       var fechaProcesoManual = m.fechaProcesoInput ? new Date(m.fechaProcesoInput+'T12:00:00').toISOString() : null;
+      ajustarInventarioPorNombre(m.nombre, m.presentacion, m.cantidad||1);
       return {id:'m'+Date.now()+mi+Math.floor(Math.random()*1000), nombre:m.nombre, presentacion:m.presentacion, controlado:m.controlado, cantidad:m.cantidad||1, repeticionesAutorizadas:repAutorizadas, repeticionesUsadas:repUsadas, fechaUltimoProcesado:fechaProcesoManual, estado:'pendiente', motivo:null, fecha:null, recogioPor:null, deuda:m.deuda};
     }),
     ubicacion: ubicacion,
@@ -1932,6 +1951,7 @@ function registrarEntrega(){
         var repAutE, repUsaE;
         if(histE && histE.repeticionesUsadas < histE.repeticionesAutorizadas){ repAutE = histE.repeticionesAutorizadas; repUsaE = histE.repeticionesUsadas+1; }
         else { repAutE = m.repeticionesInput || 1; repUsaE = 1; }
+        ajustarInventarioPorNombre(m.nombre, m.presentacion, m.cantidad||1);
         existentes.push({id:'m'+Date.now()+Math.floor(Math.random()*10000), nombre:m.nombre, presentacion:m.presentacion, controlado:m.controlado, cantidad:m.cantidad||1, repeticionesAutorizadas:repAutE, repeticionesUsadas:repUsaE, fechaUltimoProcesado:null, estado:'pendiente', motivo:null, fecha:null, recogioPor:null, deuda:m.deuda});
       }
     });
@@ -2135,7 +2155,6 @@ function marcarEntregado(id){
       if(p.completo){
         m.estado='entregado'; m.fecha=fecha; m.recogioPor=quien; m.firma=firma;
         m.deuda={estado:'ninguna', monto:''};
-        ajustarInventarioPorNombre(m.nombre, m.presentacion, m.cantidad||1);
         m.fechaUltimoProcesado = obtenerFechaProceso(m, fecha);
       } else {
         m.deuda={estado:'parcial', monto:p.falta};
@@ -2172,7 +2191,6 @@ function marcarGrupoEntregado(paciente){
       if(p.completo){
         m.estado='entregado'; m.fecha=fecha; m.recogioPor=quien; m.firma=firma;
         m.deuda={estado:'ninguna', monto:''};
-        ajustarInventarioPorNombre(m.nombre, m.presentacion, m.cantidad||1);
         m.fechaUltimoProcesado = obtenerFechaProceso(m, fecha);
       } else {
         m.deuda={estado:'parcial', monto:p.falta};
@@ -2253,8 +2271,11 @@ async function borrarEntrega(id){
   for(var i=0;i<D.entregas.length;i++){ if(D.entregas[i].id===id){ rec=D.entregas[i]; break; } }
   D.entregas = D.entregas.filter(function(e){ return e.id!==id; });
   if(rec){
+    ensureMedObjects(rec).forEach(function(m){
+      if(m.estado==='pendiente') restaurarInventarioPorNombre(m.nombre, m.presentacion, m.cantidad||1);
+    });
     moverAPapelera('entrega', rec);
-    logAuditoria('Borrado', rec.paciente+' ('+rec.ubicacion+') — movido a papelera');
+    logAuditoria('Borrado', rec.paciente+' ('+rec.ubicacion+') — movido a papelera, inventario repuesto');
   }
   save();
   await eliminarDeSupabase('entregas', id);
@@ -3028,6 +3049,11 @@ function renderInventario(){
         '<div class="item-name">'+(p.tipo==='otc'?'🛒':'💊')+' '+esc(p.nombre)+(p.presentacion?' '+esc(p.presentacion):'')+(p.controlado?' <span class="deuda-badge" style="background:#1a1a2e;color:#fff;">DEA</span>':'')+(p.cobraIvu?' <span class="deuda-badge" style="background:#eff8ff;color:#0a5c8a;">IVU 11.5%</span>':' <span class="deuda-badge" style="background:#dcfce7;color:#166534;">Exento IVU</span>')+'</div>'+
         '<div class="item-row">'+alerta+'</div>'+
         '<div class="item-row">📦 Cantidad: <b>'+p.cantidad+'</b>'+(p.cantidadMinima?' (alerta bajo '+p.cantidadMinima+')':'')+'</div>'+
+        (p.lotes && p.lotes.length>1 ? '<div class="item-row" style="flex-direction:column;align-items:flex-start;font-size:12px;color:#666;">'+
+          p.lotes.slice().sort(function(a,b){ if(!a.fechaVencimiento) return 1; if(!b.fechaVencimiento) return -1; return new Date(a.fechaVencimiento)-new Date(b.fechaVencimiento); }).map(function(l){
+            return '• '+esc(l.numero||'Sin número')+': '+l.cantidad+' unid.'+(l.fechaVencimiento?' — vence '+l.fechaVencimiento:'');
+          }).join('<br>')+
+        '</div>' : '')+
         (p.costo||p.precioVenta?'<div class="item-row">💵 Costo: $'+(p.costo||0).toFixed(2)+' — Venta: $'+(p.precioVenta||0).toFixed(2)+'</div>':'')+
         (p.proveedor?'<div class="item-row">🏭 '+esc(p.proveedor)+'</div>':'')+
         (p.fechaVencimiento?'<div class="item-row">📅 Vence: '+p.fechaVencimiento+(p.lote?' — Lote: '+esc(p.lote):'')+'</div>':'')+
@@ -3180,6 +3206,21 @@ async function borrarProducto(id){
   renderInventario();
   toast('Producto eliminado');
 }
+function restaurarInventarioPorNombre(nombre, presentacion, cantidad){
+  var p = D.inventario.find(function(x){
+    return x.nombre.toLowerCase()===nombre.toLowerCase() && (x.presentacion||'').toLowerCase()===(presentacion||'').toLowerCase();
+  });
+  if(!p) p = D.inventario.find(function(x){ return x.nombre.toLowerCase()===nombre.toLowerCase(); });
+  if(!p) return false;
+  if(p.lotes && p.lotes.length>0){
+    p.lotes.push({id:'lote'+Date.now()+Math.floor(Math.random()*1000), numero:'Restaurado (no se entregó)', cantidad:cantidad, fechaVencimiento:null});
+    p.cantidad = p.lotes.reduce(function(sum,l){ return sum+(l.cantidad||0); }, 0);
+  } else {
+    p.cantidad = (p.cantidad||0) + cantidad;
+  }
+  p.actualizadoEn = new Date().toISOString();
+  return true;
+}
 function ajustarInventarioPorNombre(nombre, presentacion, cantidad){
   var p = D.inventario.find(function(x){
     return x.nombre.toLowerCase()===nombre.toLowerCase() && (x.presentacion||'').toLowerCase()===(presentacion||'').toLowerCase();
@@ -3250,6 +3291,9 @@ function factItemRowHtml(){
       '<div style="flex:1;"><label style="font-size:11px;">Lote</label><input class="inp fact-item-lote" placeholder="Ej. L2026A"></div>'+
       '<div style="flex:1;"><label style="font-size:11px;">Fecha de vencimiento</label><input class="inp fact-item-vence" type="date"></div>'+
     '</div>'+
+    '<label style="display:flex;align-items:center;gap:8px;margin-top:8px;font-weight:600;font-size:13px;color:#991b1b;">'+
+      '<input type="checkbox" class="fact-item-controlado" style="width:18px;height:18px;"> 🔴 Controlado por el DEA'+
+    '</label>'+
   '</div>';
 }
 function agregarFilaFacturaItem(){
@@ -3299,6 +3343,7 @@ function editarFactura(id){
     row.querySelector('.fact-item-costo').value = it.costoUnitario||'';
     row.querySelector('.fact-item-lote').value = it.lote||'';
     row.querySelector('.fact-item-vence').value = it.fechaVencimiento||'';
+    row.querySelector('.fact-item-controlado').checked = !!it.controlado;
     cont.appendChild(row);
   });
   if((f.items||[]).length===0) agregarFilaFacturaItem();
@@ -3368,7 +3413,8 @@ function guardarFactura(){
     var costo = parseFloat(fila.querySelector('.fact-item-costo').value)||0;
     var lote = fila.querySelector('.fact-item-lote').value.trim();
     var vence = fila.querySelector('.fact-item-vence').value || null;
-    items.push({productoNombre:nombre, presentacion:presentacion, cantidad:cantidad, costoUnitario:costo, lote:lote, fechaVencimiento:vence});
+    var controladoItem = fila.querySelector('.fact-item-controlado').checked;
+    items.push({productoNombre:nombre, presentacion:presentacion, cantidad:cantidad, costoUnitario:costo, lote:lote, fechaVencimiento:vence, controlado:controladoItem});
   });
   if(!proveedor){ toast('Escribe el proveedor'); return; }
   if(items.length===0){ toast('Agrega al menos un producto recibido'); return; }
@@ -3386,7 +3432,7 @@ function guardarFactura(){
       return x.nombre.toLowerCase()===it.productoNombre.toLowerCase() && (x.presentacion||'').toLowerCase()===(it.presentacion||'').toLowerCase();
     });
     if(!p){
-      p = { id:'inv'+Date.now()+Math.floor(Math.random()*10000), nombre:it.productoNombre, presentacion:it.presentacion, tipo:'medicamento', cantidad:0, cantidadMinima:0, costo:it.costoUnitario||0, precioVenta:0, proveedor:proveedor, fechaVencimiento:null, lotes:[], controlado:false, actualizadoEn:new Date().toISOString() };
+      p = { id:'inv'+Date.now()+Math.floor(Math.random()*10000), nombre:it.productoNombre, presentacion:it.presentacion, tipo:'medicamento', cantidad:0, cantidadMinima:0, costo:it.costoUnitario||0, precioVenta:0, proveedor:proveedor, fechaVencimiento:null, lotes:[], controlado:!!it.controlado, actualizadoEn:new Date().toISOString() };
       D.inventario.push(p);
     }
     p.lotes = p.lotes || [];
@@ -3400,6 +3446,8 @@ function guardarFactura(){
     p.fechaVencimiento = proximo ? proximo.fechaVencimiento : null;
     p.lote = proximo ? proximo.numero : '';
     if(it.costoUnitario) p.costo = it.costoUnitario;
+    p.controlado = p.controlado || !!it.controlado;
+    if(it.controlado) p.controlado = true;
     p.actualizadoEn = new Date().toISOString();
   });
 
