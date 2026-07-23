@@ -31,7 +31,7 @@ textarea{resize:vertical;min-height:60px;}
 .btn-outline{background:#fff;color:#0d7fb8;border:2px solid #0d7fb8;}
 .btn-danger{background:#fff;color:#dc2626;border:2px solid #dc2626;}
 .nav{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid #e5e7eb;display:flex;max-width:600px;margin:0 auto;z-index:50;}
-.nav button{flex:1;background:none;border:none;padding:7px 1px;font-size:8.5px;font-weight:600;color:#8892a0;display:flex;flex-direction:column;align-items:center;gap:1px;}
+.nav button{flex:0 0 auto;min-width:52px;background:none;border:none;padding:7px 1px;font-size:8.5px;font-weight:600;color:#8892a0;display:flex;flex-direction:column;align-items:center;gap:1px;}
 .nav button.active{color:#0d7fb8;}
 .nav .ic{font-size:20px;}
 .item{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:14px;margin-bottom:10px;position:relative;}
@@ -201,7 +201,7 @@ textarea{resize:vertical;min-height:60px;}
 <div id="app">
   <header>
     <h1>💊 Control de Entrega</h1>
-    <div class="sub" id="hSub">Farmacia · <span style="color:#ffd700;font-weight:700;" id="verTag">v63</span></div>
+    <div class="sub" id="hSub">Farmacia · <span style="color:#ffd700;font-weight:700;" id="verTag">v65</span></div>
     <div class="syncbar"><span class="dot" id="syncDot"></span><span id="syncText">Sin sincronizar</span></div>
     <div class="syncbar" style="margin-top:4px;cursor:pointer;" onclick="abrirLogin()">👤 <span id="empActual">Sin identificar</span> <span style="text-decoration:underline;">(cambiar sesión)</span></div>
   </header>
@@ -731,6 +731,30 @@ textarea{resize:vertical;min-height:60px;}
     </div>
 
     <!-- PANTALLA: SYNC -->
+    <!-- PANTALLA: REPORTES -->
+    <div id="scr-reportes" class="hidden">
+      <div class="card">
+        <div class="section-title">📊 Reportes</div>
+        <div style="display:flex;gap:8px;">
+          <div style="flex:1;"><label>Desde</label><input class="inp" id="repDesde" type="date" onchange="renderReportes()"></div>
+          <div style="flex:1;"><label>Hasta</label><input class="inp" id="repHasta" type="date" onchange="renderReportes()"></div>
+        </div>
+        <div style="display:flex;gap:6px;margin-top:8px;">
+          <button type="button" class="mockbtn-filtro" onclick="setRangoReporte(0)">Hoy</button>
+          <button type="button" class="mockbtn-filtro" onclick="setRangoReporte(7)">7 días</button>
+          <button type="button" class="mockbtn-filtro" onclick="setRangoReporte(30)">30 días</button>
+          <button type="button" class="mockbtn-filtro" onclick="setRangoReporte(365)">Este año</button>
+        </div>
+        <button class="btn btn-print" style="margin-top:10px;" onclick="imprimirReportes()">🖨️ Imprimir todo</button>
+      </div>
+
+      <div class="card" id="repFinancieroCard"></div>
+      <div class="card" id="repOperacionalCard"></div>
+      <div class="card" id="repInventarioCard"></div>
+      <div class="card" id="repComprasCard"></div>
+      <div class="card" id="repPacientesCard"></div>
+    </div>
+
     <div id="scr-sync" class="hidden">
       <div class="card">
         <div class="section-title">Sesión</div>
@@ -827,13 +851,14 @@ textarea{resize:vertical;min-height:60px;}
 
   </div>
 
-  <div class="nav">
+  <div class="nav" style="overflow-x:auto;">
     <button class="navbtn active" data-scr="nueva" onclick="goScreen('nueva')"><span class="ic">➕</span>Nueva</button>
     <button class="navbtn" data-scr="pacientes" onclick="goScreen('pacientes')"><span class="ic">🪪</span>Pac.</button>
     <button class="navbtn" data-scr="buscar" onclick="goScreen('buscar')"><span class="ic">🔍</span>Entregar</button>
     <button class="navbtn" data-scr="pendientes" onclick="filtroPendientesViejos=false;goScreen('pendientes')"><span class="ic">📋</span>Pend.</button>
     <button class="navbtn" data-scr="inventario" onclick="goScreen('inventario')"><span class="ic">📦</span>Inv.</button>
     <button class="navbtn" data-scr="historial" onclick="filtroHistorialHoy=false;goScreen('historial')"><span class="ic">✅</span>Hist.</button>
+    <button class="navbtn" data-scr="reportes" onclick="goScreen('reportes')"><span class="ic">📊</span>Rep.</button>
     <button class="navbtn" data-scr="sync" onclick="goScreen('sync')"><span class="ic">☁️</span>Sync</button>
   </div>
 </div>
@@ -991,7 +1016,7 @@ function toast(msg){
 
 // ---- Screens ----
 function goScreen(name){
-  ['nueva','pacientes','buscar','pendientes','inventario','historial','sync'].forEach(function(s){
+  ['nueva','pacientes','buscar','pendientes','inventario','historial','reportes','sync'].forEach(function(s){
     document.getElementById('scr-'+s).classList.toggle('hidden', s!==name);
   });
   document.querySelectorAll('.navbtn').forEach(function(b){
@@ -1002,6 +1027,7 @@ function goScreen(name){
   if(name==='pendientes') renderPendientes();
   if(name==='inventario') renderInventario();
   if(name==='historial') renderHistorial();
+  if(name==='reportes') renderReportes();
   if(name==='nueva') renderStats();
   if(name==='sync'){ renderEmpleados(); renderListaPacientesMensaje(); document.getElementById('syncEmpActual').textContent = EMPLEADO || 'Sin identificar'; document.getElementById('configAvanzadaBox').classList.add('hidden'); document.getElementById('configCorreoBox').classList.add('hidden'); mostrarTamanoDatos(); renderPapelera(); renderMedsAdherencia(); }
 }
@@ -2478,6 +2504,241 @@ function imprimirReporteDEA(){
     '<th style="border:1px solid #999;padding:8px;text-align:left;">Estado</th>'+
     '<th style="border:1px solid #999;padding:8px;text-align:left;">Recogió</th>'+
     '</tr></thead><tbody style="font-size:13px;">'+rows+'</tbody></table>';
+  abrirVistaPrevia(html);
+}
+
+// ---- Reportes ----
+function setRangoReporte(dias){
+  var hoy = new Date();
+  var hastaStr = hoy.toISOString().slice(0,10);
+  var desdeStr;
+  if(dias===0){ desdeStr = hastaStr; }
+  else if(dias===365){ desdeStr = hoy.getFullYear()+'-01-01'; }
+  else { var d=new Date(hoy); d.setDate(d.getDate()-dias); desdeStr = d.toISOString().slice(0,10); }
+  document.getElementById('repDesde').value = desdeStr;
+  document.getElementById('repHasta').value = hastaStr;
+  renderReportes();
+}
+function dentroDeRangoReporte(fechaStr){
+  if(!fechaStr) return false;
+  var desde = document.getElementById('repDesde').value;
+  var hasta = document.getElementById('repHasta').value;
+  var f = new Date(fechaStr);
+  if(desde && f < new Date(desde+'T00:00:00')) return false;
+  if(hasta && f > new Date(hasta+'T23:59:59')) return false;
+  return true;
+}
+function calcularReportes(){
+  var desde = document.getElementById('repDesde').value;
+  var hasta = document.getElementById('repHasta').value;
+
+  // FINANCIERO
+  var ventasEnRango = (D.ventasOtc||[]).filter(function(v){ return dentroDeRangoReporte(v.fecha); });
+  var totalVentasOtc = ventasEnRango.reduce(function(s,v){return s+(v.total||0);},0);
+  var totalIvu = ventasEnRango.reduce(function(s,v){return s+(v.ivu||0);},0);
+  var ventasPorForma = {};
+  ventasEnRango.forEach(function(v){ ventasPorForma[v.formaPago]=(ventasPorForma[v.formaPago]||0)+(v.total||0); });
+
+  var pagosRecetas = [];
+  D.entregas.forEach(function(e){
+    ensureMedObjects(e).forEach(function(m){
+      (m.pagos||[]).forEach(function(p){ if(dentroDeRangoReporte(p.fecha)) pagosRecetas.push(p); });
+    });
+  });
+  var totalPagosRecetas = pagosRecetas.reduce(function(s,p){return s+(parseFloat(p.cantidad)||0);},0);
+  var pagosPorForma = {};
+  pagosRecetas.forEach(function(p){ pagosPorForma[p.forma]=(pagosPorForma[p.forma]||0)+(parseFloat(p.cantidad)||0); });
+
+  // OPERACIONAL
+  var entregasCompletadas = D.entregas.filter(function(e){ return e.entregado && dentroDeRangoReporte(e.fechaEntrega); });
+  var tiempos = entregasCompletadas.map(function(e){ return (new Date(e.fechaEntrega)-new Date(e.fechaRegistro))/(1000*60*60*24); }).filter(function(d){return d>=0;});
+  var promedioEspera = tiempos.length ? (tiempos.reduce(function(a,b){return a+b;},0)/tiempos.length) : 0;
+  var entregasPorEmpleado = {};
+  (D.auditoria||[]).forEach(function(a){
+    if(['Entrega','Entrega grupal','Entrega completada'].indexOf(a.accion)>=0 && dentroDeRangoReporte(a.fecha)){
+      entregasPorEmpleado[a.empleado]=(entregasPorEmpleado[a.empleado]||0)+1;
+    }
+  });
+
+  // INVENTARIO
+  var valorCosto = (D.inventario||[]).reduce(function(s,p){return s+((p.cantidad||0)*(p.costo||0));},0);
+  var valorVenta = (D.inventario||[]).reduce(function(s,p){return s+((p.cantidad||0)*(p.precioVenta||0));},0);
+  var masVendidos = {};
+  ventasEnRango.forEach(function(v){ masVendidos[v.productoNombre]=(masVendidos[v.productoNombre]||0)+v.cantidad; });
+  D.entregas.forEach(function(e){
+    ensureMedObjects(e).forEach(function(m){
+      if(m.estado==='entregado' && dentroDeRangoReporte(m.fecha)){
+        var key = nombreCompletoMed(m).replace(/\s*\(x\d+\)$/,'');
+        masVendidos[key]=(masVendidos[key]||0)+(m.cantidad||1);
+      }
+    });
+  });
+  var rankingVendidos = Object.keys(masVendidos).map(function(k){return {nombre:k, cantidad:masVendidos[k]};}).sort(function(a,b){return b.cantidad-a.cantidad;}).slice(0,10);
+
+  // COMPRAS
+  var facturasEnRango = (D.facturas||[]).filter(function(f){ return dentroDeRangoReporte(f.fecha); });
+  var totalCompras = facturasEnRango.reduce(function(s,f){return s+(f.total||0);},0);
+  var comprasPorProveedor = {};
+  facturasEnRango.forEach(function(f){ comprasPorProveedor[f.proveedor]=(comprasPorProveedor[f.proveedor]||0)+(f.total||0); });
+
+  // PACIENTES
+  var pacientesNuevos = (D.pacientes||[]).filter(function(p){ return dentroDeRangoReporte(p.fechaCreado); }).length;
+  var frecuencia = {};
+  D.entregas.forEach(function(e){
+    if(dentroDeRangoReporte(e.fechaRegistro)) frecuencia[e.paciente]=(frecuencia[e.paciente]||0)+1;
+  });
+  var rankingPacientes = Object.keys(frecuencia).map(function(k){return {nombre:k, veces:frecuencia[k]};}).sort(function(a,b){return b.veces-a.veces;}).slice(0,10);
+
+  return {
+    totalVentasOtc:totalVentasOtc, totalIvu:totalIvu, ventasPorForma:ventasPorForma,
+    totalPagosRecetas:totalPagosRecetas, pagosPorForma:pagosPorForma,
+    entregasCompletadas:entregasCompletadas.length, promedioEspera:promedioEspera, entregasPorEmpleado:entregasPorEmpleado,
+    valorCosto:valorCosto, valorVenta:valorVenta, rankingVendidos:rankingVendidos,
+    totalCompras:totalCompras, comprasPorProveedor:comprasPorProveedor, facturasCount:facturasEnRango.length,
+    pacientesNuevos:pacientesNuevos, rankingPacientes:rankingPacientes
+  };
+}
+function filaBarra(nombre, valor, maxValor, prefijo){
+  var pct = maxValor>0 ? Math.round((valor/maxValor)*100) : 0;
+  return '<div style="margin-bottom:8px;">'+
+    '<div style="display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:2px;"><span>'+esc(nombre)+'</span><b>'+(prefijo||'')+(typeof valor==='number'?valor.toFixed(2):valor)+'</b></div>'+
+    '<div style="background:#f0f0f0;border-radius:6px;height:8px;overflow:hidden;"><div style="background:#0d7fb8;height:100%;width:'+pct+'%;"></div></div>'+
+  '</div>';
+}
+function renderReportes(){
+  if(!document.getElementById('repDesde').value && !document.getElementById('repHasta').value){
+    setRangoReporte(30);
+    return;
+  }
+  var r = calcularReportes();
+
+  // FINANCIERO
+  var maxForma = Math.max.apply(null, Object.values(r.ventasPorForma).concat(Object.values(r.pagosPorForma)).concat([1]));
+  var htmlFin = '<div class="section-title">💵 Financiero</div>'+
+    '<div class="pill-row" style="margin-bottom:10px;">'+
+      '<div class="pill"><b>$'+r.totalVentasOtc.toFixed(2)+'</b><span>Ventas OTC</span></div>'+
+      '<div class="pill"><b>$'+r.totalPagosRecetas.toFixed(2)+'</b><span>Pagos recetas</span></div>'+
+      '<div class="pill"><b>$'+(r.totalVentasOtc+r.totalPagosRecetas).toFixed(2)+'</b><span>Total ingresos</span></div>'+
+    '</div>'+
+    '<div style="font-size:12px;color:#8892a0;margin-bottom:2px;">IVU cobrado: $'+r.totalIvu.toFixed(2)+'</div>'+
+    (Object.keys(r.ventasPorForma).length||Object.keys(r.pagosPorForma).length ? '<label style="margin-top:8px;">Por método de pago</label>'+
+      Object.keys(r.ventasPorForma).map(function(k){return filaBarra('🛒 '+k, r.ventasPorForma[k], maxForma, '$');}).join('')+
+      Object.keys(r.pagosPorForma).map(function(k){return filaBarra('💊 '+k, r.pagosPorForma[k], maxForma, '$');}).join('')
+    : '<p style="font-size:12px;color:#9ca3af;">Sin movimientos en este rango.</p>');
+  htmlFin += '<button type="button" class="btn btn-outline" style="margin-top:10px;" onclick="imprimirReporteParte(\'financiero\')">🖨️ Imprimir esta sección</button>';
+  document.getElementById('repFinancieroCard').innerHTML = htmlFin;
+
+  // OPERACIONAL
+  var maxEmp = Math.max.apply(null, Object.values(r.entregasPorEmpleado).concat([1]));
+  var htmlOp = '<div class="section-title">🚚 Operacional</div>'+
+    '<div class="pill-row" style="margin-bottom:10px;">'+
+      '<div class="pill"><b>'+r.entregasCompletadas+'</b><span>Entregas completadas</span></div>'+
+      '<div class="pill"><b>'+r.promedioEspera.toFixed(1)+'</b><span>Días promedio de espera</span></div>'+
+    '</div>'+
+    (Object.keys(r.entregasPorEmpleado).length ? '<label>Entregas por empleado</label>'+
+      Object.keys(r.entregasPorEmpleado).sort(function(a,b){return r.entregasPorEmpleado[b]-r.entregasPorEmpleado[a];}).map(function(k){return filaBarra(k, r.entregasPorEmpleado[k], maxEmp, '');}).join('')
+    : '<p style="font-size:12px;color:#9ca3af;">Sin entregas en este rango.</p>');
+  htmlOp += '<button type="button" class="btn btn-outline" style="margin-top:10px;" onclick="imprimirReporteParte(\'operacional\')">🖨️ Imprimir esta sección</button>';
+  document.getElementById('repOperacionalCard').innerHTML = htmlOp;
+
+  // INVENTARIO
+  var maxVend = r.rankingVendidos.length ? r.rankingVendidos[0].cantidad : 1;
+  var htmlInv = '<div class="section-title">📦 Inventario</div>'+
+    '<div class="pill-row" style="margin-bottom:10px;">'+
+      '<div class="pill"><b>$'+r.valorCosto.toFixed(2)+'</b><span>Valor en costo</span></div>'+
+      '<div class="pill"><b>$'+r.valorVenta.toFixed(2)+'</b><span>Valor en venta</span></div>'+
+      '<div class="pill"><b>$'+(r.valorVenta-r.valorCosto).toFixed(2)+'</b><span>Ganancia potencial</span></div>'+
+    '</div>'+
+    (r.rankingVendidos.length ? '<label>Más movidos en el rango</label>'+
+      r.rankingVendidos.map(function(x){return filaBarra(x.nombre, x.cantidad, maxVend, '');}).join('')
+    : '<p style="font-size:12px;color:#9ca3af;">Sin movimientos en este rango.</p>');
+  htmlInv += '<button type="button" class="btn btn-outline" style="margin-top:10px;" onclick="imprimirReporteParte(\'inventario\')">🖨️ Imprimir esta sección</button>';
+  document.getElementById('repInventarioCard').innerHTML = htmlInv;
+
+  // COMPRAS
+  var maxProv = Math.max.apply(null, Object.values(r.comprasPorProveedor).concat([1]));
+  var htmlCompras = '<div class="section-title">🧾 Compras</div>'+
+    '<div class="pill-row" style="margin-bottom:10px;">'+
+      '<div class="pill"><b>$'+r.totalCompras.toFixed(2)+'</b><span>Total gastado</span></div>'+
+      '<div class="pill"><b>'+r.facturasCount+'</b><span>Facturas</span></div>'+
+    '</div>'+
+    (Object.keys(r.comprasPorProveedor).length ? '<label>Por proveedor</label>'+
+      Object.keys(r.comprasPorProveedor).sort(function(a,b){return r.comprasPorProveedor[b]-r.comprasPorProveedor[a];}).map(function(k){return filaBarra(k, r.comprasPorProveedor[k], maxProv, '$');}).join('')
+    : '<p style="font-size:12px;color:#9ca3af;">Sin compras en este rango.</p>');
+  htmlCompras += '<button type="button" class="btn btn-outline" style="margin-top:10px;" onclick="imprimirReporteParte(\'compras\')">🖨️ Imprimir esta sección</button>';
+  document.getElementById('repComprasCard').innerHTML = htmlCompras;
+
+  // PACIENTES
+  var maxPac = r.rankingPacientes.length ? r.rankingPacientes[0].veces : 1;
+  var htmlPac = '<div class="section-title">🪪 Pacientes</div>'+
+    '<div class="pill-row" style="margin-bottom:10px;">'+
+      '<div class="pill"><b>'+r.pacientesNuevos+'</b><span>Nuevos en el rango</span></div>'+
+    '</div>'+
+    (r.rankingPacientes.length ? '<label>Más frecuentes en el rango</label>'+
+      r.rankingPacientes.map(function(x){return filaBarra(x.nombre, x.veces, maxPac, '');}).join('')
+    : '<p style="font-size:12px;color:#9ca3af;">Sin recetas en este rango.</p>');
+  htmlPac += '<button type="button" class="btn btn-outline" style="margin-top:10px;" onclick="imprimirReporteParte(\'pacientes\')">🖨️ Imprimir esta sección</button>';
+  document.getElementById('repPacientesCard').innerHTML = htmlPac;
+}
+function imprimirReporteParte(parte){
+  var r = calcularReportes();
+  var desde = document.getElementById('repDesde').value, hasta = document.getElementById('repHasta').value;
+  var encabezado = '<div style="font-size:12px;color:#666;margin-bottom:16px;">Período: '+(desde||'inicio')+' a '+(hasta||'hoy')+' — Generado: '+new Date().toLocaleString('es-PR')+'</div>';
+  var html='';
+  if(parte==='financiero'){
+    html = '<h2 style="margin-bottom:4px;">💵 Reporte financiero</h2>'+encabezado+
+      '<p style="font-size:13px;">Ventas OTC: $'+r.totalVentasOtc.toFixed(2)+' (IVU: $'+r.totalIvu.toFixed(2)+')</p>'+
+      '<p style="font-size:13px;">Pagos de recetas: $'+r.totalPagosRecetas.toFixed(2)+'</p>'+
+      '<p style="font-size:14px;"><b>Total ingresos: $'+(r.totalVentasOtc+r.totalPagosRecetas).toFixed(2)+'</b></p>'+
+      '<h3 style="margin-top:14px;">Por método de pago</h3>'+
+      '<p style="font-size:13px;">'+Object.keys(r.ventasPorForma).map(function(k){return '🛒 '+esc(k)+': $'+r.ventasPorForma[k].toFixed(2);}).concat(Object.keys(r.pagosPorForma).map(function(k){return '💊 '+esc(k)+': $'+r.pagosPorForma[k].toFixed(2);})).join('<br>')+'</p>';
+  } else if(parte==='operacional'){
+    html = '<h2 style="margin-bottom:4px;">🚚 Reporte operacional</h2>'+encabezado+
+      '<p style="font-size:13px;">Entregas completadas: '+r.entregasCompletadas+'</p>'+
+      '<p style="font-size:13px;">Días promedio de espera: '+r.promedioEspera.toFixed(1)+'</p>'+
+      '<h3 style="margin-top:14px;">Entregas por empleado</h3>'+
+      '<p style="font-size:13px;">'+Object.keys(r.entregasPorEmpleado).map(function(k){return esc(k)+': '+r.entregasPorEmpleado[k];}).join('<br>')+'</p>';
+  } else if(parte==='inventario'){
+    html = '<h2 style="margin-bottom:4px;">📦 Reporte de inventario</h2>'+encabezado+
+      '<p style="font-size:13px;">Valor en costo: $'+r.valorCosto.toFixed(2)+'</p>'+
+      '<p style="font-size:13px;">Valor en venta: $'+r.valorVenta.toFixed(2)+'</p>'+
+      '<p style="font-size:14px;"><b>Ganancia potencial: $'+(r.valorVenta-r.valorCosto).toFixed(2)+'</b></p>'+
+      '<h3 style="margin-top:14px;">Más movidos en el rango</h3>'+
+      '<table style="width:100%;border-collapse:collapse;margin-top:6px;"><thead><tr style="background:#eee;"><th style="border:1px solid #999;padding:6px;text-align:left;">Producto</th><th style="border:1px solid #999;padding:6px;text-align:left;">Cantidad</th></tr></thead><tbody>'+
+      r.rankingVendidos.map(function(x){return '<tr><td style="border:1px solid #ccc;padding:6px;">'+esc(x.nombre)+'</td><td style="border:1px solid #ccc;padding:6px;">'+x.cantidad+'</td></tr>';}).join('')+'</tbody></table>';
+  } else if(parte==='compras'){
+    html = '<h2 style="margin-bottom:4px;">🧾 Reporte de compras</h2>'+encabezado+
+      '<p style="font-size:13px;">Total gastado: $'+r.totalCompras.toFixed(2)+' en '+r.facturasCount+' factura(s)</p>'+
+      '<h3 style="margin-top:14px;">Por proveedor</h3>'+
+      '<p style="font-size:13px;">'+Object.keys(r.comprasPorProveedor).map(function(k){return esc(k)+': $'+r.comprasPorProveedor[k].toFixed(2);}).join('<br>')+'</p>';
+  } else if(parte==='pacientes'){
+    html = '<h2 style="margin-bottom:4px;">🪪 Reporte de pacientes</h2>'+encabezado+
+      '<p style="font-size:13px;">Pacientes nuevos en el rango: '+r.pacientesNuevos+'</p>'+
+      '<h3 style="margin-top:14px;">Más frecuentes</h3>'+
+      '<table style="width:100%;border-collapse:collapse;margin-top:6px;"><thead><tr style="background:#eee;"><th style="border:1px solid #999;padding:6px;text-align:left;">Paciente</th><th style="border:1px solid #999;padding:6px;text-align:left;">Visitas</th></tr></thead><tbody>'+
+      r.rankingPacientes.map(function(x){return '<tr><td style="border:1px solid #ccc;padding:6px;">'+esc(x.nombre)+'</td><td style="border:1px solid #ccc;padding:6px;">'+x.veces+'</td></tr>';}).join('')+'</tbody></table>';
+  }
+  abrirVistaPrevia(html);
+}
+function imprimirReportes(){
+  var r = calcularReportes();
+  var desde = document.getElementById('repDesde').value, hasta = document.getElementById('repHasta').value;
+  var html = '<h2 style="margin-bottom:4px;">📊 Reporte general de la farmacia</h2>'+
+    '<div style="font-size:12px;color:#666;margin-bottom:16px;">Período: '+(desde||'inicio')+' a '+(hasta||'hoy')+' — Generado: '+new Date().toLocaleString('es-PR')+'</div>'+
+    '<h3 style="margin-top:16px;">💵 Financiero</h3>'+
+    '<p style="font-size:13px;">Ventas OTC: $'+r.totalVentasOtc.toFixed(2)+' (IVU: $'+r.totalIvu.toFixed(2)+') — Pagos de recetas: $'+r.totalPagosRecetas.toFixed(2)+' — <b>Total ingresos: $'+(r.totalVentasOtc+r.totalPagosRecetas).toFixed(2)+'</b></p>'+
+    '<h3 style="margin-top:16px;">🚚 Operacional</h3>'+
+    '<p style="font-size:13px;">Entregas completadas: '+r.entregasCompletadas+' — Días promedio de espera: '+r.promedioEspera.toFixed(1)+'</p>'+
+    '<p style="font-size:13px;">'+Object.keys(r.entregasPorEmpleado).map(function(k){return esc(k)+': '+r.entregasPorEmpleado[k];}).join(' | ')+'</p>'+
+    '<h3 style="margin-top:16px;">📦 Inventario</h3>'+
+    '<p style="font-size:13px;">Valor en costo: $'+r.valorCosto.toFixed(2)+' — Valor en venta: $'+r.valorVenta.toFixed(2)+' — Ganancia potencial: $'+(r.valorVenta-r.valorCosto).toFixed(2)+'</p>'+
+    '<p style="font-size:13px;">Más movidos: '+r.rankingVendidos.map(function(x){return esc(x.nombre)+' ('+x.cantidad+')';}).join(', ')+'</p>'+
+    '<h3 style="margin-top:16px;">🧾 Compras</h3>'+
+    '<p style="font-size:13px;">Total gastado: $'+r.totalCompras.toFixed(2)+' en '+r.facturasCount+' factura(s)</p>'+
+    '<p style="font-size:13px;">'+Object.keys(r.comprasPorProveedor).map(function(k){return esc(k)+': $'+r.comprasPorProveedor[k].toFixed(2);}).join(' | ')+'</p>'+
+    '<h3 style="margin-top:16px;">🪪 Pacientes</h3>'+
+    '<p style="font-size:13px;">Pacientes nuevos: '+r.pacientesNuevos+'</p>'+
+    '<p style="font-size:13px;">Más frecuentes: '+r.rankingPacientes.map(function(x){return esc(x.nombre)+' ('+x.veces+')';}).join(', ')+'</p>';
   abrirVistaPrevia(html);
 }
 
