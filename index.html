@@ -201,7 +201,7 @@ textarea{resize:vertical;min-height:60px;}
 <div id="app">
   <header>
     <h1>💊 Control de Entrega</h1>
-    <div class="sub" id="hSub">Farmacia · <span style="color:#ffd700;font-weight:700;" id="verTag">v69</span></div>
+    <div class="sub" id="hSub">Farmacia · <span style="color:#ffd700;font-weight:700;" id="verTag">v70</span></div>
     <div class="syncbar"><span class="dot" id="syncDot"></span><span id="syncText">Sin sincronizar</span></div>
     <div class="syncbar" style="margin-top:4px;cursor:pointer;" onclick="abrirLogin()">👤 <span id="empActual">Sin identificar</span> <span style="text-decoration:underline;">(cambiar sesión)</span></div>
   </header>
@@ -4258,13 +4258,15 @@ function mergeEmpleados(localArr, remoteArr){
 function fusionarConNube(remote){
   D.entregas = mergeById(D.entregas, remote.entregas || []);
   D.auditoria = mergeById(D.auditoria, remote.auditoria || []);
-  D.empleados = mergeEmpleados(D.empleados, remote.empleados || []);
-  D.pacientes = mergeById(D.pacientes, remote.pacientes || []);
+  // Estas listas usan la nube como fuente de verdad (no solo union),
+  // para que borrar algo en un dispositivo sí se refleje en los demás.
+  D.empleados = remote.empleados || D.empleados;
+  D.pacientes = remote.pacientes || D.pacientes;
+  D.inventario = remote.inventario || D.inventario;
+  D.medsAdherencia = remote.medsAdherencia || D.medsAdherencia;
   D.papelera = mergeById(D.papelera||[], remote.papelera || []);
-  D.inventario = mergeById(D.inventario||[], remote.inventario || []);
   D.ventasOtc = mergeById(D.ventasOtc||[], remote.ventasOtc || []);
   D.facturas = mergeById(D.facturas||[], remote.facturas || []);
-  D.medsAdherencia = mergeById(D.medsAdherencia||[], remote.medsAdherencia || []);
 }
 async function pullRemote(silent){
   if(!supabaseClient){ if(!silent) toast('Configura Supabase primero'); return; }
