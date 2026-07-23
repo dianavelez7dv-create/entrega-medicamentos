@@ -201,7 +201,7 @@ textarea{resize:vertical;min-height:60px;}
 <div id="app">
   <header>
     <h1>💊 Control de Entrega</h1>
-    <div class="sub" id="hSub">Farmacia · <span style="color:#ffd700;font-weight:700;" id="verTag">v71</span></div>
+    <div class="sub" id="hSub">Farmacia · <span style="color:#ffd700;font-weight:700;" id="verTag">v72</span></div>
     <div class="syncbar"><span class="dot" id="syncDot"></span><span id="syncText">Sin sincronizar</span></div>
     <div class="syncbar" style="margin-top:4px;cursor:pointer;" onclick="abrirLogin()">👤 <span id="empActual">Sin identificar</span> <span style="text-decoration:underline;">(cambiar sesión)</span></div>
   </header>
@@ -525,6 +525,8 @@ textarea{resize:vertical;min-height:60px;}
         <input class="inp" id="pacAutorizadoInput" placeholder="Ej. Cualquier familiar / Solo esposo">
         <label>Dirección física (para entrega a domicilio, opcional)</label>
         <textarea class="inp" id="pacDireccionInput" placeholder="Ej. Calle Sol 123, Aguadilla, PR 00603"></textarea>
+        <label>📅 Clasificación de adherencia (opcional)</label>
+        <input class="inp" id="pacAdherenciaInput" placeholder="Ej. Diabetes, Hipertensión, Colesterol...">
         <label>Foto de identificación (opcional)</label>
         <label class="photo-label" id="pacFotoLabel">📷 Tomar foto del ID
           <input type="file" accept="*/*" capture="environment" id="pacFotoInput" style="display:none">
@@ -1456,6 +1458,7 @@ function abrirPacienteOverlay(standalone){
   document.getElementById('pacEmailInput').value='';
   document.getElementById('pacAutorizadoInput').value='';
   document.getElementById('pacDireccionInput').value='';
+  document.getElementById('pacAdherenciaInput').value='';
   pacienteFotoActual=null;
   var prev=document.getElementById('pacFotoPreview');
   prev.classList.add('hidden'); prev.src='';
@@ -1469,6 +1472,7 @@ function abrirPacienteOverlay(standalone){
       document.getElementById('pacEmailInput').value=p.email||'';
       document.getElementById('pacAutorizadoInput').value=p.autorizado||'';
       document.getElementById('pacDireccionInput').value=p.direccion||'';
+      document.getElementById('pacAdherenciaInput').value=p.clasificacionAdherencia||'';
       if(p.pila || p.ap1){
         split = {pila:p.pila||'', inicial:p.inicial||'', ap1:p.ap1||'', ap2:p.ap2||''};
       } else {
@@ -1535,6 +1539,7 @@ function guardarPaciente(){
   var email=document.getElementById('pacEmailInput').value.trim();
   var autorizado=document.getElementById('pacAutorizadoInput').value.trim();
   var direccion=document.getElementById('pacDireccionInput').value.trim();
+  var clasifAdherencia=document.getElementById('pacAdherenciaInput').value.trim();
   if(!nombre){ toast('Escribe el nombre completo'); return; }
   D.pacientes = D.pacientes || [];
   var existing = pacienteSeleccionadoId ? D.pacientes.find(function(x){return x.id===pacienteSeleccionadoId;}) : D.pacientes.find(function(x){return x.nombre.toLowerCase()===nombre.toLowerCase();});
@@ -1555,10 +1560,11 @@ function guardarPaciente(){
     existing.email=email;
     existing.autorizado=autorizado;
     existing.direccion=direccion;
+    existing.clasificacionAdherencia=clasifAdherencia;
     existing.fotoId=pacienteFotoActual;
     pacienteSeleccionadoId=existing.id;
   } else {
-    var np={id:'p'+Date.now()+Math.floor(Math.random()*1000), nombre:nombre, pila:pilaCheck, inicial:inicialCheck, ap1:ap1Check, ap2:ap2Check, planMedico:plan, telefono:tel, email:email, autorizado:autorizado, direccion:direccion, fotoId:pacienteFotoActual, fechaCreado:new Date().toISOString()};
+    var np={id:'p'+Date.now()+Math.floor(Math.random()*1000), nombre:nombre, pila:pilaCheck, inicial:inicialCheck, ap1:ap1Check, ap2:ap2Check, planMedico:plan, telefono:tel, email:email, autorizado:autorizado, direccion:direccion, clasificacionAdherencia:clasifAdherencia, fotoId:pacienteFotoActual, fechaCreado:new Date().toISOString()};
     D.pacientes.push(np);
     pacienteSeleccionadoId=np.id;
   }
@@ -1599,6 +1605,7 @@ function renderDirectorioPacientesTab(){
           (p.email?'<div class="item-row">✉️ '+esc(p.email)+'</div>':'')+
           (p.autorizado?'<div class="item-row">👤 '+esc(p.autorizado)+'</div>':'')+
           (p.direccion?'<div class="item-row">📍 '+esc(p.direccion)+'</div>':'')+
+          (p.clasificacionAdherencia?'<div class="item-row">📅 '+esc(p.clasificacionAdherencia)+'</div>':'')+
         '</div></div>'+
         '<div class="item-actions" style="flex-wrap:wrap;">'+
           '<button class="mini-btn" style="background:#fff;color:#0d7fb8;border:1.5px solid #0d7fb8;flex:1;" onclick="editarPacienteDesdeDirectorio(\''+p.id+'\')">✏️ Editar</button>'+
@@ -4158,7 +4165,7 @@ async function pushRemote(){
     // Pacientes
     if(D.pacientes.length){
       var r2 = await supabaseClient.from('pacientes').upsert(D.pacientes.map(function(p){
-        return {id:p.id, nombre:p.nombre, plan_medico:p.planMedico||null, telefono:p.telefono||null, email:p.email||null, direccion:p.direccion||null, autorizado:p.autorizado||null, foto_id_url:p.fotoId||null};
+        return {id:p.id, nombre:p.nombre, plan_medico:p.planMedico||null, telefono:p.telefono||null, email:p.email||null, direccion:p.direccion||null, autorizado:p.autorizado||null, foto_id_url:p.fotoId||null, clasificacion_adherencia:p.clasificacionAdherencia||null, pila:p.pila||null, inicial:p.inicial||null, ap1:p.ap1||null, ap2:p.ap2||null};
       }));
       if(r2.error) console.log('error pacientes', r2.error);
     }
@@ -4309,7 +4316,7 @@ async function pullRemote(silent){
       };
     });
     var remotePacientes = (rPac.data||[]).map(function(row){
-      return {id:row.id, nombre:row.nombre, planMedico:row.plan_medico, telefono:row.telefono, email:row.email, direccion:row.direccion, autorizado:row.autorizado, fotoId:row.foto_id_url, fechaCreado:row.creado_en};
+      return {id:row.id, nombre:row.nombre, planMedico:row.plan_medico, telefono:row.telefono, email:row.email, direccion:row.direccion, autorizado:row.autorizado, fotoId:row.foto_id_url, clasificacionAdherencia:row.clasificacion_adherencia, pila:row.pila, inicial:row.inicial, ap1:row.ap1, ap2:row.ap2, fechaCreado:row.creado_en};
     });
     var remoteEmpleados = (rEmp.data||[]).map(function(row){ return {id:row.id, nombre:row.nombre, pin:row.pin}; });
     var remoteAuditoria = (rAud.data||[]).map(function(row){ return {id:row.id, fecha:row.fecha, empleado:row.empleado, accion:row.accion, detalle:row.detalle}; });
