@@ -201,7 +201,7 @@ textarea{resize:vertical;min-height:60px;}
 <div id="app">
   <header>
     <h1>💊 Control de Entrega</h1>
-    <div class="sub" id="hSub">Farmacia · <span style="color:#ffd700;font-weight:700;" id="verTag">v77</span></div>
+    <div class="sub" id="hSub">Farmacia · <span style="color:#ffd700;font-weight:700;" id="verTag">v78</span></div>
     <div class="syncbar"><span class="dot" id="syncDot"></span><span id="syncText">Sin sincronizar</span></div>
     <div class="syncbar" style="margin-top:4px;cursor:pointer;" onclick="abrirLogin()">👤 <span id="empActual">Sin identificar</span> <span style="text-decoration:underline;">(cambiar sesión)</span></div>
   </header>
@@ -312,7 +312,7 @@ textarea{resize:vertical;min-height:60px;}
 
     <!-- PANTALLA: PACIENTES (DIRECTORIO) -->
     <div id="scr-pacientes" class="hidden">
-      <button class="btn btn-primary" onclick="abrirPacienteOverlay(true)">➕ Nuevo paciente</button>
+      <button class="btn btn-primary" onclick="pacienteSeleccionadoId=null;abrirPacienteOverlay(true)">➕ Nuevo paciente</button>
       <div class="search-wrap" style="margin-top:10px;">
         <svg viewBox="0 0 24 24" fill="none" stroke="#8892a0" stroke-width="2"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
         <input class="inp searchbox" id="dirPacientesInput" placeholder="Buscar paciente..." oninput="renderDirectorioPacientesTab()">
@@ -363,6 +363,8 @@ textarea{resize:vertical;min-height:60px;}
         <h2>📦 Producto</h2>
         <label>Nombre *</label>
         <input class="inp" id="prodNombreInput" placeholder="Ej. Metformina">
+        <label>Nombre genérico (opcional)</label>
+        <input class="inp" id="prodGenericoInput" placeholder="Ej. Metformin HCl">
         <label>Presentación</label>
         <input class="inp" id="prodPresentacionInput" placeholder="Ej. 500mg tabletas">
         <label>Tipo</label>
@@ -663,6 +665,7 @@ textarea{resize:vertical;min-height:60px;}
           <button type="button" class="mockbtn-filtro" id="adhFiltroSinRx" onclick="setFiltroAdherenciaPanel('sinrx')">🔴 Necesitan Rx</button>
           <button type="button" class="mockbtn-filtro" id="adhFiltroPaciente" onclick="setFiltroAdherenciaPanel('paciente')">👥 Por paciente</button>
           <button type="button" class="mockbtn-filtro" id="adhFiltroPlan" onclick="setFiltroAdherenciaPanel('plan')">🏥 Por plan médico</button>
+          <button type="button" class="mockbtn-filtro" id="adhFiltroHoy" onclick="setFiltroAdherenciaPanel('hoy')" style="background:#dcfce7;color:#166534;">📋 ¿Quién toca HOY?</button>
         </div>
         <button class="btn btn-print" style="margin-top:10px;" onclick="imprimirPanelAdherencia()">🖨️ Imprimir</button>
         <div id="adherenciaContenido" style="margin-top:10px;"></div>
@@ -838,6 +841,9 @@ textarea{resize:vertical;min-height:60px;}
         <p style="font-size:12px;color:#666;">Los que estén en esta lista se marcan y filtran para las métricas de adherencia. La ventana de proceso es automática: 6 días antes para no controlados, 2 días antes para controlados.</p>
         <div style="display:flex;gap:8px;">
           <input class="inp" id="adhNombreInput" placeholder="Nombre del medicamento" style="flex:1;">
+        </div>
+        <div style="display:flex;gap:8px;margin-top:8px;">
+          <input class="inp" id="adhGenericoInput" placeholder="Nombre genérico (opcional)" style="flex:1;">
         </div>
         <label style="display:flex;align-items:center;gap:8px;margin-top:8px;font-weight:600;font-size:13px;color:#991b1b;">
           <input type="checkbox" id="adhControladoInput" style="width:18px;height:18px;"> 🔴 Es controlado por el DEA
@@ -1370,7 +1376,7 @@ function renderSugerenciasPaciente(val){
   var box = document.getElementById('pacienteSugerencias');
   D.pacientes = D.pacientes || [];
   if(!val || val.length<2){ box.classList.add('hidden'); box.innerHTML=''; return; }
-  var matches = D.pacientes.filter(function(p){ return p.nombre.toLowerCase().indexOf(val.toLowerCase())>=0; }).slice(0,5);
+  var matches = D.pacientes.filter(function(p){ return p.nombre.toLowerCase().indexOf(val.toLowerCase())>=0; }).sort(function(a,b){return a.nombre.localeCompare(b.nombre);}).slice(0,5);
   var hayExacto = D.pacientes.some(function(p){ return p.nombre.toLowerCase()===val.toLowerCase(); });
   var html = matches.map(function(p){
     return '<div style="padding:10px 12px;border-bottom:1px solid #f0f0f0;display:flex;align-items:center;gap:10px;cursor:pointer;" onclick="seleccionarPaciente(\''+p.id+'\')">'+
@@ -1392,6 +1398,7 @@ function renderSugerenciasPaciente(val){
 var nombrePendienteParaNueva = null;
 function irACrearPaciente(nombreEscrito){
   nombrePendienteParaNueva = nombreEscrito;
+  pacienteSeleccionadoId = null;
   goScreen('pacientes');
   abrirPacienteOverlay(true);
   document.getElementById('pacNombrePilaInput').value = nombreEscrito;
@@ -1759,13 +1766,15 @@ function fotoIdPorNombre(nombre){
 
 function agregarMedAdherencia(){
   var nombre = document.getElementById('adhNombreInput').value.trim();
+  var generico = document.getElementById('adhGenericoInput').value.trim();
   if(!nombre){ toast('Escribe el nombre del medicamento'); return; }
   D.medsAdherencia = D.medsAdherencia || [];
   if(D.medsAdherencia.some(function(a){return a.nombre.toLowerCase()===nombre.toLowerCase();})){ toast('Ya está en la lista'); return; }
-  D.medsAdherencia.push({id:'adh'+Date.now()+Math.floor(Math.random()*1000), nombre:nombre, controlado:document.getElementById('adhControladoInput').checked});
+  D.medsAdherencia.push({id:'adh'+Date.now()+Math.floor(Math.random()*1000), nombre:nombre, nombreGenerico:generico, controlado:document.getElementById('adhControladoInput').checked});
   logAuditoria('Medicamento de adherencia agregado', nombre);
   save();
   document.getElementById('adhNombreInput').value='';
+  document.getElementById('adhGenericoInput').value='';
   document.getElementById('adhControladoInput').checked=false;
   renderMedsAdherencia();
   toast('✅ Agregado a la lista de adherencia');
@@ -1787,7 +1796,7 @@ function renderMedsAdherencia(){
   var list = D.medsAdherencia || [];
   if(list.length===0){ box.innerHTML='<p style="font-size:13px;color:#9ca3af;">Aún no hay medicamentos en la lista de adherencia.</p>'; return; }
   box.innerHTML = list.map(function(a){
-    return '<div class="emp-list-item"><span>📅 '+esc(a.nombre)+(a.controlado?' <span class="deuda-badge" style="background:#1a1a2e;color:#fff;">DEA</span>':'')+'</span>'+
+    return '<div class="emp-list-item"><span>📅 '+esc(a.nombre)+(a.nombreGenerico?' <span style="color:#8892a0;">('+esc(a.nombreGenerico)+')</span>':'')+(a.controlado?' <span class="deuda-badge" style="background:#1a1a2e;color:#fff;">DEA</span>':'')+'</span>'+
       '<button class="emp-del" onclick="borrarMedAdherencia(\''+a.id+'\')">Eliminar</button></div>';
   }).join('');
 }
@@ -1809,7 +1818,9 @@ function buscarPlanMedico(nombrePaciente){
 }
 function esMedAdherencia(nombre){
   var limpio = (nombre||'').trim().toLowerCase();
-  return (D.medsAdherencia||[]).find(function(a){ return (a.nombre||'').trim().toLowerCase()===limpio; }) || null;
+  return (D.medsAdherencia||[]).find(function(a){
+    return (a.nombre||'').trim().toLowerCase()===limpio || (a.nombreGenerico||'').trim().toLowerCase()===limpio;
+  }) || null;
 }
 function buscarHistorialMedicamento(pacienteNombre, medNombre){
   var candidatos = [];
@@ -2867,8 +2878,8 @@ function recolectarAdherencia(){
 }
 function setFiltroAdherenciaPanel(f){
   filtroAdherenciaPanel = f;
-  ['listos','todos','sinrx','paciente','plan'].forEach(function(k){
-    var idMap = {listos:'adhFiltroListos', todos:'adhFiltroTodos', sinrx:'adhFiltroSinRx', paciente:'adhFiltroPaciente', plan:'adhFiltroPlan'};
+  ['listos','todos','sinrx','paciente','plan','hoy'].forEach(function(k){
+    var idMap = {listos:'adhFiltroListos', todos:'adhFiltroTodos', sinrx:'adhFiltroSinRx', paciente:'adhFiltroPaciente', plan:'adhFiltroPlan', hoy:'adhFiltroHoy'};
     document.getElementById(idMap[k]).classList.toggle('activo', k===f);
   });
   renderPanelAdherencia();
@@ -2899,11 +2910,11 @@ function abrirPanelAdherencia(){
 }
 function renderPanelAdherencia(){
   var filas = recolectarAdherencia();
-  if(filtroAdherenciaPanel==='listos') filas = filas.filter(function(f){return f.listo;});
+  if(filtroAdherenciaPanel==='listos' || filtroAdherenciaPanel==='hoy') filas = filas.filter(function(f){return f.listo;});
   if(filtroAdherenciaPanel==='sinrx') filas = filas.filter(function(f){return f.necesitaRx;});
   var box = document.getElementById('adherenciaContenido');
   if(filas.length===0){
-    box.innerHTML = '<div class="empty"><span class="em">📅</span>No hay resultados en este filtro</div>';
+    box.innerHTML = '<div class="empty"><span class="em">📅</span>'+(filtroAdherenciaPanel==='hoy'?'Nadie está en ventana de proceso ahora mismo':'No hay resultados en este filtro')+'</div>';
     return;
   }
   var html='';
@@ -2934,7 +2945,7 @@ function renderPanelAdherencia(){
     box.innerHTML = html;
     return;
   }
-  if(filtroAdherenciaPanel==='paciente'){
+  if(filtroAdherenciaPanel==='paciente' || filtroAdherenciaPanel==='hoy'){
     var porPaciente = {};
     filas.forEach(function(f){
       if(!porPaciente[f.paciente]) porPaciente[f.paciente]=[];
@@ -2971,10 +2982,10 @@ function renderPanelAdherencia(){
 }
 function imprimirPanelAdherencia(){
   var filas = recolectarAdherencia();
-  if(filtroAdherenciaPanel==='listos') filas = filas.filter(function(f){return f.listo;});
+  if(filtroAdherenciaPanel==='listos' || filtroAdherenciaPanel==='hoy') filas = filas.filter(function(f){return f.listo;});
   if(filtroAdherenciaPanel==='sinrx') filas = filas.filter(function(f){return f.necesitaRx;});
   filas.forEach(function(f){ f.plan = buscarPlanMedico(f.paciente); });
-  if(filtroAdherenciaPanel==='paciente') filas = filas.slice().sort(function(a,b){return a.paciente.localeCompare(b.paciente);});
+  if(filtroAdherenciaPanel==='paciente' || filtroAdherenciaPanel==='hoy') filas = filas.slice().sort(function(a,b){return a.paciente.localeCompare(b.paciente);});
   if(filtroAdherenciaPanel==='plan') filas = filas.slice().sort(function(a,b){ return a.plan.localeCompare(b.plan) || a.medicamento.localeCompare(b.medicamento); });
   var rows='';
   if(filas.length===0){
@@ -3643,6 +3654,7 @@ function abrirProductoOverlay(nuevo){
   productoLotesTemp = [];
   productoEscalonesTemp = [];
   document.getElementById('prodNombreInput').value='';
+  document.getElementById('prodGenericoInput').value='';
   document.getElementById('prodPresentacionInput').value='';
   document.getElementById('prodTipoInput').value='medicamento';
   document.getElementById('prodControladoInput').checked=false;
@@ -3669,6 +3681,7 @@ function editarProducto(id){
   if(!p) return;
   productoSeleccionadoId = id;
   document.getElementById('prodNombreInput').value=p.nombre;
+  document.getElementById('prodGenericoInput').value=p.nombreGenerico||'';
   document.getElementById('prodPresentacionInput').value=p.presentacion||'';
   document.getElementById('prodTipoInput').value=p.tipo||'medicamento';
   document.getElementById('prodControladoInput').checked=!!p.controlado;
@@ -3710,6 +3723,7 @@ function guardarProducto(){
   })[0];
   var datos = {
     nombre: nombre,
+    nombreGenerico: document.getElementById('prodGenericoInput').value.trim(),
     presentacion: document.getElementById('prodPresentacionInput').value.trim(),
     tipo: document.getElementById('prodTipoInput').value,
     controlado: document.getElementById('prodControladoInput').checked,
@@ -4238,7 +4252,7 @@ async function pushRemote(){
     // Inventario
     if((D.inventario||[]).length){
       var r7 = await supabaseClient.from('inventario').upsert(D.inventario.map(function(p){
-        return {id:p.id, nombre:p.nombre, presentacion:p.presentacion||null, tipo:p.tipo||'medicamento', cantidad:p.cantidad||0, cantidad_minima:p.cantidadMinima||0, costo:p.costo||null, precio_venta:p.precioVenta||null, proveedor:p.proveedor||null, fecha_vencimiento:p.fechaVencimiento||null, lote:p.lote||null, ndc:p.ndc||null, lotes:p.lotes||[], precios_escalonados:p.preciosEscalonados||[], controlado:!!p.controlado, cobra_ivu:!!p.cobraIvu, actualizado_en:p.actualizadoEn||new Date().toISOString()};
+        return {id:p.id, nombre:p.nombre, nombre_generico:p.nombreGenerico||null, presentacion:p.presentacion||null, tipo:p.tipo||'medicamento', cantidad:p.cantidad||0, cantidad_minima:p.cantidadMinima||0, costo:p.costo||null, precio_venta:p.precioVenta||null, proveedor:p.proveedor||null, fecha_vencimiento:p.fechaVencimiento||null, lote:p.lote||null, ndc:p.ndc||null, lotes:p.lotes||[], precios_escalonados:p.preciosEscalonados||[], controlado:!!p.controlado, cobra_ivu:!!p.cobraIvu, actualizado_en:p.actualizadoEn||new Date().toISOString()};
       }));
       if(r7.error) console.log('error inventario', r7.error);
     }
@@ -4259,7 +4273,7 @@ async function pushRemote(){
     // Lista de medicamentos de adherencia
     if((D.medsAdherencia||[]).length){
       var r10 = await supabaseClient.from('meds_adherencia').upsert(D.medsAdherencia.map(function(a){
-        return {id:a.id, nombre:a.nombre, controlado:!!a.controlado};
+        return {id:a.id, nombre:a.nombre, nombre_generico:a.nombreGenerico||null, controlado:!!a.controlado};
       }));
       if(r10.error) console.log('error meds_adherencia', r10.error);
     }
@@ -4352,7 +4366,7 @@ async function pullRemote(silent){
     var remoteAuditoria = (rAud.data||[]).map(function(row){ return {id:row.id, fecha:row.fecha, empleado:row.empleado, accion:row.accion, detalle:row.detalle}; });
     var remotePapelera = (rPap.data||[]).map(function(row){ return {id:row.id, tipo:row.tipo, datos:row.datos, fechaBorrado:row.fecha_borrado, borradoPor:row.borrado_por}; });
     var remoteInventario = (rInv.data||[]).map(function(row){
-      return {id:row.id, nombre:row.nombre, presentacion:row.presentacion, tipo:row.tipo, cantidad:row.cantidad, cantidadMinima:row.cantidad_minima, costo:row.costo, precioVenta:row.precio_venta, proveedor:row.proveedor, fechaVencimiento:row.fecha_vencimiento, lote:row.lote, ndc:row.ndc, lotes:row.lotes||[], preciosEscalonados:row.precios_escalonados||[], controlado:!!row.controlado, cobraIvu:!!row.cobra_ivu, actualizadoEn:row.actualizado_en};
+      return {id:row.id, nombre:row.nombre, nombreGenerico:row.nombre_generico, presentacion:row.presentacion, tipo:row.tipo, cantidad:row.cantidad, cantidadMinima:row.cantidad_minima, costo:row.costo, precioVenta:row.precio_venta, proveedor:row.proveedor, fechaVencimiento:row.fecha_vencimiento, lote:row.lote, ndc:row.ndc, lotes:row.lotes||[], preciosEscalonados:row.precios_escalonados||[], controlado:!!row.controlado, cobraIvu:!!row.cobra_ivu, actualizadoEn:row.actualizado_en};
     });
     var remoteVentasOtc = (rVta.data||[]).map(function(row){
       return {id:row.id, productoId:row.producto_id, productoNombre:row.producto_nombre, cantidad:row.cantidad, precioUnitario:row.precio_unitario, subtotal:row.subtotal, ivu:row.ivu, total:row.total, formaPago:row.forma_pago, empleado:row.empleado, fecha:row.fecha};
@@ -4361,7 +4375,7 @@ async function pullRemote(silent){
       return {id:row.id, numeroFactura:row.numero_factura, proveedor:row.proveedor, fecha:row.fecha, total:row.total, notas:row.notas, fotoUrl:row.foto_url, empleado:row.empleado, items:row.items||[], creadoEn:row.creado_en};
     });
     var remoteMedsAdherencia = (rAdh.data||[]).map(function(row){
-      return {id:row.id, nombre:row.nombre, controlado:!!row.controlado};
+      return {id:row.id, nombre:row.nombre, nombreGenerico:row.nombre_generico, controlado:!!row.controlado};
     });
 
     if(localChangeVersion !== versionAlEmpezar){
