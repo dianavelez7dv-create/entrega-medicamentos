@@ -201,7 +201,7 @@ textarea{resize:vertical;min-height:60px;}
 <div id="app">
   <header>
     <h1>💊 Control de Entrega</h1>
-    <div class="sub" id="hSub">Farmacia · <span style="color:#ffd700;font-weight:700;" id="verTag">v76</span></div>
+    <div class="sub" id="hSub">Farmacia · <span style="color:#ffd700;font-weight:700;" id="verTag">v77</span></div>
     <div class="syncbar"><span class="dot" id="syncDot"></span><span id="syncText">Sin sincronizar</span></div>
     <div class="syncbar" style="margin-top:4px;cursor:pointer;" onclick="abrirLogin()">👤 <span id="empActual">Sin identificar</span> <span style="text-decoration:underline;">(cambiar sesión)</span></div>
   </header>
@@ -1030,7 +1030,9 @@ function load(){
   initSupabaseClient();
 }
 var pushEnCurso = null;
+var localChangeVersion = 0;
 function save(){
+  localChangeVersion++;
   localStorage.setItem(LSKEY, JSON.stringify(D));
   pushEnCurso = pushRemote();
 }
@@ -4304,6 +4306,7 @@ function fusionarConNube(remote){
 async function pullRemote(silent){
   if(!supabaseClient){ if(!silent) toast('Configura Supabase primero'); return; }
   if(pushEnCurso){ try{ await pushEnCurso; }catch(e){} }
+  var versionAlEmpezar = localChangeVersion;
   try{
     var rEmp = await supabaseClient.from('empleados').select('*');
     var rPac = await supabaseClient.from('pacientes').select('*');
@@ -4361,6 +4364,14 @@ async function pullRemote(silent){
       return {id:row.id, nombre:row.nombre, controlado:!!row.controlado};
     });
 
+    if(localChangeVersion !== versionAlEmpezar){
+      // Se hizo un cambio local mientras se traían los datos de la nube.
+      // No aplicamos esta fusión (podría pisar el cambio reciente) —
+      // el cambio ya se está subiendo por su cuenta, y la próxima
+      // sincronización va a traer todo correctamente actualizado.
+      if(!silent) toast('🔄 Hubo un cambio mientras sincronizaba, reintentando...');
+      return;
+    }
     var antes = D.entregas.length;
     fusionarConNube({entregas:remoteEntregas, pacientes:remotePacientes, empleados:remoteEmpleados, auditoria:remoteAuditoria, papelera:remotePapelera, inventario:remoteInventario, ventasOtc:remoteVentasOtc, facturas:remoteFacturas, medsAdherencia:remoteMedsAdherencia});
     localStorage.setItem(LSKEY, JSON.stringify(D));
