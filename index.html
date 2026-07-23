@@ -201,7 +201,7 @@ textarea{resize:vertical;min-height:60px;}
 <div id="app">
   <header>
     <h1>💊 Control de Entrega</h1>
-    <div class="sub" id="hSub">Farmacia · <span style="color:#ffd700;font-weight:700;" id="verTag">v73</span></div>
+    <div class="sub" id="hSub">Farmacia · <span style="color:#ffd700;font-weight:700;" id="verTag">v74</span></div>
     <div class="syncbar"><span class="dot" id="syncDot"></span><span id="syncText">Sin sincronizar</span></div>
     <div class="syncbar" style="margin-top:4px;cursor:pointer;" onclick="abrirLogin()">👤 <span id="empActual">Sin identificar</span> <span style="text-decoration:underline;">(cambiar sesión)</span></div>
   </header>
@@ -2633,6 +2633,11 @@ function calcularReportes(){
     if(dentroDeRangoReporte(e.fechaRegistro)) frecuencia[e.paciente]=(frecuencia[e.paciente]||0)+1;
   });
   var rankingPacientes = Object.keys(frecuencia).map(function(k){return {nombre:k, veces:frecuencia[k]};}).sort(function(a,b){return b.veces-a.veces;}).slice(0,10);
+  var porClasifAdherencia = {};
+  (D.pacientes||[]).forEach(function(p){
+    var c = (p.clasificacionAdherencia||'').trim();
+    if(c) porClasifAdherencia[c]=(porClasifAdherencia[c]||0)+1;
+  });
 
   return {
     totalVentasOtc:totalVentasOtc, totalIvu:totalIvu, ventasPorForma:ventasPorForma,
@@ -2640,7 +2645,7 @@ function calcularReportes(){
     entregasCompletadas:entregasCompletadas.length, promedioEspera:promedioEspera, entregasPorEmpleado:entregasPorEmpleado,
     valorCosto:valorCosto, valorVenta:valorVenta, rankingVendidos:rankingVendidos,
     totalCompras:totalCompras, comprasPorProveedor:comprasPorProveedor, facturasCount:facturasEnRango.length,
-    pacientesNuevos:pacientesNuevos, rankingPacientes:rankingPacientes
+    pacientesNuevos:pacientesNuevos, rankingPacientes:rankingPacientes, porClasifAdherencia:porClasifAdherencia
   };
 }
 function filaBarra(nombre, valor, maxValor, prefijo){
@@ -2715,13 +2720,17 @@ function renderReportes(){
 
   // PACIENTES
   var maxPac = r.rankingPacientes.length ? r.rankingPacientes[0].veces : 1;
+  var maxClasif = Math.max.apply(null, Object.values(r.porClasifAdherencia).concat([1]));
   var htmlPac = '<div class="section-title">🪪 Pacientes</div>'+
     '<div class="pill-row" style="margin-bottom:10px;">'+
       '<div class="pill"><b>'+r.pacientesNuevos+'</b><span>Nuevos en el rango</span></div>'+
     '</div>'+
     (r.rankingPacientes.length ? '<label>Más frecuentes en el rango</label>'+
       r.rankingPacientes.map(function(x){return filaBarra(x.nombre, x.veces, maxPac, '');}).join('')
-    : '<p style="font-size:12px;color:#9ca3af;">Sin recetas en este rango.</p>');
+    : '<p style="font-size:12px;color:#9ca3af;">Sin recetas en este rango.</p>')+
+    (Object.keys(r.porClasifAdherencia).length ? '<label style="margin-top:8px;">📅 Por clasificación de adherencia</label>'+
+      Object.keys(r.porClasifAdherencia).sort(function(a,b){return r.porClasifAdherencia[b]-r.porClasifAdherencia[a];}).map(function(k){return filaBarra(k, r.porClasifAdherencia[k], maxClasif, '');}).join('')
+    : '');
   htmlPac += '<button type="button" class="btn btn-outline" style="margin-top:10px;" onclick="imprimirReporteParte(\'pacientes\')">🖨️ Imprimir esta sección</button>';
   document.getElementById('repPacientesCard').innerHTML = htmlPac;
 }
@@ -2787,7 +2796,8 @@ function imprimirReporteParte(parte){
       '<p style="font-size:13px;">Pacientes nuevos en el rango: '+r.pacientesNuevos+'</p>'+
       '<h3 style="margin-top:14px;">Más frecuentes</h3>'+
       '<table style="width:100%;border-collapse:collapse;margin-top:6px;"><thead><tr style="background:#eee;"><th style="border:1px solid #999;padding:6px;text-align:left;">Paciente</th><th style="border:1px solid #999;padding:6px;text-align:left;">Visitas</th></tr></thead><tbody>'+
-      r.rankingPacientes.map(function(x){return '<tr><td style="border:1px solid #ccc;padding:6px;">'+esc(x.nombre)+'</td><td style="border:1px solid #ccc;padding:6px;">'+x.veces+'</td></tr>';}).join('')+'</tbody></table>';
+      r.rankingPacientes.map(function(x){return '<tr><td style="border:1px solid #ccc;padding:6px;">'+esc(x.nombre)+'</td><td style="border:1px solid #ccc;padding:6px;">'+x.veces+'</td></tr>';}).join('')+'</tbody></table>'+
+      (Object.keys(r.porClasifAdherencia).length ? '<h3 style="margin-top:14px;">📅 Por clasificación de adherencia</h3><p style="font-size:13px;">'+Object.keys(r.porClasifAdherencia).map(function(k){return esc(k)+': '+r.porClasifAdherencia[k];}).join('<br>')+'</p>' : '');
   }
   abrirVistaPrevia(html);
 }
@@ -2809,7 +2819,8 @@ function imprimirReportes(){
     '<p style="font-size:13px;">'+Object.keys(r.comprasPorProveedor).map(function(k){return esc(k)+': $'+r.comprasPorProveedor[k].toFixed(2);}).join(' | ')+'</p>'+
     '<h3 style="margin-top:16px;">🪪 Pacientes</h3>'+
     '<p style="font-size:13px;">Pacientes nuevos: '+r.pacientesNuevos+'</p>'+
-    '<p style="font-size:13px;">Más frecuentes: '+r.rankingPacientes.map(function(x){return esc(x.nombre)+' ('+x.veces+')';}).join(', ')+'</p>';
+    '<p style="font-size:13px;">Más frecuentes: '+r.rankingPacientes.map(function(x){return esc(x.nombre)+' ('+x.veces+')';}).join(', ')+'</p>'+
+    (Object.keys(r.porClasifAdherencia).length ? '<p style="font-size:13px;">Por clasificación de adherencia: '+Object.keys(r.porClasifAdherencia).map(function(k){return esc(k)+': '+r.porClasifAdherencia[k];}).join(' | ')+'</p>' : '');
   abrirVistaPrevia(html);
 }
 
