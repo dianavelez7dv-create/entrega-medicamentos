@@ -201,7 +201,7 @@ textarea{resize:vertical;min-height:60px;}
 <div id="app">
   <header>
     <h1>💊 Control de Entrega</h1>
-    <div class="sub" id="hSub">Farmacia · <span style="color:#ffd700;font-weight:700;" id="verTag">v68</span></div>
+    <div class="sub" id="hSub">Farmacia · <span style="color:#ffd700;font-weight:700;" id="verTag">v69</span></div>
     <div class="syncbar"><span class="dot" id="syncDot"></span><span id="syncText">Sin sincronizar</span></div>
     <div class="syncbar" style="margin-top:4px;cursor:pointer;" onclick="abrirLogin()">👤 <span id="empActual">Sin identificar</span> <span style="text-decoration:underline;">(cambiar sesión)</span></div>
   </header>
@@ -652,11 +652,12 @@ textarea{resize:vertical;min-height:60px;}
       <div class="login-box" style="max-width:500px;max-height:90vh;overflow-y:auto;">
         <h2>📅 Panel de adherencia (Medicare)</h2>
         <div class="lsub">Pacientes listos o próximos a procesar este mes</div>
-        <div style="display:flex;gap:6px;margin-top:10px;">
+        <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap;">
           <button type="button" class="mockbtn-filtro activo" id="adhFiltroListos" onclick="setFiltroAdherenciaPanel('listos')">✅ Listos ahora</button>
           <button type="button" class="mockbtn-filtro" id="adhFiltroTodos" onclick="setFiltroAdherenciaPanel('todos')">Todos</button>
           <button type="button" class="mockbtn-filtro" id="adhFiltroSinRx" onclick="setFiltroAdherenciaPanel('sinrx')">🔴 Necesitan Rx</button>
           <button type="button" class="mockbtn-filtro" id="adhFiltroPaciente" onclick="setFiltroAdherenciaPanel('paciente')">👥 Por paciente</button>
+          <button type="button" class="mockbtn-filtro" id="adhFiltroPlan" onclick="setFiltroAdherenciaPanel('plan')">🏥 Por plan médico</button>
         </div>
         <button class="btn btn-print" style="margin-top:10px;" onclick="imprimirPanelAdherencia()">🖨️ Imprimir</button>
         <div id="adherenciaContenido" style="margin-top:10px;"></div>
@@ -1779,6 +1780,10 @@ function obtenerFechaProceso(med, fechaDefault){
   toast('⚠️ Fecha no reconocida, se usó la fecha de hoy');
   return fechaDefault;
 }
+function buscarPlanMedico(nombrePaciente){
+  var p = (D.pacientes||[]).find(function(x){ return x.nombre.toLowerCase()===nombrePaciente.toLowerCase(); });
+  return (p && p.planMedico) ? p.planMedico : 'Sin plan registrado';
+}
 function esMedAdherencia(nombre){
   return (D.medsAdherencia||[]).find(function(a){ return a.nombre.toLowerCase()===nombre.toLowerCase(); }) || null;
 }
@@ -2827,8 +2832,8 @@ function recolectarAdherencia(){
 }
 function setFiltroAdherenciaPanel(f){
   filtroAdherenciaPanel = f;
-  ['listos','todos','sinrx','paciente'].forEach(function(k){
-    var idMap = {listos:'adhFiltroListos', todos:'adhFiltroTodos', sinrx:'adhFiltroSinRx', paciente:'adhFiltroPaciente'};
+  ['listos','todos','sinrx','paciente','plan'].forEach(function(k){
+    var idMap = {listos:'adhFiltroListos', todos:'adhFiltroTodos', sinrx:'adhFiltroSinRx', paciente:'adhFiltroPaciente', plan:'adhFiltroPlan'};
     document.getElementById(idMap[k]).classList.toggle('activo', k===f);
   });
   renderPanelAdherencia();
@@ -2867,6 +2872,33 @@ function renderPanelAdherencia(){
     return;
   }
   var html='';
+  if(filtroAdherenciaPanel==='plan'){
+    var porPlan = {};
+    filas.forEach(function(f){
+      var plan = buscarPlanMedico(f.paciente);
+      if(!porPlan[plan]) porPlan[plan]=[];
+      porPlan[plan].push(f);
+    });
+    Object.keys(porPlan).sort().forEach(function(plan){
+      var items = porPlan[plan];
+      var porMed = {};
+      items.forEach(function(f){ if(!porMed[f.medicamento]) porMed[f.medicamento]=[]; porMed[f.medicamento].push(f); });
+      html += '<div class="item" style="border-left:4px solid #0d7fb8;">'+
+        '<div class="item-name">🏥 '+esc(plan)+' <span style="font-weight:400;color:#8892a0;font-size:12px;">('+items.length+')</span></div>'+
+        Object.keys(porMed).sort().map(function(medNombre){
+          return '<div style="margin-top:8px;padding-top:6px;border-top:1px dashed #eee;">'+
+            '<b style="font-size:13px;">💊 '+esc(medNombre)+'</b><br>'+
+            porMed[medNombre].map(function(f){
+              var estadoTxt = f.nuncaProcesado ? '⏳ Pendiente' : (f.listo?'✅ Listo':'Aún no en ventana');
+              return '<span style="font-size:12.5px;">— '+esc(f.paciente)+': '+estadoTxt+(f.necesitaRx?' 🔴 Rx nueva':'')+'</span>';
+            }).join('<br>')+
+          '</div>';
+        }).join('')+
+      '</div>';
+    });
+    box.innerHTML = html;
+    return;
+  }
   if(filtroAdherenciaPanel==='paciente'){
     var porPaciente = {};
     filas.forEach(function(f){
@@ -2906,19 +2938,27 @@ function imprimirPanelAdherencia(){
   var filas = recolectarAdherencia();
   if(filtroAdherenciaPanel==='listos') filas = filas.filter(function(f){return f.listo;});
   if(filtroAdherenciaPanel==='sinrx') filas = filas.filter(function(f){return f.necesitaRx;});
+  filas.forEach(function(f){ f.plan = buscarPlanMedico(f.paciente); });
   if(filtroAdherenciaPanel==='paciente') filas = filas.slice().sort(function(a,b){return a.paciente.localeCompare(b.paciente);});
+  if(filtroAdherenciaPanel==='plan') filas = filas.slice().sort(function(a,b){ return a.plan.localeCompare(b.plan) || a.medicamento.localeCompare(b.medicamento); });
   var rows='';
   if(filas.length===0){
-    rows='<tr><td colspan="6" style="text-align:center;color:#888;">Sin resultados</td></tr>';
+    rows='<tr><td colspan="7" style="text-align:center;color:#888;">Sin resultados</td></tr>';
   } else {
+    var planAnterior=null;
     filas.forEach(function(f){
-      rows += '<tr><td style="border:1px solid #ccc;padding:6px 8px;">'+esc(f.paciente)+'</td><td style="border:1px solid #ccc;padding:6px 8px;">'+esc(f.medicamento)+'</td><td style="border:1px solid #ccc;padding:6px 8px;">'+(f.fechaUltimoProcesado?f.fechaUltimoProcesado.slice(0,10):'Nunca procesado')+'</td><td style="border:1px solid #ccc;padding:6px 8px;">'+(f.ventana?f.ventana.proximo.toISOString().slice(0,10):'-')+'</td><td style="border:1px solid #ccc;padding:6px 8px;">'+(f.ventana?f.ventana.inicioVentana.toISOString().slice(0,10):'-')+'</td><td style="border:1px solid #ccc;padding:6px 8px;">'+f.repUsadas+'/'+f.repAutorizadas+(f.necesitaRx?' (Rx nueva)':'')+'</td></tr>';
+      if(filtroAdherenciaPanel==='plan' && f.plan!==planAnterior){
+        rows+='<tr><td colspan="7" style="background:#eff8ff;font-weight:700;padding:6px 8px;border:1px solid #ccc;">🏥 '+esc(f.plan)+'</td></tr>';
+        planAnterior=f.plan;
+      }
+      rows += '<tr><td style="border:1px solid #ccc;padding:6px 8px;">'+esc(f.paciente)+'</td><td style="border:1px solid #ccc;padding:6px 8px;">'+esc(f.plan)+'</td><td style="border:1px solid #ccc;padding:6px 8px;">'+esc(f.medicamento)+'</td><td style="border:1px solid #ccc;padding:6px 8px;">'+(f.fechaUltimoProcesado?f.fechaUltimoProcesado.slice(0,10):'Nunca procesado')+'</td><td style="border:1px solid #ccc;padding:6px 8px;">'+(f.ventana?f.ventana.proximo.toISOString().slice(0,10):'-')+'</td><td style="border:1px solid #ccc;padding:6px 8px;">'+(f.ventana?f.ventana.inicioVentana.toISOString().slice(0,10):'-')+'</td><td style="border:1px solid #ccc;padding:6px 8px;">'+f.repUsadas+'/'+f.repAutorizadas+(f.necesitaRx?' (Rx nueva)':'')+'</td></tr>';
     });
   }
   var html = '<h2 style="margin-bottom:4px;">📅 Panel de adherencia (Medicare)</h2>'+
     '<div style="font-size:12px;color:#666;margin-bottom:14px;">Generado: '+new Date().toLocaleString('es-PR')+' — '+filas.length+' resultado'+(filas.length!==1?'s':'')+'</div>'+
     '<table style="width:100%;border-collapse:collapse;"><thead><tr style="background:#eee;">'+
     '<th style="border:1px solid #999;padding:8px;text-align:left;">Paciente</th>'+
+    '<th style="border:1px solid #999;padding:8px;text-align:left;">Plan médico</th>'+
     '<th style="border:1px solid #999;padding:8px;text-align:left;">Medicamento</th>'+
     '<th style="border:1px solid #999;padding:8px;text-align:left;">Último proceso</th>'+
     '<th style="border:1px solid #999;padding:8px;text-align:left;">Próxima fecha</th>'+
