@@ -201,7 +201,7 @@ textarea{resize:vertical;min-height:60px;}
 <div id="app">
   <header>
     <h1>💊 Control de Entrega</h1>
-    <div class="sub" id="hSub">Farmacia · <span style="color:#ffd700;font-weight:700;" id="verTag">v66</span></div>
+    <div class="sub" id="hSub">Farmacia · <span style="color:#ffd700;font-weight:700;" id="verTag">v67</span></div>
     <div class="syncbar"><span class="dot" id="syncDot"></span><span id="syncText">Sin sincronizar</span></div>
     <div class="syncbar" style="margin-top:4px;cursor:pointer;" onclick="abrirLogin()">👤 <span id="empActual">Sin identificar</span> <span style="text-decoration:underline;">(cambiar sesión)</span></div>
   </header>
@@ -384,11 +384,19 @@ textarea{resize:vertical;min-height:60px;}
         <label style="margin-top:16px;">Precios especiales por cantidad (opcional)</label>
         <p style="font-size:11px;color:#999;margin-bottom:6px;">Ej. 10+ unidades a $4.00 c/u — se aplica solo al vender sin receta.</p>
         <div id="prodEscalonesContainer"></div>
-        <div style="display:flex;gap:6px;">
+        <div style="display:flex;gap:6px;margin-bottom:6px;">
+          <button type="button" class="mockbtn-filtro activo" id="tipoEscalonBtn1" onclick="setTipoNuevoEscalon('escalon')">Desde X unidades</button>
+          <button type="button" class="mockbtn-filtro" id="tipoEscalonBtn2" onclick="setTipoNuevoEscalon('paquete')">Paquete (cant. exacta)</button>
+        </div>
+        <div id="camposEscalonNormal" style="display:flex;gap:6px;">
           <input class="inp" id="prodNuevoEscalonMinimo" type="text" inputmode="numeric" placeholder="A partir de..." style="flex:1;">
           <input class="inp" id="prodNuevoEscalonPrecio" type="text" inputmode="decimal" placeholder="Precio c/u" style="flex:1;">
-          <button type="button" class="btn btn-outline" style="margin:0;width:auto;padding:12px 14px;" onclick="agregarEscalonProducto()">➕</button>
         </div>
+        <div id="camposEscalonPaquete" class="hidden" style="display:flex;gap:6px;">
+          <input class="inp" id="prodNuevoPaqueteCantidad" type="text" inputmode="numeric" placeholder="Ej. 100 tabletas" style="flex:1;">
+          <input class="inp" id="prodNuevoPaquetePrecio" type="text" inputmode="decimal" placeholder="Precio total ($)" style="flex:1;">
+        </div>
+        <button type="button" class="btn btn-outline" style="margin-top:6px;" onclick="agregarEscalonProducto()">➕ Agregar</button>
 
         <label>Proveedor</label>
         <input class="inp" id="prodProveedorInput" placeholder="Ej. Cardinal Health">
@@ -2699,8 +2707,11 @@ function imprimirListaPreciosEspeciales(){
     rows='<tr><td colspan="3" style="text-align:center;color:#888;">Aún no hay productos con precios especiales configurados</td></tr>';
   } else {
     conEscalones.forEach(function(p){
-      var escalonesTxt = p.preciosEscalonados.slice().sort(function(a,b){return a.cantidadMinima-b.cantidadMinima;}).map(function(es){
-        return 'Desde '+es.cantidadMinima+': $'+es.precio.toFixed(2)+' c/u';
+      var escalonesTxt = p.preciosEscalonados.slice().sort(function(a,b){
+        var av=a.tipo==='paquete'?a.cantidadPaquete:a.cantidadMinima, bv=b.tipo==='paquete'?b.cantidadPaquete:b.cantidadMinima;
+        return av-bv;
+      }).map(function(es){
+        return es.tipo==='paquete' ? ('Paquete de '+es.cantidadPaquete+': $'+es.precioTotal.toFixed(2)+' total') : ('Desde '+es.cantidadMinima+': $'+es.precio.toFixed(2)+' c/u');
       }).join('<br>');
       rows+='<tr><td style="border:1px solid #ccc;padding:6px 8px;">'+esc(p.nombre)+(p.presentacion?' '+esc(p.presentacion):'')+'</td><td style="border:1px solid #ccc;padding:6px 8px;">$'+(p.precioVenta||0).toFixed(2)+' c/u</td><td style="border:1px solid #ccc;padding:6px 8px;">'+escalonesTxt+'</td></tr>';
     });
@@ -3455,27 +3466,51 @@ function quitarLoteProducto(id){
   productoLotesTemp = productoLotesTemp.filter(function(l){return l.id!==id;});
   renderLotesProducto();
 }
+var tipoNuevoEscalon = 'escalon';
+function setTipoNuevoEscalon(t){
+  tipoNuevoEscalon = t;
+  document.getElementById('tipoEscalonBtn1').classList.toggle('activo', t==='escalon');
+  document.getElementById('tipoEscalonBtn2').classList.toggle('activo', t==='paquete');
+  document.getElementById('camposEscalonNormal').classList.toggle('hidden', t!=='escalon');
+  document.getElementById('camposEscalonPaquete').classList.toggle('hidden', t!=='paquete');
+}
 function renderEscalonesProducto(){
   var cont = document.getElementById('prodEscalonesContainer');
   if(productoEscalonesTemp.length===0){
     cont.innerHTML = '<p style="font-size:12px;color:#9ca3af;">Sin precios especiales — solo se usa el precio de venta normal.</p>';
     return;
   }
-  var ordenados = productoEscalonesTemp.slice().sort(function(a,b){ return a.cantidadMinima-b.cantidadMinima; });
+  var ordenados = productoEscalonesTemp.slice().sort(function(a,b){
+    var av = a.tipo==='paquete' ? a.cantidadPaquete : a.cantidadMinima;
+    var bv = b.tipo==='paquete' ? b.cantidadPaquete : b.cantidadMinima;
+    return av-bv;
+  });
   cont.innerHTML = ordenados.map(function(es){
+    var texto = es.tipo==='paquete'
+      ? 'Paquete de <b>'+es.cantidadPaquete+'</b> por <b>$'+es.precioTotal.toFixed(2)+'</b> total ($'+(es.precioTotal/es.cantidadPaquete).toFixed(3)+' c/u)'
+      : 'A partir de <b>'+es.cantidadMinima+'</b> unidades: <b>$'+es.precio.toFixed(2)+'</b> c/u';
     return '<div style="display:flex;justify-content:space-between;align-items:center;background:#f4f6f9;border-radius:8px;padding:8px 10px;margin-bottom:6px;font-size:13px;">'+
-      '<span>A partir de <b>'+es.cantidadMinima+'</b> unidades: <b>$'+es.precio.toFixed(2)+'</b> c/u</span>'+
+      '<span>'+texto+'</span>'+
       '<button type="button" class="emp-del" onclick="quitarEscalonProducto(\''+es.id+'\')">✕</button>'+
     '</div>';
   }).join('');
 }
 function agregarEscalonProducto(){
-  var minimo = parseFloat(document.getElementById('prodNuevoEscalonMinimo').value)||0;
-  var precio = parseFloat(document.getElementById('prodNuevoEscalonPrecio').value)||0;
-  if(minimo<=0 || precio<=0){ toast('Escribe la cantidad mínima y el precio'); return; }
-  productoEscalonesTemp.push({id:'esc'+Date.now()+Math.floor(Math.random()*1000), cantidadMinima:minimo, precio:precio});
-  document.getElementById('prodNuevoEscalonMinimo').value='';
-  document.getElementById('prodNuevoEscalonPrecio').value='';
+  if(tipoNuevoEscalon==='paquete'){
+    var cantPaq = parseFloat(document.getElementById('prodNuevoPaqueteCantidad').value)||0;
+    var precioPaq = parseFloat(document.getElementById('prodNuevoPaquetePrecio').value)||0;
+    if(cantPaq<=0 || precioPaq<=0){ toast('Escribe la cantidad y el precio del paquete'); return; }
+    productoEscalonesTemp.push({id:'esc'+Date.now()+Math.floor(Math.random()*1000), tipo:'paquete', cantidadPaquete:cantPaq, precioTotal:precioPaq});
+    document.getElementById('prodNuevoPaqueteCantidad').value='';
+    document.getElementById('prodNuevoPaquetePrecio').value='';
+  } else {
+    var minimo = parseFloat(document.getElementById('prodNuevoEscalonMinimo').value)||0;
+    var precio = parseFloat(document.getElementById('prodNuevoEscalonPrecio').value)||0;
+    if(minimo<=0 || precio<=0){ toast('Escribe la cantidad mínima y el precio'); return; }
+    productoEscalonesTemp.push({id:'esc'+Date.now()+Math.floor(Math.random()*1000), tipo:'escalon', cantidadMinima:minimo, precio:precio});
+    document.getElementById('prodNuevoEscalonMinimo').value='';
+    document.getElementById('prodNuevoEscalonPrecio').value='';
+  }
   renderEscalonesProducto();
 }
 function quitarEscalonProducto(id){
@@ -3484,7 +3519,16 @@ function quitarEscalonProducto(id){
 }
 function precioSegunCantidad(p, cantidad){
   if(!p.preciosEscalonados || p.preciosEscalonados.length===0) return p.precioVenta||0;
-  var aplicable = p.preciosEscalonados.filter(function(es){ return cantidad>=es.cantidadMinima; }).sort(function(a,b){return b.cantidadMinima-a.cantidadMinima;})[0];
+  // Primero: paquetes de cantidad exacta (múltiplos exactos de la cantidad del paquete)
+  var paquetesAplicables = p.preciosEscalonados.filter(function(es){
+    return es.tipo==='paquete' && es.cantidadPaquete>0 && cantidad % es.cantidadPaquete === 0;
+  }).sort(function(a,b){ return b.cantidadPaquete-a.cantidadPaquete; });
+  if(paquetesAplicables.length>0){
+    var pq = paquetesAplicables[0];
+    return pq.precioTotal/pq.cantidadPaquete;
+  }
+  // Si no, el escalón normal por cantidad mínima
+  var aplicable = p.preciosEscalonados.filter(function(es){ return es.tipo!=='paquete' && cantidad>=es.cantidadMinima; }).sort(function(a,b){return b.cantidadMinima-a.cantidadMinima;})[0];
   return aplicable ? aplicable.precio : (p.precioVenta||0);
 }
 function abrirProductoOverlay(nuevo){
@@ -3506,6 +3550,9 @@ function abrirProductoOverlay(nuevo){
   document.getElementById('prodNuevoLoteVence').value='';
   document.getElementById('prodNuevoEscalonMinimo').value='';
   document.getElementById('prodNuevoEscalonPrecio').value='';
+  document.getElementById('prodNuevoPaqueteCantidad').value='';
+  document.getElementById('prodNuevoPaquetePrecio').value='';
+  setTipoNuevoEscalon('escalon');
   renderLotesProducto();
   renderEscalonesProducto();
   document.getElementById('productoOverlay').classList.remove('hidden');
@@ -3538,6 +3585,9 @@ function editarProducto(id){
   productoEscalonesTemp = p.preciosEscalonados ? JSON.parse(JSON.stringify(p.preciosEscalonados)) : [];
   document.getElementById('prodNuevoEscalonMinimo').value='';
   document.getElementById('prodNuevoEscalonPrecio').value='';
+  document.getElementById('prodNuevoPaqueteCantidad').value='';
+  document.getElementById('prodNuevoPaquetePrecio').value='';
+  setTipoNuevoEscalon('escalon');
   renderLotesProducto();
   renderEscalonesProducto();
   document.getElementById('productoOverlay').classList.remove('hidden');
