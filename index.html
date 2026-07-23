@@ -201,7 +201,7 @@ textarea{resize:vertical;min-height:60px;}
 <div id="app">
   <header>
     <h1>💊 Control de Entrega</h1>
-    <div class="sub" id="hSub">Farmacia · <span style="color:#ffd700;font-weight:700;" id="verTag">v70</span></div>
+    <div class="sub" id="hSub">Farmacia · <span style="color:#ffd700;font-weight:700;" id="verTag">v71</span></div>
     <div class="syncbar"><span class="dot" id="syncDot"></span><span id="syncText">Sin sincronizar</span></div>
     <div class="syncbar" style="margin-top:4px;cursor:pointer;" onclick="abrirLogin()">👤 <span id="empActual">Sin identificar</span> <span style="text-decoration:underline;">(cambiar sesión)</span></div>
   </header>
@@ -816,7 +816,7 @@ textarea{resize:vertical;min-height:60px;}
         <button class="btn btn-outline" onclick="exportarDatos()">Exportar respaldo (JSON)</button>
         <button class="btn btn-outline" style="margin-top:8px;" onclick="document.getElementById('importFileInput').click()">📥 Importar respaldo</button>
         <input type="file" id="importFileInput" accept=".json,application/json" style="display:none" onchange="importarDatos(event)">
-        <button class="btn btn-danger" onclick="limpiarTodo()">Borrar todos los datos</button>
+        <button class="btn btn-danger" onclick="limpiarTodo()">🧹 Limpiar copia local (tras limpiar la nube)</button>
       </div>
       <div class="card">
         <div class="section-title">🗑️ Papelera</div>
@@ -4444,12 +4444,13 @@ async function exportarDatos(){
   }
 }
 function limpiarTodo(){
-  if(!confirm('¿Borrar TODOS los datos de este sistema? Esto no se puede deshacer.')) return;
-  if(!confirm('Confirma de nuevo: se perderán todos los registros pendientes e historial.')) return;
-  D={entregas:[]};
-  save();
-  renderStats(); renderBuscar(); renderPendientes(); renderHistorial();
-  toast('Datos borrados');
+  if(!confirm('¿Borrar todos los datos de ESTE dispositivo? Esto no borra lo que ya esté guardado en la nube — solo limpia la copia local, y luego trae de nuevo lo que haya en Supabase (si está conectado). Úsalo después de haber limpiado la nube con el script SQL, para que este dispositivo no le vuelva a subir datos viejos.')) return;
+  if(!confirm('Confirma de nuevo: se borra la copia local de este dispositivo.')) return;
+  D = { entregas: [], auditoria: [], empleados: [], pacientes: [], papelera: [], inventario: [], ventasOtc: [], facturas: [], medsAdherencia: [] };
+  localStorage.setItem(LSKEY, JSON.stringify(D));
+  renderStats(); renderBuscar(); renderPendientes(); renderHistorial(); renderInventario(); renderFacturas();
+  toast('Copia local borrada');
+  if(supabaseClient){ pullRemote(); }
 }
 
 function renderEmpleados(){
