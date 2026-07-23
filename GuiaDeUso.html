@@ -86,9 +86,10 @@ footer{text-align:center;color:var(--gris);font-size:12px;padding:20px 0 40px;}
       <li><a href="#facturas"><span class="n">7</span>Facturas de compra</a></li>
       <li><a href="#adherencia"><span class="n">8</span>Adherencia Medicare</a></li>
       <li><a href="#historial"><span class="n">9</span>Historial y auditoría</a></li>
-      <li><a href="#sync"><span class="n">10</span>Sincronización y respaldo</a></li>
-      <li><a href="#mensajes"><span class="n">11</span>Avisos a pacientes</a></li>
-      <li><a href="#faq"><span class="n">12</span>Preguntas frecuentes</a></li>
+      <li><a href="#reportes"><span class="n">10</span>Reportes</a></li>
+      <li><a href="#sync"><span class="n">11</span>Sincronización y respaldo</a></li>
+      <li><a href="#mensajes"><span class="n">12</span>Avisos a pacientes</a></li>
+      <li><a href="#faq"><span class="n">13</span>Preguntas frecuentes</a></li>
     </ol>
   </nav>
 
@@ -147,13 +148,24 @@ footer{text-align:center;color:var(--gris);font-size:12px;padding:20px 0 40px;}
     <div class="warn"><b>Si hay ubicaciones distintas</b> para el mismo paciente (posible error al guardar), la app te avisa con una alerta roja antes de entregar.</div>
   </section>
 
+  <section class="card" id="pendientes">
+    <h2><span class="ic">📋</span>5. Pendientes y reporte de deudas</h2>
+    <p class="desc">Vista general de todo lo que falta por entregar, para organizar el trabajo del día.</p>
+    <div class="step"><div class="stepnum">1</div><div class="stepbody"><b>Lista completa</b><span>Ordenada de más vieja a más nueva, con color de aviso a los 2 y 3+ días esperando.</span></div></div>
+    <div class="step"><div class="stepnum">2</div><div class="stepbody"><b>📊 Reporte de deudas pendientes</b><span>Agrupa por medicamento — ideal para preparar lo que falta antes de que lleguen los pacientes.</span></div></div>
+    <div class="step"><div class="stepnum">3</div><div class="stepbody"><b>🖨️ Imprimir</b><span>Tanto la lista completa como el reporte de deudas se pueden imprimir como respaldo físico.</span></div></div>
+    <div class="tip">Desde la pantalla "Nueva", las cajitas de arriba (Pendientes / Entregadas hoy / +2 días) son botones — tócalas para ir directo a esa vista filtrada.</div>
+  </section>
+
   <section class="card" id="inventario">
     <h2><span class="ic">📦</span>6. Inventario</h2>
     <p class="desc">Control de existencias de medicamentos y productos OTC, paralelo a Pharmascan.</p>
-    <div class="step"><div class="stepnum">1</div><div class="stepbody"><b>➕ Nuevo producto</b><span>Nombre, presentación, tipo (medicamento/OTC), si es controlado, cantidad, alerta de stock mínimo, costo, precio de venta, proveedor, fecha de vencimiento, y si cobra IVU.</span></div></div>
-    <div class="step"><div class="stepnum">2</div><div class="stepbody"><b>Alertas automáticas</b><span><span class="badgeex b-parcial">🟡 Stock bajo</span> <span class="badgeex b-completa">🔴 Por vencer (60 días o menos)</span> — con filtros rápidos arriba de la lista.</span></div></div>
-    <div class="step"><div class="stepnum">3</div><div class="stepbody"><b>Descuento automático</b><span>Cuando entregas un medicamento completo en cualquier receta, se descuenta solo del inventario (busca por nombre + presentación exactos).</span></div></div>
-    <div class="step"><div class="stepnum">4</div><div class="stepbody"><b>🛒 Venta sin receta</b><span>Busca el producto, cantidad, forma de pago — calcula subtotal + IVU (si aplica) + total, y descuenta del inventario.</span></div></div>
+    <div class="step"><div class="stepnum">1</div><div class="stepbody"><b>➕ Nuevo producto</b><span>Nombre, presentación, tipo (medicamento/OTC), si es controlado, alerta de stock mínimo, costo, precio de venta, proveedor, NDC (a mano o con "📷 Escanear"), y si cobra IVU.</span></div></div>
+    <div class="step"><div class="stepnum">2</div><div class="stepbody"><b>Lotes múltiples</b><span>Cada producto puede tener varios lotes, cada uno con su número, cantidad y fecha de vencimiento propios. La cantidad total se suma sola. Al entregar o vender, se descuenta primero del lote que vence más pronto (FEFO).</span></div></div>
+    <div class="step"><div class="stepnum">3</div><div class="stepbody"><b>Precios especiales por cantidad</b><span>Opcional: "Desde X unidades" (precio por unidad) o "Paquete" (cantidad exacta por un total fijo, ej. 100 tabletas por $5). Se aplican solos al vender sin receta. Lista imprimible con "🖨️ Lista de precios especiales".</span></div></div>
+    <div class="step"><div class="stepnum">4</div><div class="stepbody"><b>Alertas automáticas</b><span><span class="badgeex b-parcial">🟡 Stock bajo</span> <span class="badgeex b-completa">🔴 Por vencer (60 días o menos)</span> — pueden salir las dos juntas, con filtros rápidos arriba de la lista.</span></div></div>
+    <div class="step"><div class="stepnum">5</div><div class="stepbody"><b>Descuento automático</b><span>Al entregar un medicamento completo en cualquier receta, se descuenta solo del inventario (busca por nombre + presentación exactos) usando la cantidad indicada en la receta.</span></div></div>
+    <div class="step"><div class="stepnum">6</div><div class="stepbody"><b>🛒 Venta sin receta</b><span>Busca el producto, cantidad, forma de pago — calcula subtotal + IVU (si aplica) + total, aplicando precio especial si corresponde, y descuenta del inventario.</span></div></div>
     <div class="tip"><b>IVU de Puerto Rico:</b> los medicamentos recetados están exentos; los OTC sí pagan 11.5%. Se marca solo según el tipo, pero se puede ajustar por producto.</div>
   </section>
 
@@ -162,28 +174,24 @@ footer{text-align:center;color:var(--gris);font-size:12px;padding:20px 0 40px;}
     <p class="desc">Cuando recibes mercancía de un proveedor, registra la factura y suma automático al inventario.</p>
     <div class="step"><div class="stepnum">1</div><div class="stepbody"><b>Inventario → pestaña "🧾 Facturas"</b><span>Ahí ves todas las facturas guardadas.</span></div></div>
     <div class="step"><div class="stepnum">2</div><div class="stepbody"><b>🧾 Nueva factura de compra</b><span>Número de factura, proveedor, fecha, total, y una foto de la factura (con cámara nativa o cámara web).</span></div></div>
-    <div class="step"><div class="stepnum">3</div><div class="stepbody"><b>Productos recibidos</b><span>Agrega una fila por cada producto: nombre, presentación, cantidad recibida, costo por unidad. "➕ Agregar producto" suma filas, "✕" borra una.</span></div></div>
-    <div class="step"><div class="stepnum">4</div><div class="stepbody"><b>Guardar</b><span>Suma las cantidades al inventario automáticamente — crea el producto si no existía todavía.</span></div></div>
+    <div class="step"><div class="stepnum">3</div><div class="stepbody"><b>Productos recibidos</b><span>Agrega una fila por cada producto: nombre, presentación, cantidad recibida, costo c/u, precio de venta, lote, fecha de vencimiento, y si es controlado por el DEA. "➕ Agregar producto" suma filas, "✕" borra una.</span></div></div>
+    <div class="step"><div class="stepnum">4</div><div class="stepbody"><b>Guardar</b><span>Suma las cantidades al inventario como un lote nuevo — crea el producto si no existía todavía.</span></div></div>
+    <div class="step"><div class="stepnum">5</div><div class="stepbody"><b>✏️ Editar / 🗑️ Eliminar</b><span>Cualquier factura guardada se puede editar o borrar después — el inventario se ajusta solo (resta lo viejo, suma lo nuevo) sin duplicar cantidades.</span></div></div>
   </section>
 
   <section class="card" id="adherencia">
     <h2><span class="ic">📅</span>8. Adherencia Medicare</h2>
     <p class="desc">Para las métricas de adherencia (PDC) de Medicare — funciona en paralelo a Pharmascan, ya que no tiene esta función.</p>
     <div class="step"><div class="stepnum">1</div><div class="stepbody"><b>Sync → "📅 Medicamentos de adherencia"</b><span>Agrega ahí los medicamentos específicos que Medicare rastrea, marcando cuáles son controlados por el DEA.</span></div></div>
-    <div class="step"><div class="stepnum">2</div><div class="stepbody"><b>Al registrar</b><span>Si el medicamento está en la lista, avisa "📅 Medicamento de adherencia". Pide las "Repeticiones autorizadas (Rx)" que puso el médico (1 a 5) — o las detecta solas si el paciente ya tiene historial.</span></div></div>
-    <div class="step"><div class="stepnum">3</div><div class="stepbody"><b>Al entregar</b><span>Se guarda la fecha de proceso y se cuenta como un refill usado, automático.</span></div></div>
-    <div class="step"><div class="stepnum">4</div><div class="stepbody"><b>Historial → "📅 Panel de adherencia (Medicare)"</b><span>
-      <span class="badgeex b-ok">✅ Listos ahora</span> pacientes en ventana de proceso (6 días antes si no es controlado, 2 días antes si sí) —
-      <span class="badgeex b-completa">🔴 Necesitan Rx</span> a quién pedirle receta nueva porque se le acabaron los refills. Imprimible.
+    <div class="step"><div class="stepnum">2</div><div class="stepbody"><b>Fecha de proceso en Pharmascan</b><span>Al registrar la receta, si ya sabes cuándo se procesó, escríbela ahí mismo. Si no, la app te pregunta al momento de entregar (solo para medicamentos de la lista) — y respeta la fecha que ya hayas puesto.</span></div></div>
+    <div class="step"><div class="stepnum">3</div><div class="stepbody"><b>Repeticiones (refills)</b><span>Escribe cuántas autorizó el médico (1 a 5). La app detecta sola cuántas lleva usadas por paciente/medicamento, y avisa "🔴 Necesita Rx nueva" cuando se agotan.</span></div></div>
+    <div class="step"><div class="stepnum">4</div><div class="stepbody"><b>Historial → "📅 Panel de adherencia"</b><span>
+      <span class="badgeex b-ok">✅ Listos ahora</span> en ventana de proceso (6 días antes si no es controlado, 2 días antes si sí) —
+      <span class="badgeex b-completa">🔴 Necesitan Rx</span> a quién pedirle receta nueva —
+      <b>👥 Por paciente:</b> agrupa todo por persona, incluyendo pendientes que nunca se han procesado —
+      <b>🏥 Por plan médico:</b> agrupa por el plan del paciente y luego por medicamento, para trabajar cada plataforma de plan de un tirón.
     </span></div></div>
-  </section>
-  <section class="card" id="pendientes">
-    <h2><span class="ic">📋</span>5. Pendientes y reporte de deudas</h2>
-    <p class="desc">Vista general de todo lo que falta por entregar, para organizar el trabajo del día.</p>
-    <div class="step"><div class="stepnum">1</div><div class="stepbody"><b>Lista completa</b><span>Ordenada de más vieja a más nueva, con color de aviso a los 2 y 3+ días esperando.</span></div></div>
-    <div class="step"><div class="stepnum">2</div><div class="stepbody"><b>📊 Reporte de deudas pendientes</b><span>Agrupa por medicamento — ideal para preparar lo que falta antes de que lleguen los pacientes.</span></div></div>
-    <div class="step"><div class="stepnum">3</div><div class="stepbody"><b>🖨️ Imprimir</b><span>Tanto la lista completa como el reporte de deudas se pueden imprimir como respaldo físico.</span></div></div>
-    <div class="tip">Desde la pantalla "Nueva", las cajitas de arriba (Pendientes / Entregadas hoy / +2 días) son botones — tócalas para ir directo a esa vista filtrada.</div>
+    <div class="step"><div class="stepnum">5</div><div class="stepbody"><b>✏️ Corregir fecha de proceso</b><span>Si te equivocaste o lo registras días después, puedes corregir la fecha directo desde cualquier fila del panel.</span></div></div>
   </section>
 
   <section class="card" id="historial">
@@ -196,8 +204,20 @@ footer{text-align:center;color:var(--gris);font-size:12px;padding:20px 0 40px;}
     <div class="step"><div class="stepnum">5</div><div class="stepbody"><b>🖨️ Imprimir</b><span>Auditoría filtrada, reporte DEA, y panel de adherencia se pueden imprimir.</span></div></div>
   </section>
 
+  <section class="card" id="reportes">
+    <h2><span class="ic">📊</span>10. Reportes</h2>
+    <p class="desc">Pestaña propia (📊 Rep. en la barra de abajo) — visión general del negocio: financiero, operacional, inventario, compras y pacientes, todo en un solo lugar.</p>
+    <div class="step"><div class="stepnum">1</div><div class="stepbody"><b>Filtros de fecha</b><span>Desde/Hasta, o atajos rápidos: Hoy, 7 días, 30 días, Este año. Todo se recalcula solo al cambiar el rango.</span></div></div>
+    <div class="step"><div class="stepnum">2</div><div class="stepbody"><b>💵 Financiero</b><span>Ventas OTC, pagos de recetas, IVU cobrado, desglose por método de pago.</span></div></div>
+    <div class="step"><div class="stepnum">3</div><div class="stepbody"><b>🚚 Operacional</b><span>Entregas completadas, días promedio de espera, entregas por empleado.</span></div></div>
+    <div class="step"><div class="stepnum">4</div><div class="stepbody"><b>📦 Inventario</b><span>Valor en costo vs. venta, ganancia potencial, productos más movidos en el rango.</span></div></div>
+    <div class="step"><div class="stepnum">5</div><div class="stepbody"><b>🧾 Compras</b><span>Total gastado, desglose por proveedor.</span></div></div>
+    <div class="step"><div class="stepnum">6</div><div class="stepbody"><b>🪪 Pacientes</b><span>Nuevos en el período, más frecuentes.</span></div></div>
+    <div class="tip"><b>Imprimir:</b> cada tarjeta tiene su propio botón para imprimir solo esa sección, o "🖨️ Imprimir todo" arriba para el reporte completo.</div>
+  </section>
+
   <section class="card" id="sync">
-    <h2><span class="ic">☁️</span>10. Sincronización y respaldo</h2>
+    <h2><span class="ic">☁️</span>11. Sincronización y respaldo</h2>
     <p class="desc">Cómo se mantienen todos los dispositivos (tablet, celulares) viendo la misma información.</p>
     <div class="step"><div class="stepnum">1</div><div class="stepbody"><b>🔐 Conectar el dispositivo (solo la primera vez)</b><span>Sync → 🔒 Configuración avanzada → escribe el <u>email y contraseña del sistema</u> (te lo da el administrador) → "Conectar este dispositivo". Sin este paso, el dispositivo no puede sincronizar aunque tenga la URL y la llave puestas — es una capa extra de seguridad. Solo se hace una vez por dispositivo.</span></div></div>
     <div class="step"><div class="stepnum">2</div><div class="stepbody"><b>🔄 Sincronizar ahora</b><span>Combina lo que tienes en tu dispositivo con lo que hay en la nube — nunca borra, solo une.</span></div></div>
@@ -209,14 +229,14 @@ footer{text-align:center;color:var(--gris);font-size:12px;padding:20px 0 40px;}
   </section>
 
   <section class="card" id="mensajes">
-    <h2><span class="ic">💬</span>11. Avisos a pacientes</h2>
+    <h2><span class="ic">💬</span>12. Avisos a pacientes</h2>
     <p class="desc">Dos formas de avisar, según el caso.</p>
     <div class="step"><div class="stepnum">1</div><div class="stepbody"><b>Individual (WhatsApp)</b><span>Botón "💬 Avisar" al registrar o en Entregar — abre WhatsApp con un mensaje ya escrito, editable antes de enviar. Por privacidad, no incluye el nombre del medicamento.</span></div></div>
     <div class="step"><div class="stepnum">2</div><div class="stepbody"><b>Masivo (correo y WhatsApp)</b><span>Sync → "📢 Mensajes masivos" — selecciona pacientes, escribe el mensaje, y envía por correo automático o prepara enlaces de WhatsApp uno por uno.</span></div></div>
   </section>
 
   <section class="card" id="faq">
-    <h2><span class="ic">❓</span>12. Preguntas frecuentes</h2>
+    <h2><span class="ic">❓</span>13. Preguntas frecuentes</h2>
     <div class="faq"><b>Olvidé mi PIN, ¿qué hago?</b><span>Pide a otro empleado que entre con el suyo y vaya a Sync → "Reiniciar PIN de un empleado".</span></div>
     <div class="faq"><b>¿Qué pasa si no hay internet?</b><span>La app sigue funcionando y guardando todo localmente — se sincroniza sola cuando vuelva la conexión.</span></div>
     <div class="faq"><b>Registré algo por error, ¿se puede borrar?</b><span>Sí — se va a la Papelera (Sync) y se puede restaurar dentro de los primeros 30 días.</span></div>
