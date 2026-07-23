@@ -201,7 +201,7 @@ textarea{resize:vertical;min-height:60px;}
 <div id="app">
   <header>
     <h1>💊 Control de Entrega</h1>
-    <div class="sub" id="hSub">Farmacia · <span style="color:#ffd700;font-weight:700;" id="verTag">v72</span></div>
+    <div class="sub" id="hSub">Farmacia · <span style="color:#ffd700;font-weight:700;" id="verTag">v73</span></div>
     <div class="syncbar"><span class="dot" id="syncDot"></span><span id="syncText">Sin sincronizar</span></div>
     <div class="syncbar" style="margin-top:4px;cursor:pointer;" onclick="abrirLogin()">👤 <span id="empActual">Sin identificar</span> <span style="text-decoration:underline;">(cambiar sesión)</span></div>
   </header>
@@ -317,6 +317,9 @@ textarea{resize:vertical;min-height:60px;}
         <svg viewBox="0 0 24 24" fill="none" stroke="#8892a0" stroke-width="2"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
         <input class="inp searchbox" id="dirPacientesInput" placeholder="Buscar paciente..." oninput="renderDirectorioPacientesTab()">
       </div>
+      <select class="inp" id="dirPacientesAdherenciaFiltro" style="margin-top:8px;" onchange="renderDirectorioPacientesTab()">
+        <option value="">Todas las clasificaciones de adherencia</option>
+      </select>
       <div id="directorioPacientesTabList"></div>
     </div>
 
@@ -1587,12 +1590,22 @@ function guardarPaciente(){
 function renderDirectorioPacientesTab(){
   D.pacientes = D.pacientes || [];
   var q=(document.getElementById('dirPacientesInput').value||'').toLowerCase();
+  var filtroClasif = document.getElementById('dirPacientesAdherenciaFiltro').value;
+
+  // Llenar el selector con las clasificaciones que existan
+  var clasifs = Array.from(new Set(D.pacientes.map(function(p){return (p.clasificacionAdherencia||'').trim();}).filter(Boolean))).sort();
+  var selEl = document.getElementById('dirPacientesAdherenciaFiltro');
+  var valorActual = selEl.value;
+  selEl.innerHTML = '<option value="">Todas las clasificaciones de adherencia</option>'+clasifs.map(function(c){return '<option value="'+esc(c)+'">'+esc(c)+'</option>';}).join('');
+  selEl.value = valorActual;
+
   var list=D.pacientes.slice();
-  if(q) list=list.filter(function(p){ return p.nombre.toLowerCase().indexOf(q)>=0; });
+  if(q) list=list.filter(function(p){ return p.nombre.toLowerCase().indexOf(q)>=0 || (p.clasificacionAdherencia||'').toLowerCase().indexOf(q)>=0; });
+  if(filtroClasif) list=list.filter(function(p){ return p.clasificacionAdherencia===filtroClasif; });
   list.sort(function(a,b){ return a.nombre.localeCompare(b.nombre); });
   var html='';
   if(list.length===0){
-    html='<div class="empty"><span class="em">🪪</span>'+(q?'No se encontró':'Aún no hay pacientes guardados. Toca "➕ Nuevo paciente" arriba.')+'</div>';
+    html='<div class="empty"><span class="em">🪪</span>'+(q||filtroClasif?'No se encontró':'Aún no hay pacientes guardados. Toca "➕ Nuevo paciente" arriba.')+'</div>';
   } else {
     list.forEach(function(p){
       html+='<div class="item">'+
