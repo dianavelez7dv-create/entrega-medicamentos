@@ -201,7 +201,7 @@ textarea{resize:vertical;min-height:60px;}
 <div id="app">
   <header>
     <h1>💊 Control de Entrega</h1>
-    <div class="sub" id="hSub">Farmacia · <span style="color:#ffd700;font-weight:700;" id="verTag">v67</span></div>
+    <div class="sub" id="hSub">Farmacia · <span style="color:#ffd700;font-weight:700;" id="verTag">v68</span></div>
     <div class="syncbar"><span class="dot" id="syncDot"></span><span id="syncText">Sin sincronizar</span></div>
     <div class="syncbar" style="margin-top:4px;cursor:pointer;" onclick="abrirLogin()">👤 <span id="empActual">Sin identificar</span> <span style="text-decoration:underline;">(cambiar sesión)</span></div>
   </header>
@@ -656,6 +656,7 @@ textarea{resize:vertical;min-height:60px;}
           <button type="button" class="mockbtn-filtro activo" id="adhFiltroListos" onclick="setFiltroAdherenciaPanel('listos')">✅ Listos ahora</button>
           <button type="button" class="mockbtn-filtro" id="adhFiltroTodos" onclick="setFiltroAdherenciaPanel('todos')">Todos</button>
           <button type="button" class="mockbtn-filtro" id="adhFiltroSinRx" onclick="setFiltroAdherenciaPanel('sinrx')">🔴 Necesitan Rx</button>
+          <button type="button" class="mockbtn-filtro" id="adhFiltroPaciente" onclick="setFiltroAdherenciaPanel('paciente')">👥 Por paciente</button>
         </div>
         <button class="btn btn-print" style="margin-top:10px;" onclick="imprimirPanelAdherencia()">🖨️ Imprimir</button>
         <div id="adherenciaContenido" style="margin-top:10px;"></div>
@@ -2793,23 +2794,31 @@ function recolectarAdherencia(){
   var mapa = {};
   D.entregas.forEach(function(e){
     ensureMedObjects(e).forEach(function(m){
-      if(!m.fechaUltimoProcesado) return;
       if(!esMedAdherencia(m.nombre)) return;
+      if(!m.fechaUltimoProcesado && m.estado!=='pendiente') return;
       var key = e.paciente.toLowerCase()+'|'+m.nombre.toLowerCase();
-      if(!mapa[key] || new Date(m.fechaUltimoProcesado) > new Date(mapa[key].m.fechaUltimoProcesado)){
+      var fechaComparar = m.fechaUltimoProcesado || m.fecha || '1970-01-01';
+      if(!mapa[key]){
         mapa[key] = {paciente:e.paciente, m:m};
+      } else {
+        var fechaExistente = mapa[key].m.fechaUltimoProcesado || mapa[key].m.fecha || '1970-01-01';
+        // Prioriza el que ya fue procesado; entre dos procesados, el más reciente
+        if(m.fechaUltimoProcesado && !mapa[key].m.fechaUltimoProcesado){ mapa[key] = {paciente:e.paciente, m:m}; }
+        else if(m.fechaUltimoProcesado && mapa[key].m.fechaUltimoProcesado && new Date(fechaComparar) > new Date(fechaExistente)){ mapa[key] = {paciente:e.paciente, m:m}; }
       }
     });
   });
   var filas = Object.keys(mapa).map(function(k){
     var item = mapa[k];
-    var ventana = calcularVentanaAdherencia(item.m);
+    var nuncaProcesado = !item.m.fechaUltimoProcesado;
+    var ventana = nuncaProcesado ? null : calcularVentanaAdherencia(item.m);
     var hoy = new Date();
     var listo = ventana ? hoy >= ventana.inicioVentana : false;
     var necesitaRx = item.m.repeticionesUsadas >= item.m.repeticionesAutorizadas;
     return {
       paciente: item.paciente, medicamento: nombreCompletoMed(item.m), controlado: item.m.controlado,
       fechaUltimoProcesado: item.m.fechaUltimoProcesado, ventana: ventana, listo: listo, necesitaRx: necesitaRx,
+      nuncaProcesado: nuncaProcesado,
       repUsadas: item.m.repeticionesUsadas, repAutorizadas: item.m.repeticionesAutorizadas, medId: item.m.id
     };
   });
@@ -2818,8 +2827,8 @@ function recolectarAdherencia(){
 }
 function setFiltroAdherenciaPanel(f){
   filtroAdherenciaPanel = f;
-  ['listos','todos','sinrx'].forEach(function(k){
-    var idMap = {listos:'adhFiltroListos', todos:'adhFiltroTodos', sinrx:'adhFiltroSinRx'};
+  ['listos','todos','sinrx','paciente'].forEach(function(k){
+    var idMap = {listos:'adhFiltroListos', todos:'adhFiltroTodos', sinrx:'adhFiltroSinRx', paciente:'adhFiltroPaciente'};
     document.getElementById(idMap[k]).classList.toggle('activo', k===f);
   });
   renderPanelAdherencia();
@@ -2858,15 +2867,37 @@ function renderPanelAdherencia(){
     return;
   }
   var html='';
+  if(filtroAdherenciaPanel==='paciente'){
+    var porPaciente = {};
+    filas.forEach(function(f){
+      if(!porPaciente[f.paciente]) porPaciente[f.paciente]=[];
+      porPaciente[f.paciente].push(f);
+    });
+    Object.keys(porPaciente).sort().forEach(function(nombrePaciente){
+      var meds = porPaciente[nombrePaciente];
+      html += '<div class="item">'+
+        '<div class="item-name">👤 '+esc(nombrePaciente)+'</div>'+
+        meds.map(function(f){
+          var estadoTxt = f.nuncaProcesado ? '<span class="badge">⏳ Pendiente, nunca procesado</span>' : (f.listo?'<span class="badge done">✅ Listo para procesar</span>':'<span class="badge">Aún no en ventana</span>');
+          return '<div class="item-row" style="border-top:1px dashed #eee;padding-top:6px;margin-top:6px;">💊 '+esc(f.medicamento)+(f.controlado?' <span class="deuda-badge" style="background:#1a1a2e;color:#fff;">DEA</span>':'')+
+            '<br>'+estadoTxt+(f.necesitaRx?' <span style="color:#991b1b;font-weight:700;">🔴 Necesita Rx</span>':'')+
+            (f.ventana?'<br><span style="color:#8892a0;">Próxima fecha: '+f.ventana.proximo.toISOString().slice(0,10)+'</span>':'')+
+          '</div>';
+        }).join('')+
+      '</div>';
+    });
+    box.innerHTML = html;
+    return;
+  }
   filas.forEach(function(f){
     html += '<div class="item">'+
       '<div class="item-name">'+esc(f.paciente)+'</div>'+
       '<div class="item-row">💊 '+esc(f.medicamento)+(f.controlado?' <span class="deuda-badge" style="background:#1a1a2e;color:#fff;">DEA</span>':'')+'</div>'+
-      '<div class="item-row">🕒 Último proceso: '+f.fechaUltimoProcesado.slice(0,10)+'</div>'+
+      '<div class="item-row">🕒 Último proceso: '+(f.fechaUltimoProcesado?f.fechaUltimoProcesado.slice(0,10):'Nunca procesado')+'</div>'+
       (f.ventana?'<div class="item-row">📅 Próxima fecha: '+f.ventana.proximo.toISOString().slice(0,10)+' (ventana desde '+f.ventana.inicioVentana.toISOString().slice(0,10)+')</div>':'')+
-      '<div class="item-row">'+(f.listo?'<span class="badge done">✅ Listo para procesar</span>':'<span class="badge">Aún no en ventana</span>')+'</div>'+
+      '<div class="item-row">'+(f.nuncaProcesado?'<span class="badge">⏳ Pendiente de entregar</span>':(f.listo?'<span class="badge done">✅ Listo para procesar</span>':'<span class="badge">Aún no en ventana</span>'))+'</div>'+
       '<div class="item-row">🔄 Refill '+f.repUsadas+' de '+f.repAutorizadas+(f.necesitaRx?' — <span style="color:#991b1b;font-weight:700;">🔴 Necesita Rx nueva</span>':'')+'</div>'+
-      '<button type="button" class="mini-btn" style="background:#fff;color:#0d7fb8;border:1.5px solid #0d7fb8;margin-top:6px;" onclick="corregirFechaAdherencia(\''+f.medId+'\')">✏️ Corregir fecha de proceso</button>'+
+      (f.fechaUltimoProcesado?'<button type="button" class="mini-btn" style="background:#fff;color:#0d7fb8;border:1.5px solid #0d7fb8;margin-top:6px;" onclick="corregirFechaAdherencia(\''+f.medId+'\')">✏️ Corregir fecha de proceso</button>':'')+
     '</div>';
   });
   box.innerHTML = html;
@@ -2875,12 +2906,13 @@ function imprimirPanelAdherencia(){
   var filas = recolectarAdherencia();
   if(filtroAdherenciaPanel==='listos') filas = filas.filter(function(f){return f.listo;});
   if(filtroAdherenciaPanel==='sinrx') filas = filas.filter(function(f){return f.necesitaRx;});
+  if(filtroAdherenciaPanel==='paciente') filas = filas.slice().sort(function(a,b){return a.paciente.localeCompare(b.paciente);});
   var rows='';
   if(filas.length===0){
     rows='<tr><td colspan="6" style="text-align:center;color:#888;">Sin resultados</td></tr>';
   } else {
     filas.forEach(function(f){
-      rows += '<tr><td style="border:1px solid #ccc;padding:6px 8px;">'+esc(f.paciente)+'</td><td style="border:1px solid #ccc;padding:6px 8px;">'+esc(f.medicamento)+'</td><td style="border:1px solid #ccc;padding:6px 8px;">'+f.fechaUltimoProcesado.slice(0,10)+'</td><td style="border:1px solid #ccc;padding:6px 8px;">'+(f.ventana?f.ventana.proximo.toISOString().slice(0,10):'-')+'</td><td style="border:1px solid #ccc;padding:6px 8px;">'+(f.ventana?f.ventana.inicioVentana.toISOString().slice(0,10):'-')+'</td><td style="border:1px solid #ccc;padding:6px 8px;">'+f.repUsadas+'/'+f.repAutorizadas+(f.necesitaRx?' (Rx nueva)':'')+'</td></tr>';
+      rows += '<tr><td style="border:1px solid #ccc;padding:6px 8px;">'+esc(f.paciente)+'</td><td style="border:1px solid #ccc;padding:6px 8px;">'+esc(f.medicamento)+'</td><td style="border:1px solid #ccc;padding:6px 8px;">'+(f.fechaUltimoProcesado?f.fechaUltimoProcesado.slice(0,10):'Nunca procesado')+'</td><td style="border:1px solid #ccc;padding:6px 8px;">'+(f.ventana?f.ventana.proximo.toISOString().slice(0,10):'-')+'</td><td style="border:1px solid #ccc;padding:6px 8px;">'+(f.ventana?f.ventana.inicioVentana.toISOString().slice(0,10):'-')+'</td><td style="border:1px solid #ccc;padding:6px 8px;">'+f.repUsadas+'/'+f.repAutorizadas+(f.necesitaRx?' (Rx nueva)':'')+'</td></tr>';
     });
   }
   var html = '<h2 style="margin-bottom:4px;">📅 Panel de adherencia (Medicare)</h2>'+
