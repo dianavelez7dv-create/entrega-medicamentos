@@ -201,7 +201,7 @@ textarea{resize:vertical;min-height:60px;}
 <div id="app">
   <header>
     <h1>💊 Control de Entrega</h1>
-    <div class="sub" id="hSub">Farmacia · <span style="color:#ffd700;font-weight:700;" id="verTag">v65</span></div>
+    <div class="sub" id="hSub">Farmacia · <span style="color:#ffd700;font-weight:700;" id="verTag">v66</span></div>
     <div class="syncbar"><span class="dot" id="syncDot"></span><span id="syncText">Sin sincronizar</span></div>
     <div class="syncbar" style="margin-top:4px;cursor:pointer;" onclick="abrirLogin()">👤 <span id="empActual">Sin identificar</span> <span style="text-decoration:underline;">(cambiar sesión)</span></div>
   </header>
@@ -332,6 +332,7 @@ textarea{resize:vertical;min-height:60px;}
         <button class="btn btn-primary" style="margin-top:0;" onclick="abrirProductoOverlay(true)">➕ Nuevo producto</button>
         <button class="btn btn-outline" style="margin-top:0;" onclick="abrirVentaOtcOverlay()">🛒 Venta sin receta</button>
       </div>
+      <button class="btn btn-outline" style="margin-top:0;margin-bottom:10px;" onclick="imprimirListaPreciosEspeciales()">🖨️ Lista de precios especiales</button>
       <div class="search-wrap">
         <svg viewBox="0 0 24 24" fill="none" stroke="#8892a0" stroke-width="2"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
         <input class="inp searchbox" id="invBuscarInput" placeholder="Buscar producto..." oninput="renderInventario()">
@@ -379,6 +380,16 @@ textarea{resize:vertical;min-height:60px;}
         </div>
         <label>Precio de venta ($)</label>
         <input class="inp" id="prodPrecioInput" type="text" inputmode="decimal" placeholder="0.00">
+
+        <label style="margin-top:16px;">Precios especiales por cantidad (opcional)</label>
+        <p style="font-size:11px;color:#999;margin-bottom:6px;">Ej. 10+ unidades a $4.00 c/u — se aplica solo al vender sin receta.</p>
+        <div id="prodEscalonesContainer"></div>
+        <div style="display:flex;gap:6px;">
+          <input class="inp" id="prodNuevoEscalonMinimo" type="text" inputmode="numeric" placeholder="A partir de..." style="flex:1;">
+          <input class="inp" id="prodNuevoEscalonPrecio" type="text" inputmode="decimal" placeholder="Precio c/u" style="flex:1;">
+          <button type="button" class="btn btn-outline" style="margin:0;width:auto;padding:12px 14px;" onclick="agregarEscalonProducto()">➕</button>
+        </div>
+
         <label>Proveedor</label>
         <input class="inp" id="prodProveedorInput" placeholder="Ej. Cardinal Health">
         <label>NDC (código nacional del medicamento)</label>
@@ -2680,6 +2691,29 @@ function renderReportes(){
   htmlPac += '<button type="button" class="btn btn-outline" style="margin-top:10px;" onclick="imprimirReporteParte(\'pacientes\')">🖨️ Imprimir esta sección</button>';
   document.getElementById('repPacientesCard').innerHTML = htmlPac;
 }
+function imprimirListaPreciosEspeciales(){
+  var conEscalones = (D.inventario||[]).filter(function(p){ return p.preciosEscalonados && p.preciosEscalonados.length>0; });
+  conEscalones.sort(function(a,b){ return a.nombre.localeCompare(b.nombre); });
+  var rows='';
+  if(conEscalones.length===0){
+    rows='<tr><td colspan="3" style="text-align:center;color:#888;">Aún no hay productos con precios especiales configurados</td></tr>';
+  } else {
+    conEscalones.forEach(function(p){
+      var escalonesTxt = p.preciosEscalonados.slice().sort(function(a,b){return a.cantidadMinima-b.cantidadMinima;}).map(function(es){
+        return 'Desde '+es.cantidadMinima+': $'+es.precio.toFixed(2)+' c/u';
+      }).join('<br>');
+      rows+='<tr><td style="border:1px solid #ccc;padding:6px 8px;">'+esc(p.nombre)+(p.presentacion?' '+esc(p.presentacion):'')+'</td><td style="border:1px solid #ccc;padding:6px 8px;">$'+(p.precioVenta||0).toFixed(2)+' c/u</td><td style="border:1px solid #ccc;padding:6px 8px;">'+escalonesTxt+'</td></tr>';
+    });
+  }
+  var html = '<h2 style="margin-bottom:4px;">💲 Lista de precios especiales</h2>'+
+    '<div style="font-size:12px;color:#666;margin-bottom:14px;">Generado: '+new Date().toLocaleString('es-PR')+' — '+conEscalones.length+' producto'+(conEscalones.length!==1?'s':'')+'</div>'+
+    '<table style="width:100%;border-collapse:collapse;"><thead><tr style="background:#eee;">'+
+    '<th style="border:1px solid #999;padding:8px;text-align:left;">Producto</th>'+
+    '<th style="border:1px solid #999;padding:8px;text-align:left;">Precio normal</th>'+
+    '<th style="border:1px solid #999;padding:8px;text-align:left;">Precios especiales</th>'+
+    '</tr></thead><tbody style="font-size:13px;">'+rows+'</tbody></table>';
+  abrirVistaPrevia(html);
+}
 function imprimirReporteParte(parte){
   var r = calcularReportes();
   var desde = document.getElementById('repDesde').value, hasta = document.getElementById('repHasta').value;
@@ -3303,6 +3337,7 @@ async function updateSyncBadge(){
 var filtroInventario = 'todos';
 var productoSeleccionadoId = null;
 var productoLotesTemp = [];
+var productoEscalonesTemp = [];
 function diasParaVencer(fechaStr){
   if(!fechaStr) return null;
   var d = (new Date(fechaStr) - new Date()) / (1000*60*60*24);
@@ -3420,9 +3455,42 @@ function quitarLoteProducto(id){
   productoLotesTemp = productoLotesTemp.filter(function(l){return l.id!==id;});
   renderLotesProducto();
 }
+function renderEscalonesProducto(){
+  var cont = document.getElementById('prodEscalonesContainer');
+  if(productoEscalonesTemp.length===0){
+    cont.innerHTML = '<p style="font-size:12px;color:#9ca3af;">Sin precios especiales — solo se usa el precio de venta normal.</p>';
+    return;
+  }
+  var ordenados = productoEscalonesTemp.slice().sort(function(a,b){ return a.cantidadMinima-b.cantidadMinima; });
+  cont.innerHTML = ordenados.map(function(es){
+    return '<div style="display:flex;justify-content:space-between;align-items:center;background:#f4f6f9;border-radius:8px;padding:8px 10px;margin-bottom:6px;font-size:13px;">'+
+      '<span>A partir de <b>'+es.cantidadMinima+'</b> unidades: <b>$'+es.precio.toFixed(2)+'</b> c/u</span>'+
+      '<button type="button" class="emp-del" onclick="quitarEscalonProducto(\''+es.id+'\')">✕</button>'+
+    '</div>';
+  }).join('');
+}
+function agregarEscalonProducto(){
+  var minimo = parseFloat(document.getElementById('prodNuevoEscalonMinimo').value)||0;
+  var precio = parseFloat(document.getElementById('prodNuevoEscalonPrecio').value)||0;
+  if(minimo<=0 || precio<=0){ toast('Escribe la cantidad mínima y el precio'); return; }
+  productoEscalonesTemp.push({id:'esc'+Date.now()+Math.floor(Math.random()*1000), cantidadMinima:minimo, precio:precio});
+  document.getElementById('prodNuevoEscalonMinimo').value='';
+  document.getElementById('prodNuevoEscalonPrecio').value='';
+  renderEscalonesProducto();
+}
+function quitarEscalonProducto(id){
+  productoEscalonesTemp = productoEscalonesTemp.filter(function(es){return es.id!==id;});
+  renderEscalonesProducto();
+}
+function precioSegunCantidad(p, cantidad){
+  if(!p.preciosEscalonados || p.preciosEscalonados.length===0) return p.precioVenta||0;
+  var aplicable = p.preciosEscalonados.filter(function(es){ return cantidad>=es.cantidadMinima; }).sort(function(a,b){return b.cantidadMinima-a.cantidadMinima;})[0];
+  return aplicable ? aplicable.precio : (p.precioVenta||0);
+}
 function abrirProductoOverlay(nuevo){
   productoSeleccionadoId = null;
   productoLotesTemp = [];
+  productoEscalonesTemp = [];
   document.getElementById('prodNombreInput').value='';
   document.getElementById('prodPresentacionInput').value='';
   document.getElementById('prodTipoInput').value='medicamento';
@@ -3436,7 +3504,10 @@ function abrirProductoOverlay(nuevo){
   document.getElementById('prodNuevoLoteNumero').value='';
   document.getElementById('prodNuevoLoteCantidad').value='';
   document.getElementById('prodNuevoLoteVence').value='';
+  document.getElementById('prodNuevoEscalonMinimo').value='';
+  document.getElementById('prodNuevoEscalonPrecio').value='';
   renderLotesProducto();
+  renderEscalonesProducto();
   document.getElementById('productoOverlay').classList.remove('hidden');
 }
 function editarProducto(id){
@@ -3464,7 +3535,11 @@ function editarProducto(id){
   document.getElementById('prodNuevoLoteNumero').value='';
   document.getElementById('prodNuevoLoteCantidad').value='';
   document.getElementById('prodNuevoLoteVence').value='';
+  productoEscalonesTemp = p.preciosEscalonados ? JSON.parse(JSON.stringify(p.preciosEscalonados)) : [];
+  document.getElementById('prodNuevoEscalonMinimo').value='';
+  document.getElementById('prodNuevoEscalonPrecio').value='';
   renderLotesProducto();
+  renderEscalonesProducto();
   document.getElementById('productoOverlay').classList.remove('hidden');
 }
 function guardarProducto(){
@@ -3488,6 +3563,7 @@ function guardarProducto(){
     precioVenta: parseFloat(document.getElementById('prodPrecioInput').value)||0,
     proveedor: document.getElementById('prodProveedorInput').value.trim(),
     lotes: productoLotesTemp,
+    preciosEscalonados: productoEscalonesTemp,
     fechaVencimiento: loteConVencimientoMasProximo ? loteConVencimientoMasProximo.fechaVencimiento : null,
     lote: loteConVencimientoMasProximo ? loteConVencimientoMasProximo.numero : '',
     ndc: document.getElementById('prodNdcInput').value.trim(),
@@ -3862,10 +3938,13 @@ function actualizarTotalVenta(){
   var p = D.inventario.find(function(x){return x.id===ventaProductoSelId;});
   if(!p) return;
   var cant = parseFloat(document.getElementById('ventaCantidadInput').value)||0;
-  var subtotal = cant*(p.precioVenta||0);
+  var precioUnit = precioSegunCantidad(p, cant);
+  var subtotal = cant*precioUnit;
   var ivu = p.cobraIvu ? subtotal*IVU_TASA : 0;
   var total = subtotal+ivu;
+  var esEspecial = precioUnit !== (p.precioVenta||0);
   document.getElementById('ventaTotalBox').innerHTML =
+    (esEspecial ? '<div style="color:#0a5c8a;font-size:12px;font-weight:700;">✅ Precio especial aplicado: $'+precioUnit.toFixed(2)+' c/u</div>' : '') +
     'Subtotal: $'+subtotal.toFixed(2)+
     (p.cobraIvu ? '<br>IVU (11.5%): $'+ivu.toFixed(2) : '<br><span style="color:#166534;font-weight:400;font-size:12px;">Exento de IVU</span>')+
     '<br><b>Total: $'+total.toFixed(2)+'</b>';
@@ -3878,7 +3957,8 @@ function confirmarVentaOtc(){
   if(cant<=0){ toast('La cantidad debe ser mayor a 0'); return; }
   if(cant>p.cantidad){ toast('Solo hay '+p.cantidad+' disponibles'); return; }
   var forma = document.getElementById('ventaFormaInput').value;
-  var subtotal = cant*(p.precioVenta||0);
+  var precioUnit = precioSegunCantidad(p, cant);
+  var subtotal = cant*precioUnit;
   var ivu = p.cobraIvu ? subtotal*IVU_TASA : 0;
   var total = subtotal+ivu;
   p.cantidad -= cant;
@@ -3886,7 +3966,7 @@ function confirmarVentaOtc(){
   var venta = {
     id:'vo'+Date.now()+Math.floor(Math.random()*1000),
     productoId: p.id, productoNombre: p.nombre+(p.presentacion?' '+p.presentacion:''),
-    cantidad: cant, precioUnitario: p.precioVenta||0, subtotal:subtotal, ivu:ivu, total: total,
+    cantidad: cant, precioUnitario: precioUnit, subtotal:subtotal, ivu:ivu, total: total,
     formaPago: forma, empleado: EMPLEADO||'(sin identificar)', fecha: new Date().toISOString()
   };
   D.ventasOtc = D.ventasOtc || [];
@@ -4001,7 +4081,7 @@ async function pushRemote(){
     // Inventario
     if((D.inventario||[]).length){
       var r7 = await supabaseClient.from('inventario').upsert(D.inventario.map(function(p){
-        return {id:p.id, nombre:p.nombre, presentacion:p.presentacion||null, tipo:p.tipo||'medicamento', cantidad:p.cantidad||0, cantidad_minima:p.cantidadMinima||0, costo:p.costo||null, precio_venta:p.precioVenta||null, proveedor:p.proveedor||null, fecha_vencimiento:p.fechaVencimiento||null, lote:p.lote||null, ndc:p.ndc||null, lotes:p.lotes||[], controlado:!!p.controlado, cobra_ivu:!!p.cobraIvu, actualizado_en:p.actualizadoEn||new Date().toISOString()};
+        return {id:p.id, nombre:p.nombre, presentacion:p.presentacion||null, tipo:p.tipo||'medicamento', cantidad:p.cantidad||0, cantidad_minima:p.cantidadMinima||0, costo:p.costo||null, precio_venta:p.precioVenta||null, proveedor:p.proveedor||null, fecha_vencimiento:p.fechaVencimiento||null, lote:p.lote||null, ndc:p.ndc||null, lotes:p.lotes||[], precios_escalonados:p.preciosEscalonados||[], controlado:!!p.controlado, cobra_ivu:!!p.cobraIvu, actualizado_en:p.actualizadoEn||new Date().toISOString()};
       }));
       if(r7.error) console.log('error inventario', r7.error);
     }
@@ -4111,7 +4191,7 @@ async function pullRemote(silent){
     var remoteAuditoria = (rAud.data||[]).map(function(row){ return {id:row.id, fecha:row.fecha, empleado:row.empleado, accion:row.accion, detalle:row.detalle}; });
     var remotePapelera = (rPap.data||[]).map(function(row){ return {id:row.id, tipo:row.tipo, datos:row.datos, fechaBorrado:row.fecha_borrado, borradoPor:row.borrado_por}; });
     var remoteInventario = (rInv.data||[]).map(function(row){
-      return {id:row.id, nombre:row.nombre, presentacion:row.presentacion, tipo:row.tipo, cantidad:row.cantidad, cantidadMinima:row.cantidad_minima, costo:row.costo, precioVenta:row.precio_venta, proveedor:row.proveedor, fechaVencimiento:row.fecha_vencimiento, lote:row.lote, ndc:row.ndc, lotes:row.lotes||[], controlado:!!row.controlado, cobraIvu:!!row.cobra_ivu, actualizadoEn:row.actualizado_en};
+      return {id:row.id, nombre:row.nombre, presentacion:row.presentacion, tipo:row.tipo, cantidad:row.cantidad, cantidadMinima:row.cantidad_minima, costo:row.costo, precioVenta:row.precio_venta, proveedor:row.proveedor, fechaVencimiento:row.fecha_vencimiento, lote:row.lote, ndc:row.ndc, lotes:row.lotes||[], preciosEscalonados:row.precios_escalonados||[], controlado:!!row.controlado, cobraIvu:!!row.cobra_ivu, actualizadoEn:row.actualizado_en};
     });
     var remoteVentasOtc = (rVta.data||[]).map(function(row){
       return {id:row.id, productoId:row.producto_id, productoNombre:row.producto_nombre, cantidad:row.cantidad, precioUnitario:row.precio_unitario, subtotal:row.subtotal, ivu:row.ivu, total:row.total, formaPago:row.forma_pago, empleado:row.empleado, fecha:row.fecha};
