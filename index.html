@@ -201,7 +201,7 @@ textarea{resize:vertical;min-height:60px;}
 <div id="app">
   <header>
     <h1>💊 Control de Entrega</h1>
-    <div class="sub" id="hSub">Farmacia · <span style="color:#ffd700;font-weight:700;" id="verTag">v74</span></div>
+    <div class="sub" id="hSub">Farmacia · <span style="color:#ffd700;font-weight:700;" id="verTag">v76</span></div>
     <div class="syncbar"><span class="dot" id="syncDot"></span><span id="syncText">Sin sincronizar</span></div>
     <div class="syncbar" style="margin-top:4px;cursor:pointer;" onclick="abrirLogin()">👤 <span id="empActual">Sin identificar</span> <span style="text-decoration:underline;">(cambiar sesión)</span></div>
   </header>
@@ -1029,9 +1029,10 @@ function load(){
   try{ var craw=localStorage.getItem(CFGKEY); if(craw) CFG=JSON.parse(craw); }catch(e){}
   initSupabaseClient();
 }
+var pushEnCurso = null;
 function save(){
   localStorage.setItem(LSKEY, JSON.stringify(D));
-  pushRemote();
+  pushEnCurso = pushRemote();
 }
 function toast(msg){
   var t=document.getElementById('toast');
@@ -1706,7 +1707,7 @@ function avisarPacienteWhatsApp(nombrePaciente, medsTexto){
   if(mensaje===null || !mensaje.trim()) return;
   var soloDigitos = tel.replace(/\D/g,'');
   if(soloDigitos.length===10) soloDigitos='1'+soloDigitos;
-  var link='https://wa.me/'+soloDigitos+'?text='+encodeURIComponent(mensaje);
+  var link='whatsapp://send?phone='+soloDigitos+'&text='+encodeURIComponent(mensaje);
   location.href=link;
   logAuditoria('Aviso WhatsApp', nombrePaciente+' — '+mensaje.substring(0,80));
   save();
@@ -1720,7 +1721,7 @@ function prepararWhatsApp(){
   seleccionados.forEach(function(p){
     var soloDigitos = p.telefono.replace(/\D/g,'');
     if(soloDigitos.length===10) soloDigitos = '1'+soloDigitos;
-    var link = 'https://wa.me/'+soloDigitos+'?text='+encodeURIComponent(cuerpo);
+    var link = 'whatsapp://send?phone='+soloDigitos+'&text='+encodeURIComponent(cuerpo);
     html += '<a href="'+link+'" style="display:block;background:#dcfce7;color:#166534;padding:10px 12px;border-radius:8px;margin-bottom:6px;font-weight:600;font-size:13px;text-decoration:none;">💬 Enviar a '+esc(p.nombre)+'</a>';
   });
   document.getElementById('whatsappLinks').innerHTML=html;
@@ -1805,7 +1806,8 @@ function buscarPlanMedico(nombrePaciente){
   return (p && p.planMedico) ? p.planMedico : 'Sin plan registrado';
 }
 function esMedAdherencia(nombre){
-  return (D.medsAdherencia||[]).find(function(a){ return a.nombre.toLowerCase()===nombre.toLowerCase(); }) || null;
+  var limpio = (nombre||'').trim().toLowerCase();
+  return (D.medsAdherencia||[]).find(function(a){ return (a.nombre||'').trim().toLowerCase()===limpio; }) || null;
 }
 function buscarHistorialMedicamento(pacienteNombre, medNombre){
   var candidatos = [];
@@ -4301,6 +4303,7 @@ function fusionarConNube(remote){
 }
 async function pullRemote(silent){
   if(!supabaseClient){ if(!silent) toast('Configura Supabase primero'); return; }
+  if(pushEnCurso){ try{ await pushEnCurso; }catch(e){} }
   try{
     var rEmp = await supabaseClient.from('empleados').select('*');
     var rPac = await supabaseClient.from('pacientes').select('*');
