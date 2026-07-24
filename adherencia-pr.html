@@ -247,11 +247,11 @@ textarea{resize:vertical;min-height:60px;}
     </div>
     <input type="hidden" id="pmId">
     <label>Nombre del paciente</label>
-    <input id="pmName" placeholder="Nombre y apellido">
+    <input id="pmName" placeholder="Nombre y apellido" oninput="renderDuplicateCatSection()">
     <div class="row2">
       <div>
         <label>Categoría</label>
-        <select id="pmCat"><option>Estatina</option><option>Hipertensión</option><option>Diabetes</option></select>
+        <select id="pmCat" onchange="renderDuplicateCatSection()"><option>Estatina</option><option>Hipertensión</option><option>Diabetes</option></select>
       </div>
       <div>
         <label>Plan médico</label>
@@ -1090,32 +1090,51 @@ const ALL_CATS = ['Estatina','Hipertensión','Diabetes'];
 function sameNamePatients(p){
   return DB.patients.filter(x=> x.id!==p.id && x.name.trim().toLowerCase()===p.name.trim().toLowerCase());
 }
-function renderDuplicateCatSection(p){
-  const usedCats = new Set([p.cat, ...sameNamePatients(p).map(x=>x.cat)]);
-  const available = ALL_CATS.filter(c=>!usedCats.has(c));
+function renderDuplicateCatSection(){
+  const name = document.getElementById('pmName').value.trim();
+  const currentCat = document.getElementById('pmCat').value;
+  const id = document.getElementById('pmId').value;
   const wrap = document.getElementById('pmDuplicateSection');
+  if(!name){
+    wrap.style.display = 'none';
+    return;
+  }
+  const others = DB.patients.filter(x=> x.id!==id && x.name.trim().toLowerCase()===name.toLowerCase());
+  const usedCats = new Set([currentCat, ...others.map(x=>x.cat)]);
+  const available = ALL_CATS.filter(c=>!usedCats.has(c));
   if(available.length===0){ wrap.style.display = 'none'; return; }
   wrap.style.display = 'block';
   document.getElementById('pmDupCat').innerHTML = available.map(c=>`<option value="${c}">${c}</option>`).join('');
 }
 async function duplicatePatientCategory(evt){
-  const id = document.getElementById('pmId').value;
-  const p = DB.patients.find(p=>p.id===id);
-  if(!p) return;
   const newCat = document.getElementById('pmDupCat').value;
   const btn = evt.target;
   btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Creando…';
-  const { data, error } = await sb.from('patients').insert({
-    name: p.name, cat: newCat, plan: p.plan, medico_id: p.medicoId || null,
-    med: null, meds_detail: [], needs_rx: false, rx_note: null,
-    created_by: currentUser.id
-  }).select('id').single();
-  btn.disabled = false; btn.textContent = '🔁 Crear en esa categoría';
-  if(error){ toast('Error al duplicar: ' + error.message); return; }
-  await fetchAll();
-  renderAll();
-  toast(p.name + ' creado también en ' + newCat);
-  openPatientModal(data.id);
+  try{
+    // si el paciente actual todavía no se ha guardado, guardarlo primero
+    const currentId = await persistCurrentPatient();
+    if(!currentId) return;
+    const p = DB.patients.find(p=>p.id===currentId) ||
+      { name: document.getElementById('pmName').value.trim(), plan: document.getElementById('pmPlan').value, medicoId: document.getElementById('pmMedicoSel').value || null };
+
+    const { data, error } = await sb.from('patients').insert({
+      name: p.name || document.getElementById('pmName').value.trim(),
+      cat: newCat,
+      plan: document.getElementById('pmPlan').value,
+      medico_id: document.getElementById('pmMedicoSel').value || null,
+      med: null, meds_detail: [], needs_rx: false, rx_note: null,
+      created_by: currentUser.id
+    }).select('id').single();
+    if(error) throw error;
+    await fetchAll();
+    renderAll();
+    toast('Creado también en ' + newCat);
+    openPatientModal(data.id);
+  }catch(err){
+    toast('Error al duplicar: ' + (err.message||'intenta de nuevo'));
+  }finally{
+    btn.disabled = false; btn.textContent = '🔁 Crear en esa categoría';
+  }
 }
 
 function openPatientModal(id){
@@ -1134,7 +1153,6 @@ function openPatientModal(id){
     document.getElementById('pmDeleteBtn').style.display = 'block';
     renderMedicoOptions();
     document.getElementById('pmMedicoSel').value = p.medicoId || '';
-    renderDuplicateCatSection(p);
   } else {
     document.getElementById('pmTitle').textContent = 'Nuevo paciente';
     document.getElementById('pmId').value = '';
@@ -1145,8 +1163,8 @@ function openPatientModal(id){
     document.getElementById('pmDeleteBtn').style.display = 'none';
     renderMedicoOptions();
     document.getElementById('pmMedicoSel').value = '';
-    document.getElementById('pmDuplicateSection').style.display = 'none';
   }
+  renderDuplicateCatSection();
   document.getElementById('pmMedInput').value = '';
   renderMedsChips();
   renderFillsInForm();
@@ -1173,12 +1191,10 @@ function removeFillFromForm(k){
   renderFillsInForm();
 }
 
-async function savePatient(){
+async function persistCurrentPatient(){
   const name = document.getElementById('pmName').value.trim();
-  if(!name){ toast('Escribe el nombre del paciente'); return; }
+  if(!name){ toast('Escribe el nombre del paciente'); return null; }
   const id = document.getElementById('pmId').value;
-  const btn = document.getElementById('pmSaveBtn');
-  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Guardando…';
 
   const flagged = formMeds.filter(m=>m.needsRx);
   const payload = {
@@ -1192,35 +1208,44 @@ async function savePatient(){
     rx_note: flagged.length ? flagged.map(m=> m.name + (m.note ? ' — '+m.note : '')).join('; ') : null,
   };
 
-  try{
-    let patientId = id;
-    if(id){
-      const { error } = await sb.from('patients').update(payload).eq('id', id);
-      if(error) throw error;
-      // reconcile fills: delete removed ones, insert new ones
-      const { data: existingFills } = await sb.from('fills').select('id').eq('patient_id', id);
-      const keepIds = new Set(formFills.filter(f=>f.id).map(f=>f.id));
-      const toDelete = (existingFills||[]).filter(f=>!keepIds.has(f.id)).map(f=>f.id);
-      if(toDelete.length){
-        const { error: delErr } = await sb.from('fills').delete().in('id', toDelete);
-        if(delErr) throw delErr;
-      }
-      const toInsert = formFills.filter(f=>!f.id).map(f=>({patient_id:id, fill_date:f.date, days_supply:f.days, med_name:f.med||null, created_by: currentUser.id}));
-      if(toInsert.length){
-        const { error: insErr } = await sb.from('fills').insert(toInsert);
-        if(insErr) throw insErr;
-      }
-    } else {
-      const { data: inserted, error } = await sb.from('patients')
-        .insert({...payload, created_by: currentUser.id}).select('id').single();
-      if(error) throw error;
-      patientId = inserted.id;
-      if(formFills.length){
-        const toInsert = formFills.map(f=>({patient_id: patientId, fill_date:f.date, days_supply:f.days, med_name:f.med||null, created_by: currentUser.id}));
-        const { error: insErr } = await sb.from('fills').insert(toInsert);
-        if(insErr) throw insErr;
-      }
+  let patientId = id;
+  if(id){
+    const { error } = await sb.from('patients').update(payload).eq('id', id);
+    if(error) throw error;
+    // reconcile fills: delete removed ones, insert new ones
+    const { data: existingFills } = await sb.from('fills').select('id').eq('patient_id', id);
+    const keepIds = new Set(formFills.filter(f=>f.id).map(f=>f.id));
+    const toDelete = (existingFills||[]).filter(f=>!keepIds.has(f.id)).map(f=>f.id);
+    if(toDelete.length){
+      const { error: delErr } = await sb.from('fills').delete().in('id', toDelete);
+      if(delErr) throw delErr;
     }
+    const toInsert = formFills.filter(f=>!f.id).map(f=>({patient_id:id, fill_date:f.date, days_supply:f.days, med_name:f.med||null, created_by: currentUser.id}));
+    if(toInsert.length){
+      const { error: insErr } = await sb.from('fills').insert(toInsert);
+      if(insErr) throw insErr;
+    }
+  } else {
+    const { data: inserted, error } = await sb.from('patients')
+      .insert({...payload, created_by: currentUser.id}).select('id').single();
+    if(error) throw error;
+    patientId = inserted.id;
+    if(formFills.length){
+      const toInsert = formFills.map(f=>({patient_id: patientId, fill_date:f.date, days_supply:f.days, med_name:f.med||null, created_by: currentUser.id}));
+      const { error: insErr } = await sb.from('fills').insert(toInsert);
+      if(insErr) throw insErr;
+    }
+  }
+  document.getElementById('pmId').value = patientId;
+  return patientId;
+}
+
+async function savePatient(){
+  const btn = document.getElementById('pmSaveBtn');
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Guardando…';
+  try{
+    const patientId = await persistCurrentPatient();
+    if(!patientId) return;
     await fetchAll();
     closeModal('modalPatient');
     renderAll();
