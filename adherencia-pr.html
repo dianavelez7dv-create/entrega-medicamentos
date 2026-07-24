@@ -113,11 +113,10 @@ textarea{resize:vertical;min-height:60px;}
 #printArea{display:none;}
 @media print{
   body.printing-rx > *:not(#printArea){display:none !important;}
-  body.printing-rx #printArea{display:block !important;padding:24px;font-family:'Source Serif 4',serif;color:#000;}
-  #printArea h2{font-family:'Space Grotesk',sans-serif;margin-bottom:4px;}
-  #printArea table{width:100%;border-collapse:collapse;margin-top:14px;}
-  #printArea th,#printArea td{border:1px solid #999;padding:7px 9px;text-align:left;font-size:13px;}
-  #printArea th{background:#eee;}
+  body.printing-rx #printArea{display:block !important;}
+  body.printing-rx #vistaPreviaOverlay{position:static !important;background:none !important;padding:0 !important;display:block !important;}
+  body.printing-rx #vistaPreviaOverlay > div{max-width:100% !important;width:100% !important;max-height:none !important;overflow:visible !important;box-shadow:none !important;border-radius:0 !important;padding:0 !important;}
+  body.printing-rx .btn-outline,body.printing-rx .btn-print{display:none !important;}
 }
 </style>
 </head>
@@ -206,6 +205,11 @@ textarea{resize:vertical;min-height:60px;}
       <button class="btn amber" onclick="shareWhatsAppRx()">Enviar por WhatsApp</button>
     </div>
     <div class="card">
+      <h3 style="margin:0 0 4px;color:var(--navy);">🩺 Directorio de médicos</h3>
+      <div id="medicosList" style="margin-top:10px;"></div>
+      <button class="btn ghost" onclick="openMedicoModal()">+ Nuevo médico</button>
+    </div>
+    <div class="card">
       <h3 style="margin:0 0 4px;color:var(--navy);">Resumen para EQUIPP / plan</h3>
       <p class="helptext">Exporta un CSV con el PDC actual de cada paciente y sus intervenciones documentadas.</p>
       <button class="btn amber" onclick="exportCSV()">Descargar CSV</button>
@@ -252,6 +256,11 @@ textarea{resize:vertical;min-height:60px;}
           <option>First Medical</option><option>Plan Vital</option><option>Otro</option>
         </select>
       </div>
+    </div>
+    <label>Médico</label>
+    <div style="display:flex;gap:8px;">
+      <select id="pmMedicoSel" style="flex:1;"><option value="">— Selecciona —</option></select>
+      <button type="button" class="btn ghost sm" onclick="openMedicoModal()">+ Nuevo</button>
     </div>
     <label>Medicamento(s)</label>
     <div id="pmMedsChips" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;"></div>
@@ -305,6 +314,24 @@ textarea{resize:vertical;min-height:60px;}
   </div>
 </div>
 
+<!-- MODAL: médico -->
+<div class="overlay" id="modalMedico">
+  <div class="modal">
+    <div class="modal-head"><h2>Nuevo médico</h2><button class="x" onclick="closeModal('modalMedico')">×</button></div>
+    <label>Nombre</label>
+    <input id="mdNombre" placeholder="Dr(a). Nombre Apellido">
+    <div class="row2">
+      <div><label>Teléfono</label><input id="mdTelefono" type="tel" placeholder="787-000-0000"></div>
+      <div><label>Email</label><input id="mdEmail" type="email" placeholder="correo@ejemplo.com"></div>
+    </div>
+    <label>Dirección física</label>
+    <input id="mdDireccion" placeholder="Calle, ciudad, PR, código postal">
+    <label>Notas (opcional)</label>
+    <textarea id="mdNotas" placeholder="Horario, especialidad, preferencia de contacto..."></textarea>
+    <button class="btn primary" id="mdSaveBtn" onclick="saveMedico()">Guardar médico</button>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 <div id="printArea"></div>
 
@@ -313,7 +340,7 @@ textarea{resize:vertical;min-height:60px;}
 const CFG_KEY = 'adherenciaPR_cfg';
 let sb = null;
 let currentUser = null;
-let DB = { patients: [], interventions: [] };
+let DB = { patients: [], interventions: [], medicos: [] };
 let realtimeChannel = null;
 
 function getConfig(){
@@ -452,15 +479,20 @@ function setSyncStatus(state){
 /* ================= Data fetch ================= */
 async function fetchAll(){
   const { data: patients, error: pErr } = await sb
-    .from('patients').select('*, fills(id, fill_date, days_supply, med_name)').order('name');
+    .from('patients').select('*, fills(id, fill_date, days_supply, med_name), medicos(id,nombre,telefono,email,direccion)').order('name');
   if(pErr){ toast('Error cargando pacientes'); setSyncStatus('err'); return; }
 
   const { data: intv, error: iErr } = await sb
     .from('interventions').select('*, patients(name)').order('intv_date', {ascending:false});
   if(iErr){ toast('Error cargando intervenciones'); setSyncStatus('err'); return; }
 
+  const { data: medicos, error: mErr } = await sb
+    .from('medicos').select('*').order('nombre');
+  if(mErr){ toast('Error cargando médicos'); setSyncStatus('err'); return; }
+
   DB.patients = (patients||[]).map(p=>({
     id: p.id, name: p.name, cat: p.cat, plan: p.plan, med: p.med,
+    medicoId: p.medico_id, medico: p.medicos ? p.medicos.nombre : null, medicoContact: p.medicos || null,
     needsRx: !!p.needs_rx, rxNote: p.rx_note,
     fills: (p.fills||[]).map(f=>({id:f.id, date:f.fill_date, days:f.days_supply, med:f.med_name||null}))
   }));
@@ -468,6 +500,7 @@ async function fetchAll(){
     id: i.id, patientId: i.patient_id, date: i.intv_date, type: i.intv_type,
     notes: i.notes, patientName: i.patients ? i.patients.name : null
   }));
+  DB.medicos = medicos||[];
   setSyncStatus('live');
 }
 
@@ -479,6 +512,7 @@ function setupRealtime(){
     .on('postgres_changes', {event:'*', schema:dbSchema, table:'patients'}, handleRemoteChange)
     .on('postgres_changes', {event:'*', schema:dbSchema, table:'fills'}, handleRemoteChange)
     .on('postgres_changes', {event:'*', schema:dbSchema, table:'interventions'}, handleRemoteChange)
+    .on('postgres_changes', {event:'*', schema:dbSchema, table:'medicos'}, handleRemoteChange)
     .subscribe(status=>{
       if(status==='SUBSCRIBED') setSyncStatus('live');
       else if(status==='CHANNEL_ERROR' || status==='TIMED_OUT') setSyncStatus('err');
@@ -603,55 +637,175 @@ function renderIntv(){
       <div class="note">${escapeHTML(i.notes||'')}</div>
     </div>`).join('');
 }
-function renderAll(){ renderStats(); renderDash(); renderPatients(); renderIntv(); renderRxList(); }
+function renderAll(){ renderStats(); renderDash(); renderPatients(); renderIntv(); renderRxList(); renderMedicosList(); }
+
+function renderMedicosList(){
+  const el = document.getElementById('medicosList');
+  if(!el) return;
+  if(DB.medicos.length===0){ el.innerHTML = '<p class="helptext">Aún no hay médicos en el directorio.</p>'; return; }
+  el.innerHTML = DB.medicos.map(m=>`
+    <div class="fillrow" style="align-items:flex-start;">
+      <span>
+        <b style="font-family:'Space Grotesk',sans-serif;color:var(--navy);">${escapeHTML(m.nombre)}</b>
+        ${medicoContactLine(m)}
+      </span>
+    </div>`).join('');
+}
 
 function getRxPatients(){
   return DB.patients.filter(p=>p.needsRx);
 }
+/* Agrupa: Plan -> Médico -> Clasificación (PDC) */
+function groupRxPatients(){
+  const groups = {};
+  getRxPatients().forEach(p=>{
+    const plan = p.plan || 'Sin plan';
+    const medico = p.medico || 'Sin médico asignado';
+    const r = calcPDC(p);
+    const clasif = statusLabel(r.status);
+    groups[plan] = groups[plan] || {};
+    groups[plan][medico] = groups[plan][medico] || { contact: p.medicoContact || null, clasifs: {} };
+    groups[plan][medico].clasifs[clasif] = groups[plan][medico].clasifs[clasif] || [];
+    groups[plan][medico].clasifs[clasif].push({p, r});
+  });
+  return groups;
+}
+function medicoContactLine(contact){
+  if(!contact) return '';
+  const parts = [];
+  if(contact.telefono) parts.push(`<a href="tel:${escapeHTML(contact.telefono)}" style="color:var(--navy);">📞 ${escapeHTML(contact.telefono)}</a>`);
+  if(contact.email) parts.push(`<a href="mailto:${escapeHTML(contact.email)}" style="color:var(--navy);">✉️ ${escapeHTML(contact.email)}</a>`);
+  if(contact.direccion) parts.push(`📍 ${escapeHTML(contact.direccion)}`);
+  return parts.length ? `<div class="d" style="margin:1px 0 4px;">${parts.join(' &nbsp;·&nbsp; ')}</div>` : '';
+}
+function medicoContactTextLine(contact){
+  if(!contact) return '';
+  const parts = [];
+  if(contact.telefono) parts.push('Tel: '+contact.telefono);
+  if(contact.email) parts.push('Email: '+contact.email);
+  if(contact.direccion) parts.push('Dir: '+contact.direccion);
+  return parts.length ? '    ('+parts.join(' · ')+')' : '';
+}
 function renderRxList(){
   const el = document.getElementById('rxList');
   if(!el) return;
-  const list = getRxPatients();
-  if(list.length===0){ el.innerHTML = '<p class="helptext">Ningún paciente marcado ahora mismo. Actívalo desde el perfil del paciente ("Necesita Rx nueva del médico").</p>'; return; }
-  el.innerHTML = list.map(p=>`
-    <div class="fillrow" style="align-items:flex-start;">
-      <span>
-        <b style="font-family:'Space Grotesk',sans-serif;color:var(--navy);">${escapeHTML(p.name)}</b><br>
-        <span class="d">${escapeHTML(p.med||p.cat)} · ${escapeHTML(p.plan)}</span>
-        ${p.rxNote ? `<br><span class="d">${escapeHTML(p.rxNote)}</span>` : ''}
-      </span>
-    </div>`).join('');
+  const groups = groupRxPatients();
+  const plans = Object.keys(groups).sort();
+  if(plans.length===0){ el.innerHTML = '<p class="helptext">Ningún paciente marcado ahora mismo. Actívalo desde el perfil del paciente ("Necesita Rx nueva del médico").</p>'; return; }
+
+  let html = '';
+  plans.forEach(plan=>{
+    html += `<div class="section-title" style="margin-top:14px;">${escapeHTML(plan)}</div>`;
+    const medicos = Object.keys(groups[plan]).sort();
+    medicos.forEach(medico=>{
+      html += `<div style="font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:13px;color:var(--navy);margin:8px 0 2px;">🩺 ${escapeHTML(medico)}</div>`;
+      html += medicoContactLine(groups[plan][medico].contact);
+      const clasifs = Object.keys(groups[plan][medico].clasifs).sort((a,b)=> statusOrder(a)-statusOrder(b));
+      clasifs.forEach(clasif=>{
+        const items = groups[plan][medico].clasifs[clasif];
+        html += `<div class="fillrow" style="border-bottom:none;padding:4px 0 4px 10px;"><span class="d">${escapeHTML(clasif)} (${items.length})</span></div>`;
+        items.forEach(({p})=>{
+          html += `<div class="fillrow" style="padding:4px 0 4px 20px;">
+            <span><b>${escapeHTML(p.name)}</b> <span class="d">· ${escapeHTML(p.med||p.cat)}</span>${p.rxNote ? `<br><span class="d">${escapeHTML(p.rxNote)}</span>` : ''}</span>
+          </div>`;
+        });
+      });
+    });
+  });
+  el.innerHTML = html;
+}
+function statusOrder(label){
+  if(label==='Brecha crítica') return 0;
+  if(label==='En riesgo') return 1;
+  return 2;
 }
 function buildRxSummaryText(){
-  const list = getRxPatients();
-  if(list.length===0) return 'No hay pacientes pendientes de Rx en este momento.';
+  const groups = groupRxPatients();
+  const plans = Object.keys(groups).sort();
+  if(plans.length===0) return 'No hay pacientes pendientes de Rx en este momento.';
   const lines = [`Pacientes que necesitan Rx nueva del médico (${fmtDate(todayStr())}):`, ''];
-  list.forEach(p=>{
-    lines.push(`• ${p.name} — ${p.med || p.cat} (${p.plan})${p.rxNote ? ' — ' + p.rxNote : ''}`);
+  plans.forEach(plan=>{
+    lines.push(`— ${plan} —`);
+    const medicos = Object.keys(groups[plan]).sort();
+    medicos.forEach(medico=>{
+      lines.push(`  Dr(a). ${medico}${medicoContactTextLine(groups[plan][medico].contact)}:`);
+      const clasifs = Object.keys(groups[plan][medico].clasifs).sort((a,b)=> statusOrder(a)-statusOrder(b));
+      clasifs.forEach(clasif=>{
+        groups[plan][medico].clasifs[clasif].forEach(({p})=>{
+          lines.push(`    • ${p.name} — ${p.med || p.cat} — ${clasif}${p.rxNote ? ' — ' + p.rxNote : ''}`);
+        });
+      });
+    });
+    lines.push('');
   });
   return lines.join('\n');
 }
-function printRxList(){
-  const list = getRxPatients();
-  const rows = list.map(p=>`
-    <tr>
-      <td>${escapeHTML(p.name)}</td>
-      <td>${escapeHTML(p.cat)}</td>
-      <td>${escapeHTML(p.med||'—')}</td>
-      <td>${escapeHTML(p.plan)}</td>
-      <td>${escapeHTML(p.rxNote||'')}</td>
-    </tr>`).join('');
+
+/* ---- Vista previa de impresión (regla de oro: preview en pantalla antes de imprimir) ---- */
+function openRxPreview(){
+  const groups = groupRxPatients();
+  const plans = Object.keys(groups).sort();
+  let rows = '';
+  plans.forEach(plan=>{
+    rows += `<tr class="grp-plan"><td colspan="4">${escapeHTML(plan)}</td></tr>`;
+    const medicos = Object.keys(groups[plan]).sort();
+    medicos.forEach(medico=>{
+      const contact = groups[plan][medico].contact;
+      const contactBits = [];
+      if(contact && contact.telefono) contactBits.push('📞 '+contact.telefono);
+      if(contact && contact.email) contactBits.push('✉️ '+contact.email);
+      if(contact && contact.direccion) contactBits.push('📍 '+contact.direccion);
+      rows += `<tr class="grp-medico"><td colspan="4">🩺 Dr(a). ${escapeHTML(medico)}${contactBits.length ? ' — '+escapeHTML(contactBits.join('  ·  ')) : ''}</td></tr>`;
+      const clasifs = Object.keys(groups[plan][medico].clasifs).sort((a,b)=> statusOrder(a)-statusOrder(b));
+      clasifs.forEach(clasif=>{
+        groups[plan][medico].clasifs[clasif].forEach(({p})=>{
+          rows += `<tr>
+            <td>${escapeHTML(p.name)}</td>
+            <td>${escapeHTML(p.med||p.cat)}</td>
+            <td>${escapeHTML(clasif)}</td>
+            <td>${escapeHTML(p.rxNote||'')}</td>
+          </tr>`;
+        });
+      });
+    });
+  });
+  if(!rows) rows = '<tr><td colspan="4">Ningún paciente pendiente.</td></tr>';
+
   document.getElementById('printArea').innerHTML = `
-    <h2>Rx pendientes con el médico</h2>
-    <p>${fmtDate(todayStr())} · ${list.length} paciente(s)</p>
-    <table>
-      <tr><th>Paciente</th><th>Categoría</th><th>Medicamento</th><th>Plan</th><th>Nota</th></tr>
-      ${rows || '<tr><td colspan="5">Ningún paciente pendiente.</td></tr>'}
-    </table>`;
+    <div id="vistaPreviaOverlay" style="display:flex;position:fixed;inset:0;background:rgba(23,37,63,.55);z-index:100;align-items:center;justify-content:center;padding:16px;">
+      <div style="background:#fff;max-width:720px;width:100%;max-height:90vh;overflow-y:auto;border-radius:14px;padding:22px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+          <h2 style="margin:0;font-family:'Space Grotesk',sans-serif;color:var(--navy);">Rx pendientes con el médico</h2>
+          <button onclick="closeRxPreview()" style="border:none;background:none;font-size:22px;cursor:pointer;color:var(--ink-soft);" class="btn-outline">×</button>
+        </div>
+        <p style="color:var(--ink-soft);font-size:13px;margin:0 0 12px;">${fmtDate(todayStr())} · agrupado por plan → médico → clasificación</p>
+        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+          <tr><th style="text-align:left;padding:6px;border-bottom:2px solid var(--navy);">Paciente</th><th style="text-align:left;padding:6px;border-bottom:2px solid var(--navy);">Medicamento</th><th style="text-align:left;padding:6px;border-bottom:2px solid var(--navy);">Clasificación</th><th style="text-align:left;padding:6px;border-bottom:2px solid var(--navy);">Nota</th></tr>
+          ${rows}
+        </table>
+        <div style="display:flex;gap:10px;margin-top:18px;">
+          <button class="btn ghost btn-outline" onclick="closeRxPreview()">Cerrar</button>
+          <button class="btn amber btn-print" onclick="doRxPrint()">🖨️ Imprimir</button>
+        </div>
+      </div>
+    </div>
+    <style>
+      #printArea .grp-plan td{font-family:'Space Grotesk',sans-serif;font-weight:700;color:var(--navy);padding:10px 6px 2px;}
+      #printArea .grp-medico td{font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:var(--ink-soft);padding:4px 6px 4px 16px;}
+      #printArea table tr:not(.grp-plan):not(.grp-medico) td{padding:5px 6px 5px 26px;border-bottom:1px solid var(--line);}
+    </style>`;
+  document.getElementById('printArea').style.display = 'block';
+}
+function closeRxPreview(){
+  document.getElementById('printArea').style.display = 'none';
+  document.getElementById('printArea').innerHTML = '';
+}
+function doRxPrint(){
   document.body.classList.add('printing-rx');
   window.print();
   setTimeout(()=> document.body.classList.remove('printing-rx'), 300);
 }
+function printRxList(){ openRxPreview(); }
 function shareWhatsAppRx(){
   const text = encodeURIComponent(buildRxSummaryText());
   window.location.href = 'whatsapp://send?text=' + text;
@@ -697,6 +851,44 @@ function removeMedFromForm(i){
   renderMedsChips();
 }
 
+function renderMedicoOptions(){
+  const sel = document.getElementById('pmMedicoSel');
+  const prev = sel.value;
+  sel.innerHTML = '<option value="">— Selecciona —</option>' +
+    DB.medicos.map(m=>`<option value="${m.id}">${escapeHTML(m.nombre)}</option>`).join('');
+  sel.value = prev;
+}
+function openMedicoModal(){
+  document.getElementById('mdNombre').value = '';
+  document.getElementById('mdTelefono').value = '';
+  document.getElementById('mdEmail').value = '';
+  document.getElementById('mdDireccion').value = '';
+  document.getElementById('mdNotas').value = '';
+  document.getElementById('modalMedico').classList.add('show');
+}
+async function saveMedico(){
+  const nombre = document.getElementById('mdNombre').value.trim();
+  if(!nombre){ toast('Escribe el nombre del médico'); return; }
+  const btn = document.getElementById('mdSaveBtn');
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Guardando…';
+  const payload = {
+    nombre,
+    telefono: document.getElementById('mdTelefono').value.trim() || null,
+    email: document.getElementById('mdEmail').value.trim() || null,
+    direccion: document.getElementById('mdDireccion').value.trim() || null,
+    notas: document.getElementById('mdNotas').value.trim() || null,
+    created_by: currentUser.id
+  };
+  const { data, error } = await sb.from('medicos').insert(payload).select('id').single();
+  btn.disabled = false; btn.textContent = 'Guardar médico';
+  if(error){ toast('Error al guardar médico: ' + error.message); return; }
+  await fetchAll();
+  renderMedicoOptions();
+  document.getElementById('pmMedicoSel').value = data.id;
+  closeModal('modalMedico');
+  toast('Médico añadido');
+}
+
 function openPatientModal(id){
   formFills = [];
   formMeds = [];
@@ -713,6 +905,8 @@ function openPatientModal(id){
     document.getElementById('pmDeleteBtn').style.display = 'block';
     document.getElementById('pmNeedsRx').checked = !!p.needsRx;
     document.getElementById('pmRxNote').value = p.rxNote || '';
+    renderMedicoOptions();
+    document.getElementById('pmMedicoSel').value = p.medicoId || '';
   } else {
     document.getElementById('pmTitle').textContent = 'Nuevo paciente';
     document.getElementById('pmId').value = '';
@@ -723,6 +917,8 @@ function openPatientModal(id){
     document.getElementById('pmDeleteBtn').style.display = 'none';
     document.getElementById('pmNeedsRx').checked = false;
     document.getElementById('pmRxNote').value = '';
+    renderMedicoOptions();
+    document.getElementById('pmMedicoSel').value = '';
   }
   document.getElementById('pmRxNoteWrap').style.display = document.getElementById('pmNeedsRx').checked ? 'block' : 'none';
   document.getElementById('pmMedInput').value = '';
@@ -767,6 +963,7 @@ async function savePatient(){
     cat: document.getElementById('pmCat').value,
     plan: document.getElementById('pmPlan').value,
     med: formMeds.length ? formMeds.join(', ') : null,
+    medico_id: document.getElementById('pmMedicoSel').value || null,
     needs_rx: document.getElementById('pmNeedsRx').checked,
     rx_note: document.getElementById('pmRxNote').value.trim() || null,
   };
