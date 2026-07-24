@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+<title>Adherencia PR — Panel de Farmacia</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,500&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{
+  --paper:#FAF5EC; --card:#FFFFFF; --navy:#17253F; --navy2:#22365A;
+  --amber:#C67C2E; --amber-soft:#F3DCB8; --green:#3F7D5C; --green-soft:#DCEEE3;
+  --warn:#D9A441; --warn-soft:#F7E9CC; --red:#B94436; --red-soft:#F5DAD4;
+  --ink:#241F1A; --ink-soft:#6B6459; --line:#E7DDC9; --radius:14px;
+}
+*{box-sizing:border-box;}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:'Source Serif 4',serif;-webkit-tap-highlight-color:transparent;}
+h1,h2,h3,.disp{font-family:'Space Grotesk',sans-serif;letter-spacing:-0.01em;}
+.mono{font-family:'IBM Plex Mono',monospace;}
+
+header.top{background:linear-gradient(160deg,var(--navy) 0%,var(--navy2) 100%);color:#F4EEDD;padding:22px 18px 26px;border-bottom:4px solid var(--amber);}
+header.top .eyebrow{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--amber-soft);opacity:.9;}
+header.top h1{font-size:22px;margin:4px 0 2px;font-weight:700;}
+header.top .sub{font-size:13px;color:#C9CFDB;font-family:'IBM Plex Mono',monospace;display:flex;align-items:center;gap:7px;}
+.dot{width:7px;height:7px;border-radius:50%;background:#6B7A94;flex:0 0 auto;}
+.dot.live{background:#7FD69A;box-shadow:0 0 0 3px rgba(127,214,154,.25);}
+.dot.err{background:#E88676;}
+
+.stats-row{display:flex;gap:10px;margin-top:16px;overflow-x:auto;padding-bottom:2px;}
+.stat-pill{flex:0 0 auto;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);border-radius:12px;padding:9px 13px;min-width:84px;}
+.stat-pill .n{font-family:'Space Grotesk',sans-serif;font-size:19px;font-weight:700;}
+.stat-pill .l{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:#C9CFDB;font-family:'IBM Plex Mono',monospace;}
+.stat-pill.crit .n{color:#F0A79A;} .stat-pill.warn .n{color:var(--warn-soft);} .stat-pill.ok .n{color:#A9D7BE;}
+
+nav.tabs{display:flex;position:sticky;top:0;z-index:20;background:var(--paper);border-bottom:1px solid var(--line);overflow-x:auto;}
+nav.tabs button{flex:0 0 auto;border:none;background:none;font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:600;color:var(--ink-soft);padding:13px 16px 11px;border-bottom:3px solid transparent;cursor:pointer;white-space:nowrap;}
+nav.tabs button.active{color:var(--navy);border-bottom-color:var(--amber);}
+
+main{padding:16px;max-width:860px;margin:0 auto;padding-bottom:90px;}
+.view{display:none;} .view.active{display:block;}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:14px;margin-bottom:12px;}
+.section-title{font-size:12px;text-transform:uppercase;letter-spacing:.1em;color:var(--ink-soft);font-family:'IBM Plex Mono',monospace;margin:18px 0 8px;}
+.section-title:first-child{margin-top:0;}
+
+.pcard{display:flex;align-items:center;gap:12px;padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--card);margin-bottom:9px;cursor:pointer;}
+.pcard .bottle{width:38px;height:46px;border-radius:6px 6px 10px 10px;position:relative;flex:0 0 auto;background:var(--paper);border:2px solid var(--line);overflow:hidden;}
+.pcard .bottle .fill{position:absolute;bottom:0;left:0;right:0;transition:height .3s;}
+.pcard .bottle .cap{position:absolute;top:-2px;left:8px;right:8px;height:7px;background:var(--ink-soft);border-radius:2px 2px 0 0;}
+.pcard .info{flex:1;min-width:0;}
+.pcard .name{font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:14.5px;color:var(--navy);}
+.pcard .meds{font-size:11.5px;color:var(--ink-soft);font-family:'IBM Plex Mono',monospace;margin-top:2px;}
+.pcard .pdc{text-align:right;flex:0 0 auto;}
+.pcard .pdc .pct{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:17px;}
+.pcard .pdc .lbl{font-size:9.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-soft);}
+.tag{display:inline-block;font-size:10px;font-family:'IBM Plex Mono',monospace;padding:2px 7px;border-radius:20px;margin:2px 4px 0 0;}
+.tag.ok{background:var(--green-soft);color:var(--green);} .tag.warn{background:var(--warn-soft);color:#8A6417;} .tag.crit{background:var(--red-soft);color:var(--red);}
+
+label{display:block;font-size:11.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-soft);font-family:'IBM Plex Mono',monospace;margin:12px 0 5px;}
+label:first-child{margin-top:0;}
+input,select,textarea{width:100%;padding:10px 12px;border:1.5px solid var(--line);border-radius:9px;font-family:'Source Serif 4',serif;font-size:15px;background:#fff;color:var(--ink);}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--amber);}
+textarea{resize:vertical;min-height:60px;}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:14px;padding:12px 18px;border-radius:10px;border:none;cursor:pointer;width:100%;margin-top:16px;}
+.btn.primary{background:var(--navy);color:#F4EEDD;} .btn.amber{background:var(--amber);color:#fff;}
+.btn.ghost{background:none;border:1.5px solid var(--line);color:var(--ink);} .btn.danger{background:var(--red-soft);color:var(--red);}
+.btn.sm{width:auto;padding:8px 14px;font-size:12.5px;margin-top:0;}
+.btn:disabled{opacity:.55;cursor:default;}
+
+.fab{position:fixed;bottom:20px;right:20px;width:56px;height:56px;border-radius:50%;background:var(--amber);color:#fff;border:none;font-size:26px;box-shadow:0 6px 18px rgba(198,124,46,.4);cursor:pointer;z-index:30;}
+
+.overlay{position:fixed;inset:0;background:rgba(23,37,63,.5);z-index:40;display:none;align-items:flex-end;justify-content:center;}
+.overlay.show{display:flex;}
+.modal{background:var(--paper);width:100%;max-width:520px;max-height:90vh;overflow-y:auto;border-radius:20px 20px 0 0;padding:20px 18px 26px;}
+.modal h2{margin:0 0 2px;font-size:18px;color:var(--navy);}
+.modal-head{display:flex;justify-content:space-between;align-items:flex-start;}
+.x{background:none;border:none;font-size:22px;color:var(--ink-soft);cursor:pointer;padding:2px 6px;}
+
+.empty{text-align:center;padding:40px 20px;color:var(--ink-soft);}
+.empty .disp{font-size:15px;color:var(--navy);margin-bottom:4px;} .empty p{font-size:13px;margin:0;}
+
+.fillrow{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--line);font-size:13.5px;}
+.fillrow:last-child{border-bottom:none;}
+.fillrow .d{font-family:'IBM Plex Mono',monospace;color:var(--ink-soft);font-size:12px;}
+.small-x{background:none;border:none;color:var(--red);font-size:16px;cursor:pointer;padding:2px 8px;}
+
+.toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--navy);color:#F4EEDD;padding:10px 18px;border-radius:30px;font-size:13px;font-family:'Space Grotesk',sans-serif;opacity:0;transition:all .25s;z-index:50;pointer-events:none;max-width:88vw;text-align:center;}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+
+.filters{display:flex;gap:8px;overflow-x:auto;margin-bottom:12px;padding-bottom:2px;}
+.filters button{flex:0 0 auto;font-family:'IBM Plex Mono',monospace;font-size:11.5px;padding:6px 12px;border-radius:20px;border:1.5px solid var(--line);background:#fff;color:var(--ink-soft);cursor:pointer;}
+.filters button.on{background:var(--navy);color:#F4EEDD;border-color:var(--navy);}
+
+.intv-item{border-left:3px solid var(--amber);padding:8px 0 8px 12px;margin-bottom:10px;}
+.intv-item .who{font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:13.5px;color:var(--navy);}
+.intv-item .meta{font-size:11px;color:var(--ink-soft);font-family:'IBM Plex Mono',monospace;margin:2px 0 4px;}
+.intv-item .note{font-size:13px;}
+
+.helptext{font-size:12px;color:var(--ink-soft);margin-top:4px;line-height:1.5;}
+
+/* ---- gate screens (config / login) ---- */
+.gate{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;}
+.gate-card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:26px 22px;max-width:400px;width:100%;}
+.gate-card .eyebrow{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--amber);}
+.gate-card h2{margin:4px 0 6px;color:var(--navy);font-size:20px;}
+.gate-card p{font-size:13.5px;color:var(--ink-soft);line-height:1.5;margin:0 0 4px;}
+.err-box{background:var(--red-soft);color:var(--red);font-size:12.5px;padding:9px 12px;border-radius:9px;margin-top:12px;display:none;}
+.err-box.show{display:block;}
+.spinner{width:16px;height:16px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;display:inline-block;animation:spin .7s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+#appRoot{display:none;}
+</style>
+</head>
+<body>
+
+<!-- GATE: config Supabase (primera vez en este dispositivo) -->
+<div class="gate" id="gateConfig">
+  <div class="gate-card">
+    <div class="eyebrow">Configuración inicial</div>
+    <h2>Conectar con Supabase</h2>
+    <p>Solo se pide una vez por dispositivo. Estos datos se guardan localmente y nunca se comparten con nadie más que tu propio proyecto de Supabase.</p>
+    <label>URL del proyecto</label>
+    <input id="cfgUrl" placeholder="https://xxxxx.supabase.co">
+    <label>Anon public key</label>
+    <input id="cfgKey" placeholder="eyJhbGciOi...">
+    <label>Schema (piso)</label>
+    <input id="cfgSchema" placeholder="adherencia" value="adherencia">
+    <div class="err-box" id="cfgErr"></div>
+    <button class="btn amber" id="cfgSaveBtn" onclick="saveConfig()">Conectar</button>
+    <p class="helptext">Si esta farmacia ya usa EntregaMeds, usa la misma URL y anon key de ese proyecto — este piso vive separado dentro del mismo edificio. Corre <b>supabase_schema_adherencia.sql</b> primero y añade "adherencia" en Settings → API → Exposed schemas.</p>
+  </div>
+</div>
+
+<!-- GATE: login -->
+<div class="gate" id="gateLogin" style="display:none;">
+  <div class="gate-card">
+    <div class="eyebrow">Acceso protegido</div>
+    <h2>Iniciar sesión</h2>
+    <p>Solo cuentas creadas por el administrador de la farmacia pueden entrar.</p>
+    <label>Correo</label>
+    <input id="loginEmail" type="email" placeholder="tu@correo.com" autocomplete="username">
+    <label>Contraseña</label>
+    <input id="loginPass" type="password" placeholder="••••••••" autocomplete="current-password">
+    <div class="err-box" id="loginErr"></div>
+    <button class="btn primary" id="loginBtn" onclick="doLogin()">Entrar</button>
+    <button class="btn ghost sm" style="width:100%;margin-top:10px;" onclick="resetConfig()">Cambiar proyecto Supabase</button>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="appRoot">
+<header class="top">
+  <div class="eyebrow">Panel interno · Farmacia</div>
+  <h1>Adherencia &amp; Estrellas</h1>
+  <div class="sub"><span class="dot" id="syncDot"></span><span id="syncLabel">Conectando…</span></div>
+  <div class="stats-row" id="statsRow"></div>
+</header>
+
+<nav class="tabs" id="tabs">
+  <button data-view="dash" class="active">Panel</button>
+  <button data-view="pacientes">Pacientes</button>
+  <button data-view="intervenciones">Intervenciones</button>
+  <button data-view="reportes">Reportes</button>
+</nav>
+
+<main>
+  <div class="view active" id="view-dash">
+    <div class="section-title">Brechas priorizadas</div>
+    <div id="gapList"></div>
+  </div>
+
+  <div class="view" id="view-pacientes">
+    <div class="filters" id="catFilters">
+      <button data-cat="all" class="on">Todos</button>
+      <button data-cat="Estatina">Estatina</button>
+      <button data-cat="Hipertensión">Hipertensión</button>
+      <button data-cat="Diabetes">Diabetes</button>
+    </div>
+    <div id="patientList"></div>
+  </div>
+
+  <div class="view" id="view-intervenciones">
+    <div class="section-title">Bitácora de intervenciones</div>
+    <div id="intvList"></div>
+  </div>
+
+  <div class="view" id="view-reportes">
+    <div class="card">
+      <h3 style="margin:0 0 4px;color:var(--navy);">Resumen para EQUIPP / plan</h3>
+      <p class="helptext">Exporta un CSV con el PDC actual de cada paciente y sus intervenciones documentadas.</p>
+      <button class="btn amber" onclick="exportCSV()">Descargar CSV</button>
+    </div>
+    <div class="card">
+      <h3 style="margin:0 0 4px;color:var(--navy);">¿Cómo se calcula el PDC?</h3>
+      <p class="helptext">
+        PDC = días cubiertos (sin contar solapes entre resurtidos) ÷ días del período de medición (desde el primer despacho del año hasta hoy).<br><br>
+        <b style="color:var(--green);">≥80%</b> — al día, cuenta para 5 estrellas.<br>
+        <b style="color:#8A6417;">70–79%</b> — en riesgo.<br>
+        <b style="color:var(--red);">&lt;70%</b> — brecha crítica.
+      </p>
+    </div>
+    <div class="card">
+      <h3 style="margin:0 0 4px;color:var(--navy);">Cuenta</h3>
+      <div id="whoami" class="helptext"></div>
+      <button class="btn ghost" onclick="doLogout()">Cerrar sesión</button>
+    </div>
+  </div>
+</main>
+
+<button class="fab" id="fabAdd" title="Añadir paciente">+</button>
+</div>
+
+<!-- MODAL: paciente -->
+<div class="overlay" id="modalPatient">
+  <div class="modal">
+    <div class="modal-head">
+      <h2 id="pmTitle">Nuevo paciente</h2>
+      <button class="x" onclick="closeModal('modalPatient')">×</button>
+    </div>
+    <input type="hidden" id="pmId">
+    <label>Nombre del paciente</label>
+    <input id="pmName" placeholder="Nombre y apellido">
+    <div class="row2">
+      <div>
+        <label>Categoría</label>
+        <select id="pmCat"><option>Estatina</option><option>Hipertensión</option><option>Diabetes</option></select>
+      </div>
+      <div>
+        <label>Plan médico</label>
+        <select id="pmPlan">
+          <option>MCS</option><option>Triple-S Advantage</option><option>MMM/PMC</option>
+          <option>First Medical</option><option>Plan Vital</option><option>Otro</option>
+        </select>
+      </div>
+    </div>
+    <label>Medicamento</label>
+    <input id="pmMed" placeholder="Ej. Atorvastatina 20mg">
+
+    <div id="pmFillsSection" style="display:none;">
+      <div class="section-title" style="margin-top:20px;">Historial de resurtidos</div>
+      <div id="pmFillsList"></div>
+      <div class="row2" style="margin-top:10px;">
+        <div><label>Fecha de despacho</label><input type="date" id="pmFillDate"></div>
+        <div><label>Días de suplido</label><input type="number" id="pmFillDays" placeholder="30" min="1"></div>
+      </div>
+      <button class="btn ghost sm" style="width:100%;margin-top:10px;" onclick="addFillToForm()">+ Añadir resurtido</button>
+    </div>
+
+    <button class="btn primary" id="pmSaveBtn" onclick="savePatient()">Guardar paciente</button>
+    <button class="btn danger" id="pmDeleteBtn" style="display:none;" onclick="deletePatientFromModal()">Eliminar paciente</button>
+  </div>
+</div>
+
+<!-- MODAL: intervención -->
+<div class="overlay" id="modalIntv">
+  <div class="modal">
+    <div class="modal-head"><h2>Registrar intervención</h2><button class="x" onclick="closeModal('modalIntv')">×</button></div>
+    <input type="hidden" id="imPatientId">
+    <div id="imPatientName" style="font-family:'Space Grotesk',sans-serif;font-weight:600;color:var(--navy);margin-top:6px;"></div>
+    <label>Tipo de intervención</label>
+    <select id="imType">
+      <option>Llamada de resurtido</option><option>Consejería en mostrador</option>
+      <option>Sincronización de medicamentos</option><option>Notificación al médico</option>
+      <option>CMR (revisión comprensiva)</option><option>Mensaje de texto / recordatorio</option>
+    </select>
+    <label>Notas</label>
+    <textarea id="imNotes" placeholder="Detalle de la intervención, barrera identificada, próximos pasos..."></textarea>
+    <button class="btn primary" id="imSaveBtn" onclick="saveIntervention()">Guardar intervención</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ================= Config & Supabase client ================= */
+const CFG_KEY = 'adherenciaPR_cfg';
+let supabase = null;
+let currentUser = null;
+let DB = { patients: [], interventions: [] };
+let realtimeChannel = null;
+
+function getConfig(){
+  try{ return JSON.parse(localStorage.getItem(CFG_KEY)); }catch(e){ return null; }
+}
+function setConfig(cfg){ localStorage.setItem(CFG_KEY, JSON.stringify(cfg)); }
+function resetConfig(){
+  localStorage.removeItem(CFG_KEY);
+  location.reload();
+}
+
+async function saveConfig(){
+  const url = document.getElementById('cfgUrl').value.trim();
+  const key = document.getElementById('cfgKey').value.trim();
+  const schema = document.getElementById('cfgSchema').value.trim() || 'public';
+  const errEl = document.getElementById('cfgErr');
+  errEl.classList.remove('show');
+  if(!url || !key || !url.startsWith('http')){
+    errEl.textContent = 'Ingresa la URL y la anon key completas de tu proyecto Supabase.';
+    errEl.classList.add('show');
+    return;
+  }
+  setConfig({url, key, schema});
+  boot();
+}
+
+function initGates(){
+  const cfg = getConfig();
+  if(!cfg){
+    document.getElementById('gateConfig').style.display = 'flex';
+    return;
+  }
+  boot();
+}
+
+async function boot(){
+  const cfg = getConfig();
+  document.getElementById('gateConfig').style.display = 'none';
+  try{
+    supabase = window.supabase.createClient(cfg.url, cfg.key, { db: { schema: cfg.schema || 'public' } });
+  }catch(e){
+    document.getElementById('gateConfig').style.display = 'flex';
+    document.getElementById('cfgErr').textContent = 'No se pudo conectar. Revisa la URL y la key.';
+    document.getElementById('cfgErr').classList.add('show');
+    return;
+  }
+  const { data: { session } } = await supabase.auth.getSession();
+  if(session && session.user){
+    currentUser = session.user;
+    showApp();
+  } else {
+    document.getElementById('gateLogin').style.display = 'flex';
+  }
+
+  supabase.auth.onAuthStateChange((event, session)=>{
+    if(event === 'SIGNED_IN' && session){
+      currentUser = session.user;
+      showApp();
+    } else if(event === 'SIGNED_OUT'){
+      currentUser = null;
+      document.getElementById('appRoot').style.display = 'none';
+      document.getElementById('gateLogin').style.display = 'flex';
+      if(realtimeChannel){ supabase.removeChannel(realtimeChannel); realtimeChannel = null; }
+    }
+  });
+}
+
+async function doLogin(){
+  const email = document.getElementById('loginEmail').value.trim();
+  const pass = document.getElementById('loginPass').value;
+  const errEl = document.getElementById('loginErr');
+  const btn = document.getElementById('loginBtn');
+  errEl.classList.remove('show');
+  if(!email || !pass){ errEl.textContent='Completa correo y contraseña.'; errEl.classList.add('show'); return; }
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Entrando…';
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password: pass });
+  btn.disabled = false; btn.textContent = 'Entrar';
+  if(error){
+    errEl.textContent = 'Correo o contraseña incorrectos.';
+    errEl.classList.add('show');
+    return;
+  }
+  currentUser = data.user;
+  showApp();
+}
+
+async function doLogout(){
+  if(!confirm('¿Cerrar sesión?')) return;
+  await supabase.auth.signOut();
+}
+
+async function showApp(){
+  document.getElementById('gateLogin').style.display = 'none';
+  document.getElementById('appRoot').style.display = 'block';
+  document.getElementById('whoami').textContent = 'Sesión activa: ' + (currentUser?.email || '');
+  setSyncStatus('connecting');
+  await fetchAll();
+  setupRealtime();
+  renderAll();
+}
+
+function setSyncStatus(state){
+  const dot = document.getElementById('syncDot');
+  const label = document.getElementById('syncLabel');
+  dot.className = 'dot';
+  if(state==='live'){ dot.classList.add('live'); label.textContent = 'Sincronizado en tiempo real'; }
+  else if(state==='err'){ dot.classList.add('err'); label.textContent = 'Sin conexión — reintentando…'; }
+  else { label.textContent = 'Conectando…'; }
+}
+
+/* ================= Data fetch ================= */
+async function fetchAll(){
+  const { data: patients, error: pErr } = await supabase
+    .from('patients').select('*, fills(id, fill_date, days_supply)').order('name');
+  if(pErr){ toast('Error cargando pacientes'); setSyncStatus('err'); return; }
+
+  const { data: intv, error: iErr } = await supabase
+    .from('interventions').select('*, patients(name)').order('intv_date', {ascending:false});
+  if(iErr){ toast('Error cargando intervenciones'); setSyncStatus('err'); return; }
+
+  DB.patients = (patients||[]).map(p=>({
+    id: p.id, name: p.name, cat: p.cat, plan: p.plan, med: p.med,
+    fills: (p.fills||[]).map(f=>({id:f.id, date:f.fill_date, days:f.days_supply}))
+  }));
+  DB.interventions = (intv||[]).map(i=>({
+    id: i.id, patientId: i.patient_id, date: i.intv_date, type: i.intv_type,
+    notes: i.notes, patientName: i.patients ? i.patients.name : null
+  }));
+  setSyncStatus('live');
+}
+
+function setupRealtime(){
+  if(realtimeChannel) supabase.removeChannel(realtimeChannel);
+  const cfg = getConfig();
+  const dbSchema = (cfg && cfg.schema) || 'public';
+  realtimeChannel = supabase.channel('adherencia-live')
+    .on('postgres_changes', {event:'*', schema:dbSchema, table:'patients'}, handleRemoteChange)
+    .on('postgres_changes', {event:'*', schema:dbSchema, table:'fills'}, handleRemoteChange)
+    .on('postgres_changes', {event:'*', schema:dbSchema, table:'interventions'}, handleRemoteChange)
+    .subscribe(status=>{
+      if(status==='SUBSCRIBED') setSyncStatus('live');
+      else if(status==='CHANNEL_ERROR' || status==='TIMED_OUT') setSyncStatus('err');
+    });
+}
+let refetchTimer = null;
+function handleRemoteChange(){
+  clearTimeout(refetchTimer);
+  refetchTimer = setTimeout(async ()=>{
+    await fetchAll();
+    renderAll();
+  }, 350);
+}
+
+/* ================= Utilities ================= */
+function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
+function todayStr(){ return new Date().toISOString().slice(0,10); }
+function fmtDate(s){ const d = new Date(s+'T00:00:00'); return d.toLocaleDateString('es-PR',{month:'short',day:'numeric',year:'numeric'}); }
+function toast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(toast._h); toast._h = setTimeout(()=>t.classList.remove('show'), 2200);
+}
+function escapeHTML(s){ return (s||'').replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+
+function calcPDC(patient){
+  const fills = (patient.fills||[]).slice().sort((a,b)=> a.date.localeCompare(b.date));
+  if(fills.length===0) return {pct:0, covered:0, periodDays:0, status:'crit'};
+  const yearStart = new Date(new Date().getFullYear(),0,1);
+  const today = new Date();
+  const firstFill = new Date(fills[0].date+'T00:00:00');
+  const periodStart = firstFill > yearStart ? firstFill : yearStart;
+  const periodDays = Math.max(1, Math.round((today - periodStart)/86400000) + 1);
+  const covered = new Set();
+  fills.forEach(f=>{
+    const start = new Date(f.date+'T00:00:00');
+    const days = parseInt(f.days)||0;
+    for(let i=0;i<days;i++){
+      const d = new Date(start); d.setDate(d.getDate()+i);
+      if(d < periodStart || d > today) continue;
+      covered.add(d.toISOString().slice(0,10));
+    }
+  });
+  const pct = Math.min(100, Math.round((covered.size/periodDays)*100));
+  let status = 'ok'; if(pct < 70) status = 'crit'; else if(pct < 80) status = 'warn';
+  return {pct, covered: covered.size, periodDays, status};
+}
+function statusLabel(s){ return s==='ok' ? 'Al día' : s==='warn' ? 'En riesgo' : 'Brecha crítica'; }
+function statusColor(s){ return s==='ok' ? 'var(--green)' : s==='warn' ? 'var(--warn)' : 'var(--red)'; }
+
+/* ================= Tabs ================= */
+document.getElementById('tabs').addEventListener('click', e=>{
+  const btn = e.target.closest('button[data-view]');
+  if(!btn) return;
+  document.querySelectorAll('nav.tabs button').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.getElementById('view-'+btn.dataset.view).classList.add('active');
+  renderAll();
+});
+
+/* ================= Render ================= */
+function renderStats(){
+  const withPdc = DB.patients.map(p=>({p, r:calcPDC(p)}));
+  const ok = withPdc.filter(x=>x.r.status==='ok').length;
+  const warn = withPdc.filter(x=>x.r.status==='warn').length;
+  const crit = withPdc.filter(x=>x.r.status==='crit').length;
+  const avg = withPdc.length ? Math.round(withPdc.reduce((s,x)=>s+x.r.pct,0)/withPdc.length) : 0;
+  document.getElementById('statsRow').innerHTML = `
+    <div class="stat-pill"><div class="n">${DB.patients.length}</div><div class="l">Pacientes</div></div>
+    <div class="stat-pill"><div class="n">${avg}%</div><div class="l">PDC prom.</div></div>
+    <div class="stat-pill ok"><div class="n">${ok}</div><div class="l">Al día</div></div>
+    <div class="stat-pill warn"><div class="n">${warn}</div><div class="l">En riesgo</div></div>
+    <div class="stat-pill crit"><div class="n">${crit}</div><div class="l">Brecha</div></div>`;
+}
+function patientCardHTML(p, r){
+  const color = statusColor(r.status);
+  return `
+  <div class="pcard" data-id="${p.id}">
+    <div class="bottle"><div class="fill" style="height:${r.pct}%;background:${color};"></div><div class="cap"></div></div>
+    <div class="info">
+      <div class="name">${escapeHTML(p.name)}</div>
+      <div class="meds">${escapeHTML(p.med||'—')}</div>
+      <span class="tag ${r.status}">${p.cat}</span>
+      <span class="tag" style="background:#EFE8D8;color:var(--ink-soft);">${p.plan}</span>
+    </div>
+    <div class="pdc"><div class="pct" style="color:${color};">${r.pct}%</div><div class="lbl">${statusLabel(r.status)}</div></div>
+  </div>`;
+}
+function renderDash(){
+  const list = DB.patients.map(p=>({p, r:calcPDC(p)})).filter(x=>x.r.status!=='ok').sort((a,b)=> a.r.pct - b.r.pct);
+  const el = document.getElementById('gapList');
+  if(list.length===0){ el.innerHTML = `<div class="empty"><div class="disp">Sin brechas activas</div><p>Todos los pacientes registrados están al día (PDC ≥ 80%).</p></div>`; return; }
+  el.innerHTML = list.map(x=> patientCardHTML(x.p, x.r)).join('');
+  el.querySelectorAll('.pcard').forEach(c=>c.addEventListener('click', ()=>openIntv(c.dataset.id)));
+}
+let activeCat = 'all';
+document.getElementById('catFilters').addEventListener('click', e=>{
+  const btn = e.target.closest('button[data-cat]'); if(!btn) return;
+  activeCat = btn.dataset.cat;
+  document.querySelectorAll('#catFilters button').forEach(b=>b.classList.remove('on'));
+  btn.classList.add('on');
+  renderPatients();
+});
+function renderPatients(){
+  let list = DB.patients.slice();
+  if(activeCat!=='all') list = list.filter(p=>p.cat===activeCat);
+  list = list.map(p=>({p, r:calcPDC(p)})).sort((a,b)=>a.r.pct-b.r.pct);
+  const el = document.getElementById('patientList');
+  if(list.length===0){ el.innerHTML = `<div class="empty"><div class="disp">Aún no hay pacientes</div><p>Toca el botón + para añadir el primero.</p></div>`; return; }
+  el.innerHTML = list.map(x=>patientCardHTML(x.p,x.r)).join('');
+  el.querySelectorAll('.pcard').forEach(c=>c.addEventListener('click', ()=>openPatientModal(c.dataset.id)));
+}
+function renderIntv(){
+  const list = DB.interventions.slice().sort((a,b)=> b.date.localeCompare(a.date));
+  const el = document.getElementById('intvList');
+  if(list.length===0){ el.innerHTML = `<div class="empty"><div class="disp">Sin intervenciones registradas</div><p>Documenta llamadas, consejerías o CMRs desde el perfil del paciente.</p></div>`; return; }
+  el.innerHTML = list.map(i=>`<div class="intv-item">
+      <div class="who">${escapeHTML(i.patientName || 'Paciente eliminado')}</div>
+      <div class="meta">${fmtDate(i.date)} · ${escapeHTML(i.type)}</div>
+      <div class="note">${escapeHTML(i.notes||'')}</div>
+    </div>`).join('');
+}
+function renderAll(){ renderStats(); renderDash(); renderPatients(); renderIntv(); }
+
+/* ================= Modal: patient ================= */
+let formFills = [];
+function openPatientModal(id){
+  formFills = [];
+  if(id){
+    const p = DB.patients.find(p=>p.id===id);
+    document.getElementById('pmTitle').textContent = 'Editar paciente';
+    document.getElementById('pmId').value = p.id;
+    document.getElementById('pmName').value = p.name;
+    document.getElementById('pmCat').value = p.cat;
+    document.getElementById('pmPlan').value = p.plan;
+    document.getElementById('pmMed').value = p.med||'';
+    formFills = (p.fills||[]).slice();
+    document.getElementById('pmFillsSection').style.display = 'block';
+    document.getElementById('pmDeleteBtn').style.display = 'block';
+  } else {
+    document.getElementById('pmTitle').textContent = 'Nuevo paciente';
+    document.getElementById('pmId').value = '';
+    document.getElementById('pmName').value = '';
+    document.getElementById('pmCat').value = 'Estatina';
+    document.getElementById('pmPlan').value = 'MCS';
+    document.getElementById('pmMed').value = '';
+    document.getElementById('pmFillsSection').style.display = 'none';
+    document.getElementById('pmDeleteBtn').style.display = 'none';
+  }
+  renderFillsInForm();
+  document.getElementById('pmFillDate').value = todayStr();
+  document.getElementById('pmFillDays').value = '30';
+  document.getElementById('modalPatient').classList.add('show');
+}
+function renderFillsInForm(){
+  const el = document.getElementById('pmFillsList');
+  if(formFills.length===0){ el.innerHTML = '<p class="helptext">Sin resurtidos aún.</p>'; return; }
+  const sorted = formFills.slice().sort((a,b)=>b.date.localeCompare(a.date));
+  el.innerHTML = sorted.map(f=>`<div class="fillrow"><span>${fmtDate(f.date)} <span class="d">· ${f.days}d suplido</span></span><button class="small-x" onclick="removeFillFromForm('${f._k||f.id}')">×</button></div>`).join('');
+}
+function addFillToForm(){
+  const date = document.getElementById('pmFillDate').value;
+  const days = document.getElementById('pmFillDays').value;
+  if(!date || !days || parseInt(days)<=0){ toast('Completa fecha y días de suplido'); return; }
+  formFills.push({_k:uid(), date, days: parseInt(days)});
+  renderFillsInForm();
+}
+function removeFillFromForm(k){
+  formFills = formFills.filter(f=>(f._k||f.id)!==k);
+  renderFillsInForm();
+}
+
+async function savePatient(){
+  const name = document.getElementById('pmName').value.trim();
+  if(!name){ toast('Escribe el nombre del paciente'); return; }
+  const id = document.getElementById('pmId').value;
+  const btn = document.getElementById('pmSaveBtn');
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Guardando…';
+
+  const payload = {
+    name,
+    cat: document.getElementById('pmCat').value,
+    plan: document.getElementById('pmPlan').value,
+    med: document.getElementById('pmMed').value.trim() || null,
+  };
+
+  try{
+    let patientId = id;
+    if(id){
+      const { error } = await supabase.from('patients').update(payload).eq('id', id);
+      if(error) throw error;
+      // reconcile fills: delete removed ones, insert new ones
+      const { data: existingFills } = await supabase.from('fills').select('id').eq('patient_id', id);
+      const keepIds = new Set(formFills.filter(f=>f.id).map(f=>f.id));
+      const toDelete = (existingFills||[]).filter(f=>!keepIds.has(f.id)).map(f=>f.id);
+      if(toDelete.length){
+        const { error: delErr } = await supabase.from('fills').delete().in('id', toDelete);
+        if(delErr) throw delErr;
+      }
+      const toInsert = formFills.filter(f=>!f.id).map(f=>({patient_id:id, fill_date:f.date, days_supply:f.days, created_by: currentUser.id}));
+      if(toInsert.length){
+        const { error: insErr } = await supabase.from('fills').insert(toInsert);
+        if(insErr) throw insErr;
+      }
+    } else {
+      const { data: inserted, error } = await supabase.from('patients')
+        .insert({...payload, created_by: currentUser.id}).select('id').single();
+      if(error) throw error;
+      patientId = inserted.id;
+      if(formFills.length){
+        const toInsert = formFills.map(f=>({patient_id: patientId, fill_date:f.date, days_supply:f.days, created_by: currentUser.id}));
+        const { error: insErr } = await supabase.from('fills').insert(toInsert);
+        if(insErr) throw insErr;
+      }
+    }
+    await fetchAll();
+    closeModal('modalPatient');
+    renderAll();
+    toast('Paciente guardado');
+  }catch(err){
+    toast('Error al guardar: ' + (err.message||'intenta de nuevo'));
+  }finally{
+    btn.disabled = false; btn.textContent = 'Guardar paciente';
+  }
+}
+
+async function deletePatientFromModal(){
+  const id = document.getElementById('pmId').value;
+  if(!id) return;
+  if(!confirm('¿Eliminar este paciente y su historial?')) return;
+  const { error } = await supabase.from('patients').delete().eq('id', id);
+  if(error){ toast('Error al eliminar'); return; }
+  await fetchAll();
+  closeModal('modalPatient');
+  renderAll();
+  toast('Paciente eliminado');
+}
+
+/* ================= Modal: intervention ================= */
+function openIntv(patientId){
+  const p = DB.patients.find(p=>p.id===patientId);
+  if(!p) return;
+  document.getElementById('imPatientId').value = patientId;
+  document.getElementById('imPatientName').textContent = p.name;
+  document.getElementById('imType').value = 'Llamada de resurtido';
+  document.getElementById('imNotes').value = '';
+  document.getElementById('modalIntv').classList.add('show');
+}
+async function saveIntervention(){
+  const patientId = document.getElementById('imPatientId').value;
+  const type = document.getElementById('imType').value;
+  const notes = document.getElementById('imNotes').value.trim();
+  const btn = document.getElementById('imSaveBtn');
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Guardando…';
+  const { error } = await supabase.from('interventions').insert({
+    patient_id: patientId, intv_date: todayStr(), intv_type: type, notes, created_by: currentUser.id
+  });
+  btn.disabled = false; btn.textContent = 'Guardar intervención';
+  if(error){ toast('Error al guardar intervención'); return; }
+  await fetchAll();
+  closeModal('modalIntv');
+  renderAll();
+  toast('Intervención registrada');
+}
+
+function closeModal(id){ document.getElementById(id).classList.remove('show'); }
+document.querySelectorAll('.overlay').forEach(o=>{ o.addEventListener('click', e=>{ if(e.target===o) o.classList.remove('show'); }); });
+document.getElementById('fabAdd').addEventListener('click', ()=>openPatientModal(null));
+
+/* ================= Export ================= */
+function exportCSV(){
+  const rows = [['Paciente','Categoría','Plan','Medicamento','PDC %','Estatus','Última intervención']];
+  DB.patients.forEach(p=>{
+    const r = calcPDC(p);
+    const lastIntv = DB.interventions.filter(i=>i.patientId===p.id).sort((a,b)=>b.date.localeCompare(a.date))[0];
+    rows.push([p.name, p.cat, p.plan, p.med||'', r.pct+'%', statusLabel(r.status), lastIntv?fmtDate(lastIntv.date)+' - '+lastIntv.type:'']);
+  });
+  const csv = rows.map(r=>r.map(c=>`"${(c+'').replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob = new Blob([csv], {type:'text/csv'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = `reporte_adherencia_${todayStr()}.csv`;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+  toast('CSV descargado');
+}
+
+/* ================= Init ================= */
+initGates();
+</script>
+</body>
+</html>
