@@ -110,6 +110,15 @@ textarea{resize:vertical;min-height:60px;}
 .spinner{width:16px;height:16px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;display:inline-block;animation:spin .7s linear infinite;}
 @keyframes spin{to{transform:rotate(360deg);}}
 #appRoot{display:none;}
+#printArea{display:none;}
+@media print{
+  body.printing-rx > *:not(#printArea){display:none !important;}
+  body.printing-rx #printArea{display:block !important;padding:24px;font-family:'Source Serif 4',serif;color:#000;}
+  #printArea h2{font-family:'Space Grotesk',sans-serif;margin-bottom:4px;}
+  #printArea table{width:100%;border-collapse:collapse;margin-top:14px;}
+  #printArea th,#printArea td{border:1px solid #999;padding:7px 9px;text-align:left;font-size:13px;}
+  #printArea th{background:#eee;}
+}
 </style>
 </head>
 <body>
@@ -187,6 +196,16 @@ textarea{resize:vertical;min-height:60px;}
 
   <div class="view" id="view-reportes">
     <div class="card">
+      <h3 style="margin:0 0 4px;color:var(--navy);">📋 Rx pendientes con el médico</h3>
+      <p class="helptext">Pacientes marcados como "Necesita Rx nueva del médico" desde su perfil.</p>
+      <div id="rxList" style="margin-top:10px;"></div>
+      <div class="row2" style="margin-top:6px;">
+        <button class="btn ghost sm" style="width:100%;" onclick="printRxList()">🖨️ Imprimir</button>
+        <button class="btn ghost sm" style="width:100%;" onclick="shareEmailRx()">✉️ Correo</button>
+      </div>
+      <button class="btn amber" onclick="shareWhatsAppRx()">Enviar por WhatsApp</button>
+    </div>
+    <div class="card">
       <h3 style="margin:0 0 4px;color:var(--navy);">Resumen para EQUIPP / plan</h3>
       <p class="helptext">Exporta un CSV con el PDC actual de cada paciente y sus intervenciones documentadas.</p>
       <button class="btn amber" onclick="exportCSV()">Descargar CSV</button>
@@ -242,6 +261,15 @@ textarea{resize:vertical;min-height:60px;}
     </div>
     <p class="helptext">Añade todos los que aplique — por ejemplo si cambió de estatina a mitad de año, o toma más de un producto de la misma categoría. El PDC cuenta el día como cubierto si tenía disponible cualquiera de ellos.</p>
 
+    <label style="display:flex;align-items:center;gap:8px;margin-top:16px;">
+      <input type="checkbox" id="pmNeedsRx" style="width:auto;">
+      <span style="text-transform:none;font-family:'Source Serif 4',serif;font-size:14.5px;letter-spacing:0;color:var(--ink);">Necesita Rx nueva del médico</span>
+    </label>
+    <div id="pmRxNoteWrap" style="display:none;">
+      <label>Nota para el médico (opcional)</label>
+      <textarea id="pmRxNote" placeholder="Ej. Sin refills disponibles, paciente reporta que le quedan 2 dosis"></textarea>
+    </div>
+
     <div id="pmFillsSection" style="display:none;">
       <div class="section-title" style="margin-top:20px;">Historial de resurtidos</div>
       <div id="pmFillsList"></div>
@@ -278,6 +306,7 @@ textarea{resize:vertical;min-height:60px;}
 </div>
 
 <div class="toast" id="toast"></div>
+<div id="printArea"></div>
 
 <script>
 /* ================= Config & Supabase client ================= */
@@ -432,6 +461,7 @@ async function fetchAll(){
 
   DB.patients = (patients||[]).map(p=>({
     id: p.id, name: p.name, cat: p.cat, plan: p.plan, med: p.med,
+    needsRx: !!p.needs_rx, rxNote: p.rx_note,
     fills: (p.fills||[]).map(f=>({id:f.id, date:f.fill_date, days:f.days_supply, med:f.med_name||null}))
   }));
   DB.interventions = (intv||[]).map(i=>({
@@ -534,6 +564,7 @@ function patientCardHTML(p, r){
       <div class="meds">${escapeHTML(p.med||'—')}</div>
       <span class="tag ${r.status}">${p.cat}</span>
       <span class="tag" style="background:#EFE8D8;color:var(--ink-soft);">${p.plan}</span>
+      ${p.needsRx ? '<span class="tag" style="background:#E7DEF2;color:#5B3E96;">📋 Rx pendiente</span>' : ''}
     </div>
     <div class="pdc"><div class="pct" style="color:${color};">${r.pct}%</div><div class="lbl">${statusLabel(r.status)}</div></div>
   </div>`;
@@ -572,7 +603,64 @@ function renderIntv(){
       <div class="note">${escapeHTML(i.notes||'')}</div>
     </div>`).join('');
 }
-function renderAll(){ renderStats(); renderDash(); renderPatients(); renderIntv(); }
+function renderAll(){ renderStats(); renderDash(); renderPatients(); renderIntv(); renderRxList(); }
+
+function getRxPatients(){
+  return DB.patients.filter(p=>p.needsRx);
+}
+function renderRxList(){
+  const el = document.getElementById('rxList');
+  if(!el) return;
+  const list = getRxPatients();
+  if(list.length===0){ el.innerHTML = '<p class="helptext">Ningún paciente marcado ahora mismo. Actívalo desde el perfil del paciente ("Necesita Rx nueva del médico").</p>'; return; }
+  el.innerHTML = list.map(p=>`
+    <div class="fillrow" style="align-items:flex-start;">
+      <span>
+        <b style="font-family:'Space Grotesk',sans-serif;color:var(--navy);">${escapeHTML(p.name)}</b><br>
+        <span class="d">${escapeHTML(p.med||p.cat)} · ${escapeHTML(p.plan)}</span>
+        ${p.rxNote ? `<br><span class="d">${escapeHTML(p.rxNote)}</span>` : ''}
+      </span>
+    </div>`).join('');
+}
+function buildRxSummaryText(){
+  const list = getRxPatients();
+  if(list.length===0) return 'No hay pacientes pendientes de Rx en este momento.';
+  const lines = [`Pacientes que necesitan Rx nueva del médico (${fmtDate(todayStr())}):`, ''];
+  list.forEach(p=>{
+    lines.push(`• ${p.name} — ${p.med || p.cat} (${p.plan})${p.rxNote ? ' — ' + p.rxNote : ''}`);
+  });
+  return lines.join('\n');
+}
+function printRxList(){
+  const list = getRxPatients();
+  const rows = list.map(p=>`
+    <tr>
+      <td>${escapeHTML(p.name)}</td>
+      <td>${escapeHTML(p.cat)}</td>
+      <td>${escapeHTML(p.med||'—')}</td>
+      <td>${escapeHTML(p.plan)}</td>
+      <td>${escapeHTML(p.rxNote||'')}</td>
+    </tr>`).join('');
+  document.getElementById('printArea').innerHTML = `
+    <h2>Rx pendientes con el médico</h2>
+    <p>${fmtDate(todayStr())} · ${list.length} paciente(s)</p>
+    <table>
+      <tr><th>Paciente</th><th>Categoría</th><th>Medicamento</th><th>Plan</th><th>Nota</th></tr>
+      ${rows || '<tr><td colspan="5">Ningún paciente pendiente.</td></tr>'}
+    </table>`;
+  document.body.classList.add('printing-rx');
+  window.print();
+  setTimeout(()=> document.body.classList.remove('printing-rx'), 300);
+}
+function shareWhatsAppRx(){
+  const text = encodeURIComponent(buildRxSummaryText());
+  window.location.href = 'whatsapp://send?text=' + text;
+}
+function shareEmailRx(){
+  const subject = encodeURIComponent('Rx pendientes con el médico — ' + fmtDate(todayStr()));
+  const body = encodeURIComponent(buildRxSummaryText());
+  window.location.href = 'mailto:?subject=' + subject + '&body=' + body;
+}
 
 /* ================= Modal: patient ================= */
 let formFills = [];
@@ -623,6 +711,8 @@ function openPatientModal(id){
     formFills = (p.fills||[]).slice();
     document.getElementById('pmFillsSection').style.display = 'block';
     document.getElementById('pmDeleteBtn').style.display = 'block';
+    document.getElementById('pmNeedsRx').checked = !!p.needsRx;
+    document.getElementById('pmRxNote').value = p.rxNote || '';
   } else {
     document.getElementById('pmTitle').textContent = 'Nuevo paciente';
     document.getElementById('pmId').value = '';
@@ -631,7 +721,10 @@ function openPatientModal(id){
     document.getElementById('pmPlan').value = 'MCS';
     document.getElementById('pmFillsSection').style.display = 'none';
     document.getElementById('pmDeleteBtn').style.display = 'none';
+    document.getElementById('pmNeedsRx').checked = false;
+    document.getElementById('pmRxNote').value = '';
   }
+  document.getElementById('pmRxNoteWrap').style.display = document.getElementById('pmNeedsRx').checked ? 'block' : 'none';
   document.getElementById('pmMedInput').value = '';
   renderMedsChips();
   renderFillsInForm();
@@ -658,6 +751,10 @@ function removeFillFromForm(k){
   renderFillsInForm();
 }
 
+document.getElementById('pmNeedsRx').addEventListener('change', e=>{
+  document.getElementById('pmRxNoteWrap').style.display = e.target.checked ? 'block' : 'none';
+});
+
 async function savePatient(){
   const name = document.getElementById('pmName').value.trim();
   if(!name){ toast('Escribe el nombre del paciente'); return; }
@@ -670,6 +767,8 @@ async function savePatient(){
     cat: document.getElementById('pmCat').value,
     plan: document.getElementById('pmPlan').value,
     med: formMeds.length ? formMeds.join(', ') : null,
+    needs_rx: document.getElementById('pmNeedsRx').checked,
+    rx_note: document.getElementById('pmRxNote').value.trim() || null,
   };
 
   try{
