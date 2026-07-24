@@ -168,15 +168,23 @@ textarea{resize:vertical;min-height:60px;}
 <nav class="tabs" id="tabs">
   <button data-view="dash" class="active">Panel</button>
   <button data-view="pacientes">Pacientes</button>
+  <button data-view="cmr">CMR</button>
   <button data-view="intervenciones">Intervenciones</button>
   <button data-view="reportes">Reportes</button>
 </nav>
 
 <main>
   <div class="view active" id="view-dash">
+    <div class="card amber" id="resumenDiaCard">
+      <h3 style="margin:0 0 8px;color:var(--navy);">☀️ Resumen de hoy</h3>
+      <div id="resumenDiaBody"></div>
+    </div>
     <select id="planFilterDash" onchange="setActivePlan(this.value)" style="margin-bottom:12px;"><option value="all">Todos los planes</option></select>
     <div class="section-title">Brechas priorizadas</div>
     <div id="gapList"></div>
+    <div class="section-title" style="margin-top:22px;">🔔 En riesgo temprano</div>
+    <p class="helptext" style="margin-top:-6px;margin-bottom:10px;">Todavía al día, pero el resurtido está atrasado o el PDC está cerca de bajar de 80%. Llamarlos ahora evita que caigan en la lista de arriba.</p>
+    <div id="earlyRiskList"></div>
   </div>
 
   <div class="view" id="view-pacientes">
@@ -188,6 +196,12 @@ textarea{resize:vertical;min-height:60px;}
       <button data-cat="Diabetes">Diabetes</button>
     </div>
     <div id="patientList"></div>
+  </div>
+
+  <div class="view" id="view-cmr">
+    <button class="btn amber" onclick="openCmrModal()">+ Nueva CMR</button>
+    <div class="section-title" style="margin-top:16px;">CMR / MTM pendientes</div>
+    <div id="cmrList"></div>
   </div>
 
   <div class="view" id="view-intervenciones">
@@ -207,6 +221,11 @@ textarea{resize:vertical;min-height:60px;}
         <button class="btn ghost sm" style="width:100%;" onclick="shareEmailRx()">✉️ Correo</button>
       </div>
       <button class="btn amber" onclick="shareWhatsAppRx()">Enviar por WhatsApp</button>
+    </div>
+    <div class="card">
+      <h3 style="margin:0 0 4px;color:var(--navy);">🎯 Progreso hacia 5 estrellas</h3>
+      <p class="helptext">% de pacientes con PDC ≥ 80% por plan, contra la meta que definas (varía por año/medida — pon la que te indique cada plan).</p>
+      <div id="estrellasList" style="margin-top:10px;"></div>
     </div>
     <div class="card">
       <h3 style="margin:0 0 4px;color:var(--navy);">🩺 Directorio de médicos</h3>
@@ -293,8 +312,32 @@ textarea{resize:vertical;min-height:60px;}
       <button type="button" class="btn ghost sm" style="width:100%;margin-top:8px;" onclick="duplicatePatientCategory(event)">🔁 Crear en esa categoría</button>
     </div>
 
+    <div id="pmTimelineSection" style="display:none;margin-top:18px;">
+      <div class="section-title">Historial de intervenciones de este paciente</div>
+      <div id="pmTimelineList"></div>
+    </div>
+
     <button class="btn primary" id="pmSaveBtn" onclick="savePatient()">Guardar paciente</button>
     <button class="btn danger" id="pmDeleteBtn" style="display:none;" onclick="deletePatientFromModal()">Eliminar paciente</button>
+  </div>
+</div>
+
+<!-- MODAL: CMR -->
+<div class="overlay" id="modalCmr">
+  <div class="modal">
+    <div class="modal-head"><h2 id="cmrTitle">Nueva CMR</h2><button class="x" onclick="closeModal('modalCmr')">×</button></div>
+    <input type="hidden" id="cmrId">
+    <label>Nombre del paciente</label>
+    <input id="cmrPatientName" placeholder="Nombre y apellido">
+    <label>Plan</label>
+    <select id="cmrPlan"><option>MCS</option><option>Triple-S Advantage</option><option>MMM/PMC</option><option>First Medical</option><option>Plan Vital</option><option>Otro</option></select>
+    <label>Fecha límite</label>
+    <input type="date" id="cmrDueDate">
+    <label>Notas (opcional)</label>
+    <textarea id="cmrNotes" placeholder="Condiciones a revisar, contacto del paciente..."></textarea>
+    <button class="btn primary" id="cmrSaveBtn" onclick="saveCmr()">Guardar</button>
+    <button class="btn amber" id="cmrCompleteBtn" style="display:none;" onclick="completeCmr()">✅ Marcar como completada</button>
+    <button class="btn danger" id="cmrDeleteBtn" style="display:none;" onclick="deleteCmr()">Eliminar</button>
   </div>
 </div>
 
@@ -346,7 +389,7 @@ textarea{resize:vertical;min-height:60px;}
 const CFG_KEY = 'adherenciaPR_cfg';
 let sb = null;
 let currentUser = null;
-let DB = { patients: [], interventions: [], medicos: [] };
+let DB = { patients: [], interventions: [], medicos: [], cmr: [], metas: [] };
 let realtimeChannel = null;
 
 function getConfig(){
@@ -508,6 +551,12 @@ async function fetchAll(){
     notes: i.notes, patientName: i.patients ? i.patients.name : null
   }));
   DB.medicos = medicos||[];
+
+  const { data: cmr, error: cErr } = await sb.from('cmr').select('*').order('due_date', {ascending:true, nullsFirst:false});
+  if(cErr){ toast('Error cargando CMR'); } else { DB.cmr = cmr||[]; }
+
+  const { data: metas, error: metasErr } = await sb.from('metas').select('*');
+  if(metasErr){ toast('Error cargando metas'); } else { DB.metas = metas||[]; }
   setSyncStatus('live');
 }
 
@@ -520,6 +569,8 @@ function setupRealtime(){
     .on('postgres_changes', {event:'*', schema:dbSchema, table:'fills'}, handleRemoteChange)
     .on('postgres_changes', {event:'*', schema:dbSchema, table:'interventions'}, handleRemoteChange)
     .on('postgres_changes', {event:'*', schema:dbSchema, table:'medicos'}, handleRemoteChange)
+    .on('postgres_changes', {event:'*', schema:dbSchema, table:'cmr'}, handleRemoteChange)
+    .on('postgres_changes', {event:'*', schema:dbSchema, table:'metas'}, handleRemoteChange)
     .subscribe(status=>{
       if(status==='SUBSCRIBED') setSyncStatus('live');
       else if(status==='CHANNEL_ERROR' || status==='TIMED_OUT') setSyncStatus('err');
@@ -569,6 +620,27 @@ function calcPDC(patient){
 }
 function statusLabel(s){ return s==='ok' ? 'Al día' : s==='warn' ? 'En riesgo' : 'Brecha crítica'; }
 function statusColor(s){ return s==='ok' ? 'var(--green)' : s==='warn' ? 'var(--warn)' : 'var(--red)'; }
+
+/* Próximo resurtido esperado = fecha del último despacho + sus días de suplido.
+   Si ya pasó esa fecha con margen, está atrasado (riesgo temprano aunque el PDC siga bien). */
+function nextFillInfo(patient){
+  const fills = (patient.fills||[]).slice().sort((a,b)=> b.date.localeCompare(a.date));
+  if(fills.length===0) return null;
+  const last = fills[0];
+  const expected = new Date(last.date+'T00:00:00');
+  expected.setDate(expected.getDate() + (parseInt(last.days)||0));
+  const today = new Date();
+  const daysLate = Math.round((today - expected)/86400000);
+  return { expectedDate: expected.toISOString().slice(0,10), daysLate };
+}
+const GRACE_DAYS = 5; // margen antes de considerarlo atrasado
+function isEarlyRisk(patient, pdcResult){
+  if(pdcResult.status !== 'ok') return false; // ya está en Panel de brechas, no hace falta duplicar
+  const nf = nextFillInfo(patient);
+  const lateFlag = nf && nf.daysLate > GRACE_DAYS;
+  const bufferFlag = pdcResult.pct >= 80 && pdcResult.pct <= 86;
+  return lateFlag || bufferFlag;
+}
 
 /* ================= Tabs ================= */
 document.getElementById('tabs').addEventListener('click', e=>{
@@ -630,14 +702,78 @@ function setActivePlan(val){
   renderDash();
   renderPatients();
 }
+function renderResumenDia(){
+  const el = document.getElementById('resumenDiaBody');
+  if(!el) return;
+  const withPdc = DB.patients.map(p=>({p, r:calcPDC(p)}));
+  const crit = withPdc.filter(x=>x.r.status==='crit').length;
+  const warn = withPdc.filter(x=>x.r.status==='warn').length;
+  const early = withPdc.filter(x=> isEarlyRisk(x.p, x.r)).length;
+  const rxPend = getRxItems().length;
+  const cmrDue = DB.cmr.filter(c=> !c.completed_date && cmrStatus(c)!=='ok' && cmrStatus(c)!=='none').length;
+  el.innerHTML = `
+    <p style="margin:0 0 8px;font-size:14px;">
+      <b>${crit}</b> brecha(s) crítica(s), <b>${warn}</b> en riesgo, <b>${early}</b> en riesgo temprano,
+      <b>${rxPend}</b> medicamento(s) esperando Rx, y <b>${cmrDue}</b> CMR próxima(s)/vencida(s).
+    </p>
+    <button class="btn ghost sm" onclick="shareResumenDia()">✉️ Compartir resumen</button>`;
+}
+function buildResumenDiaText(){
+  const withPdc = DB.patients.map(p=>({p, r:calcPDC(p)}));
+  const crit = withPdc.filter(x=>x.r.status==='crit');
+  const warn = withPdc.filter(x=>x.r.status==='warn');
+  const early = withPdc.filter(x=> isEarlyRisk(x.p, x.r));
+  const cmrDue = DB.cmr.filter(c=> !c.completed_date && (cmrStatus(c)==='crit' || cmrStatus(c)==='warn'));
+  const lines = [`Resumen de hoy (${fmtDate(todayStr())}):`, ''];
+  lines.push(`Brechas críticas (${crit.length}):`);
+  crit.forEach(x=> lines.push(`  • ${x.p.name} — ${x.p.cat} — ${x.r.pct}%`));
+  lines.push('', `En riesgo (${warn.length}):`);
+  warn.forEach(x=> lines.push(`  • ${x.p.name} — ${x.p.cat} — ${x.r.pct}%`));
+  lines.push('', `En riesgo temprano (${early.length}):`);
+  early.forEach(x=> lines.push(`  • ${x.p.name} — ${x.p.cat} — ${x.r.pct}%`));
+  lines.push('', `CMR próxima/vencida (${cmrDue.length}):`);
+  cmrDue.forEach(c=> lines.push(`  • ${c.patient_name}${c.due_date ? ' — vence '+fmtDate(c.due_date) : ''}`));
+  return lines.join('\n');
+}
+function shareResumenDia(){
+  const subject = encodeURIComponent('Resumen de hoy — ' + fmtDate(todayStr()));
+  const body = encodeURIComponent(buildResumenDiaText());
+  window.location.href = 'mailto:?subject=' + subject + '&body=' + body;
+}
 function renderDash(){
+  renderResumenDia();
   let list = DB.patients.slice();
   if(activePlan!=='all') list = list.filter(p=>p.plan===activePlan);
-  list = list.map(p=>({p, r:calcPDC(p)})).filter(x=>x.r.status!=='ok').sort((a,b)=> a.r.pct - b.r.pct);
+  const withPdc = list.map(p=>({p, r:calcPDC(p)}));
+  const gaps = withPdc.filter(x=>x.r.status!=='ok').sort((a,b)=> a.r.pct - b.r.pct);
   const el = document.getElementById('gapList');
-  if(list.length===0){ el.innerHTML = `<div class="empty"><div class="disp">Sin brechas activas</div><p>Todos los pacientes registrados están al día (PDC ≥ 80%)${activePlan!=='all' ? ' en '+escapeHTML(activePlan) : ''}.</p></div>`; return; }
-  el.innerHTML = list.map(x=> patientCardHTML(x.p, x.r)).join('');
-  el.querySelectorAll('.pcard').forEach(c=>c.addEventListener('click', ()=>openIntv(c.dataset.id)));
+  if(gaps.length===0){ el.innerHTML = `<div class="empty"><div class="disp">Sin brechas activas</div><p>Todos los pacientes registrados están al día (PDC ≥ 80%)${activePlan!=='all' ? ' en '+escapeHTML(activePlan) : ''}.</p></div>`; }
+  else {
+    el.innerHTML = gaps.map(x=> patientCardHTML(x.p, x.r)).join('');
+    el.querySelectorAll('.pcard').forEach(c=>c.addEventListener('click', ()=>openIntv(c.dataset.id)));
+  }
+
+  const early = withPdc.filter(x=> isEarlyRisk(x.p, x.r)).sort((a,b)=> a.r.pct - b.r.pct);
+  const earlyEl = document.getElementById('earlyRiskList');
+  if(early.length===0){ earlyEl.innerHTML = `<div class="empty"><div class="disp">Nada en riesgo temprano</div><p>Los resurtidos van a tiempo.</p></div>`; return; }
+  earlyEl.innerHTML = early.map(x=>{
+    const nf = nextFillInfo(x.p);
+    const color = statusColor(x.r.status);
+    const lateNote = nf && nf.daysLate > GRACE_DAYS ? `⏰ resurtido esperado hace ${nf.daysLate} días` : '📉 PDC cerca del límite';
+    return `
+    <div class="pcard" data-id="${x.p.id}">
+      <div class="bottle"><div class="fill" style="height:${x.r.pct}%;background:${color};"></div><div class="cap"></div></div>
+      <div class="info">
+        <div class="name">${escapeHTML(x.p.name)}</div>
+        <div class="meds">${escapeHTML(x.p.med||'—')}</div>
+        <span class="tag ok">${x.p.cat}</span>
+        <span class="tag" style="background:#EFE8D8;color:var(--ink-soft);">${x.p.plan}</span>
+        <div class="d" style="margin-top:3px;color:var(--warn);">${lateNote}</div>
+      </div>
+      <div class="pdc"><div class="pct" style="color:${color};">${x.r.pct}%</div><div class="lbl">${statusLabel(x.r.status)}</div></div>
+    </div>`;
+  }).join('');
+  earlyEl.querySelectorAll('.pcard').forEach(c=>c.addEventListener('click', ()=>openIntv(c.dataset.id)));
 }
 let activeCat = 'all';
 document.getElementById('catFilters').addEventListener('click', e=>{
@@ -667,7 +803,143 @@ function renderIntv(){
       <div class="note">${escapeHTML(i.notes||'')}</div>
     </div>`).join('');
 }
-function renderAll(){ populatePlanFilters(); renderStats(); renderDash(); renderPatients(); renderIntv(); renderRxList(); renderMedicosList(); }
+function renderAll(){ populatePlanFilters(); renderStats(); renderDash(); renderPatients(); renderIntv(); renderRxList(); renderMedicosList(); renderCmrList(); renderEstrellasList(); }
+
+/* ---- Progreso hacia 5 estrellas por plan ---- */
+function renderEstrellasList(){
+  const el = document.getElementById('estrellasList');
+  if(!el) return;
+  const plansConPacientes = [...new Set(DB.patients.map(p=>p.plan))].sort();
+  if(plansConPacientes.length===0){ el.innerHTML = '<p class="helptext">Añade pacientes primero para ver el progreso.</p>'; return; }
+
+  el.innerHTML = plansConPacientes.map(plan=>{
+    const pts = DB.patients.filter(p=>p.plan===plan);
+    const passing = pts.filter(p=> calcPDC(p).status==='ok').length;
+    const rate = pts.length ? Math.round((passing/pts.length)*100) : 0;
+    const meta = DB.metas.find(m=>m.plan===plan);
+    const target = meta ? Number(meta.target) : 85;
+    const needed = Math.max(0, Math.ceil((target/100)*pts.length) - passing);
+    const barColor = rate >= target ? 'var(--green)' : rate >= target-10 ? 'var(--warn)' : 'var(--red)';
+    return `
+    <div style="margin-bottom:16px;">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;font-size:13px;">
+        <b style="font-family:'Space Grotesk',sans-serif;color:var(--navy);">${escapeHTML(plan)}</b>
+        <span class="d">${rate}% de ${pts.length} pacientes</span>
+      </div>
+      <div style="background:var(--paper);border:1px solid var(--line);border-radius:20px;height:10px;margin-top:5px;overflow:hidden;">
+        <div style="width:${Math.min(100,rate)}%;height:100%;background:${barColor};"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px;">
+        <span class="d">${needed>0 ? `Faltan ${needed} paciente(s) para llegar a la meta` : '✅ Meta alcanzada'}</span>
+        <span class="d">Meta: <input type="number" value="${target}" min="0" max="100" style="width:52px;padding:2px 4px;font-size:11px;display:inline-block;" onchange="setMeta('${escapeHTML(plan)}', this.value)">%</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+async function setMeta(plan, value){
+  const target = parseFloat(value);
+  if(isNaN(target)) return;
+  const { error } = await sb.from('metas').upsert({plan, target});
+  if(error){ toast('Error al guardar meta: ' + error.message); return; }
+  await fetchAll();
+  renderAll();
+}
+
+/* ---- CMR / MTM ---- */
+function cmrStatus(c){
+  if(c.completed_date) return 'done';
+  if(!c.due_date) return 'none';
+  const days = Math.round((new Date(c.due_date+'T00:00:00') - new Date())/86400000);
+  if(days < 0) return 'crit';
+  if(days <= 14) return 'warn';
+  return 'ok';
+}
+function renderCmrList(){
+  const el = document.getElementById('cmrList');
+  if(!el) return;
+  if(DB.cmr.length===0){ el.innerHTML = '<p class="helptext">Aún no hay CMR registradas.</p>'; return; }
+  const order = {crit:0, warn:1, ok:2, none:3, done:4};
+  const list = DB.cmr.slice().sort((a,b)=> order[cmrStatus(a)]-order[cmrStatus(b)] || (a.due_date||'').localeCompare(b.due_date||''));
+  el.innerHTML = list.map(c=>{
+    const st = cmrStatus(c);
+    const color = st==='crit' ? 'var(--red)' : st==='warn' ? 'var(--warn)' : st==='done' ? 'var(--green)' : 'var(--ink-soft)';
+    const label = st==='done' ? '✅ Completada '+fmtDate(c.completed_date) : st==='crit' ? '⏰ Vencida' : st==='warn' ? '🔔 Próxima a vencer' : c.due_date ? 'Pendiente' : 'Sin fecha';
+    return `
+    <div class="pcard" data-id="${c.id}" style="cursor:pointer;">
+      <div class="info" style="flex:1;">
+        <div class="name">${escapeHTML(c.patient_name)}</div>
+        <div class="meds">${escapeHTML(c.plan||'—')}${c.due_date ? ' · vence '+fmtDate(c.due_date) : ''}</div>
+      </div>
+      <div class="pdc"><div class="lbl" style="color:${color};font-weight:600;">${label}</div></div>
+    </div>`;
+  }).join('');
+  el.querySelectorAll('.pcard').forEach(c=>c.addEventListener('click', ()=>openCmrModal(c.dataset.id)));
+}
+function openCmrModal(id){
+  if(id){
+    const c = DB.cmr.find(x=>x.id===id);
+    if(!c) return;
+    document.getElementById('cmrTitle').textContent = 'Editar CMR';
+    document.getElementById('cmrId').value = c.id;
+    document.getElementById('cmrPatientName').value = c.patient_name;
+    document.getElementById('cmrPlan').value = c.plan || 'MCS';
+    document.getElementById('cmrDueDate').value = c.due_date || '';
+    document.getElementById('cmrNotes').value = c.notes || '';
+    document.getElementById('cmrDeleteBtn').style.display = 'block';
+    document.getElementById('cmrCompleteBtn').style.display = c.completed_date ? 'none' : 'block';
+  } else {
+    document.getElementById('cmrTitle').textContent = 'Nueva CMR';
+    document.getElementById('cmrId').value = '';
+    document.getElementById('cmrPatientName').value = '';
+    document.getElementById('cmrPlan').value = 'MCS';
+    document.getElementById('cmrDueDate').value = '';
+    document.getElementById('cmrNotes').value = '';
+    document.getElementById('cmrDeleteBtn').style.display = 'none';
+    document.getElementById('cmrCompleteBtn').style.display = 'none';
+  }
+  document.getElementById('modalCmr').classList.add('show');
+}
+async function saveCmr(){
+  const name = document.getElementById('cmrPatientName').value.trim();
+  if(!name){ toast('Escribe el nombre del paciente'); return; }
+  const id = document.getElementById('cmrId').value;
+  const btn = document.getElementById('cmrSaveBtn');
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Guardando…';
+  const payload = {
+    patient_name: name,
+    plan: document.getElementById('cmrPlan').value,
+    due_date: document.getElementById('cmrDueDate').value || null,
+    notes: document.getElementById('cmrNotes').value.trim() || null,
+  };
+  let error;
+  if(id){ ({error} = await sb.from('cmr').update(payload).eq('id', id)); }
+  else { ({error} = await sb.from('cmr').insert({...payload, created_by: currentUser.id})); }
+  btn.disabled = false; btn.textContent = 'Guardar';
+  if(error){ toast('Error: ' + error.message); return; }
+  await fetchAll();
+  renderAll();
+  closeModal('modalCmr');
+  toast('CMR guardada');
+}
+async function completeCmr(){
+  const id = document.getElementById('cmrId').value;
+  const { error } = await sb.from('cmr').update({completed_date: todayStr()}).eq('id', id);
+  if(error){ toast('Error: ' + error.message); return; }
+  await fetchAll();
+  renderAll();
+  closeModal('modalCmr');
+  toast('CMR marcada como completada');
+}
+async function deleteCmr(){
+  const id = document.getElementById('cmrId').value;
+  if(!confirm('¿Eliminar esta CMR?')) return;
+  const { error } = await sb.from('cmr').delete().eq('id', id);
+  if(error){ toast('Error: ' + error.message); return; }
+  await fetchAll();
+  renderAll();
+  closeModal('modalCmr');
+  toast('CMR eliminada');
+}
 
 function renderMedicosList(){
   const el = document.getElementById('medicosList');
@@ -1137,6 +1409,22 @@ async function duplicatePatientCategory(evt){
   }
 }
 
+function renderPatientTimeline(patientId){
+  const wrap = document.getElementById('pmTimelineSection');
+  const list = DB.interventions.filter(i=>i.patientId===patientId).sort((a,b)=> b.date.localeCompare(a.date));
+  if(list.length===0){
+    wrap.style.display = 'block';
+    document.getElementById('pmTimelineList').innerHTML = '<p class="helptext">Sin intervenciones registradas todavía para este paciente.</p>';
+    return;
+  }
+  wrap.style.display = 'block';
+  document.getElementById('pmTimelineList').innerHTML = list.map(i=>`
+    <div class="intv-item">
+      <div class="meta">${fmtDate(i.date)} · ${escapeHTML(i.type)}</div>
+      <div class="note">${escapeHTML(i.notes||'')}</div>
+    </div>`).join('');
+}
+
 function openPatientModal(id){
   formFills = [];
   formMeds = [];
@@ -1153,6 +1441,7 @@ function openPatientModal(id){
     document.getElementById('pmDeleteBtn').style.display = 'block';
     renderMedicoOptions();
     document.getElementById('pmMedicoSel').value = p.medicoId || '';
+    renderPatientTimeline(p.id);
   } else {
     document.getElementById('pmTitle').textContent = 'Nuevo paciente';
     document.getElementById('pmId').value = '';
@@ -1163,6 +1452,7 @@ function openPatientModal(id){
     document.getElementById('pmDeleteBtn').style.display = 'none';
     renderMedicoOptions();
     document.getElementById('pmMedicoSel').value = '';
+    document.getElementById('pmTimelineSection').style.display = 'none';
   }
   renderDuplicateCatSection();
   document.getElementById('pmMedInput').value = '';
