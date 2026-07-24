@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Guía de Uso — Adherencia PR</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,500&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#FAF5EC; --card:#FFFFFF; --navy:#17253F; --navy2:#22365A;
+  --amber:#C67C2E; --amber-soft:#F3DCB8; --green:#3F7D5C; --green-soft:#DCEEE3;
+  --warn:#D9A441; --warn-soft:#F7E9CC; --red:#B94436; --red-soft:#F5DAD4;
+  --ink:#241F1A; --ink-soft:#6B6459; --line:#E7DDC9;
+}
+*{box-sizing:border-box;}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:'Source Serif 4',serif;line-height:1.6;}
+h1,h2,h3,.disp{font-family:'Space Grotesk',sans-serif;letter-spacing:-0.01em;color:var(--navy);}
+.mono{font-family:'IBM Plex Mono',monospace;}
+
+header.top{background:linear-gradient(160deg,var(--navy) 0%,var(--navy2) 100%);color:#F4EEDD;padding:34px 20px 30px;border-bottom:4px solid var(--amber);}
+header.top .eyebrow{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--amber-soft);}
+header.top h1{color:#F4EEDD;font-size:26px;margin:6px 0 4px;}
+header.top .sub{font-size:14px;color:#C9CFDB;font-family:'IBM Plex Mono',monospace;}
+
+main{max-width:720px;margin:0 auto;padding:28px 20px 60px;}
+
+.toc{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 18px;margin-bottom:28px;}
+.toc .eyebrow{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft);margin-bottom:8px;}
+.toc a{display:block;color:var(--navy);text-decoration:none;font-size:14px;padding:4px 0;border-bottom:1px dashed var(--line);}
+.toc a:last-child{border-bottom:none;}
+.toc a:hover{color:var(--amber);}
+
+section{margin-bottom:36px;scroll-margin-top:16px;}
+section .num{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--amber);letter-spacing:.08em;text-transform:uppercase;margin-bottom:4px;}
+section h2{font-size:20px;margin:0 0 12px;}
+section h3{font-size:15px;margin:18px 0 6px;color:var(--ink);}
+section p{font-size:15px;margin:0 0 10px;}
+section ul, section ol{font-size:15px;padding-left:22px;margin:0 0 10px;}
+section li{margin-bottom:6px;}
+
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 18px;margin:14px 0;}
+.card.amber{border-left:4px solid var(--amber);}
+.card.warn{border-left:4px solid var(--warn);background:var(--warn-soft);}
+.card.green{border-left:4px solid var(--green);background:var(--green-soft);}
+.card.red{border-left:4px solid var(--red);background:var(--red-soft);}
+.card h4{margin:0 0 6px;font-family:'Space Grotesk',sans-serif;font-size:14px;color:var(--navy);}
+.card p{margin:0;font-size:13.5px;}
+
+code, .code{font-family:'IBM Plex Mono',monospace;background:#EFE8D8;padding:2px 7px;border-radius:5px;font-size:13px;color:var(--navy);}
+.codeblock{font-family:'IBM Plex Mono',monospace;background:var(--navy);color:#E8E2CE;padding:12px 14px;border-radius:10px;font-size:12.5px;line-height:1.6;overflow-x:auto;white-space:pre;margin:10px 0;}
+
+.steps{list-style:none;padding:0;margin:14px 0;counter-reset:step;}
+.steps li{position:relative;padding:4px 0 4px 34px;margin-bottom:10px;font-size:14.5px;}
+.steps li::before{counter-increment:step;content:counter(step);position:absolute;left:0;top:2px;width:24px;height:24px;background:var(--navy);color:#F4EEDD;border-radius:50%;font-family:'Space Grotesk',sans-serif;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;}
+
+table{width:100%;border-collapse:collapse;margin:12px 0;font-size:13.5px;}
+th{background:var(--navy);color:#F4EEDD;text-align:left;padding:8px 10px;font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.04em;}
+td{padding:8px 10px;border-bottom:1px solid var(--line);}
+tr:last-child td{border-bottom:none;}
+.dot-ok{color:var(--green);font-weight:700;} .dot-warn{color:#8A6417;font-weight:700;} .dot-crit{color:var(--red);font-weight:700;}
+
+.divider{height:1px;background:var(--line);margin:32px 0;}
+footer{text-align:center;padding:26px 20px;color:var(--ink-soft);font-size:12px;font-family:'IBM Plex Mono',monospace;}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="eyebrow">Guía de uso</div>
+  <h1>Adherencia PR — Panel de Farmacia</h1>
+  <div class="sub">Cómo trabajar el programa de adherencia y las 5 estrellas, paso a paso</div>
+</header>
+
+<main>
+
+  <div class="toc">
+    <div class="eyebrow">En esta guía</div>
+    <a href="#que-es">1. ¿Qué hace esta app?</a>
+    <a href="#primer-uso">2. Primer uso en un dispositivo nuevo</a>
+    <a href="#pacientes">3. Añadir y editar pacientes</a>
+    <a href="#medicos">3.5 Directorio de médicos</a>
+    <a href="#pdc">4. Cómo se calcula el PDC (y qué significan los colores)</a>
+    <a href="#panel">5. El Panel — brechas, riesgo temprano y resumen del día</a>
+    <a href="#cmr">5.5 CMR / MTM</a>
+    <a href="#estrellas">5.7 Progreso hacia 5 estrellas</a>
+    <a href="#intervenciones">6. Registrar intervenciones</a>
+    <a href="#reportes">7. Reportes, Rx pendientes y exportar</a>
+    <a href="#sync">8. Sincronización entre dispositivos</a>
+    <a href="#problemas">9. Solución de problemas comunes</a>
+  </div>
+
+  <section id="que-es">
+    <div class="num">01</div>
+    <h2>¿Qué hace esta app?</h2>
+    <p>Es la herramienta interna para trabajar el programa de adherencia de medicamentos (estatinas, hipertensión y diabetes) que usan los planes Medicare Advantage de Puerto Rico para calcular las <b>Star Ratings</b> de CMS. La farmacia usa el <b>PDC</b> (Proportion of Days Covered) de cada paciente para saber a quién contactar antes de que se convierta en una brecha que afecte las estrellas del plan.</p>
+    <div class="card amber">
+      <h4>En corto</h4>
+      <p>Registras a los pacientes en las tres medidas triple-peso (estatina, hipertensión, diabetes), anotas cada resurtido, y la app calcula automáticamente quién está al día y quién necesita una llamada — sin hojas de cálculo sueltas.</p>
+    </div>
+  </section>
+
+  <section id="primer-uso">
+    <div class="num">02</div>
+    <h2>Primer uso en un dispositivo nuevo</h2>
+    <p>La primera vez que abres la app en un teléfono, tableta o computadora, te va a pedir tres datos. Estos se guardan solo en ese dispositivo — no hay que repetirlo cada vez que la abres.</p>
+    <ol class="steps">
+      <li>Abre <code>adherencia-pr.html</code> (o el enlace de GitHub Pages si ya lo subiste ahí).</li>
+      <li>Pega la <b>URL del proyecto</b> y la <b>anon public key</b> de Supabase — son las mismas que usa EntregaMeds (Settings → API en el dashboard de Supabase).</li>
+      <li>En el campo <b>Schema (piso)</b> deja <code>adherencia</code>.</li>
+      <li>Toca <b>Conectar</b>.</li>
+      <li>Inicia sesión con el correo y contraseña de tu cuenta (la misma cuenta de EntregaMeds sirve aquí — es el mismo sistema de usuarios).</li>
+    </ol>
+    <div class="card warn">
+      <h4>¿No tienes cuenta todavía?</h4>
+      <p>Las cuentas no se crean desde la app por seguridad. Se crean manualmente en el dashboard de Supabase: <b>Authentication → Users → Add user</b>. Ahí defines el correo y contraseña de cada persona del equipo.</p>
+    </div>
+  </section>
+
+  <section id="pacientes">
+    <div class="num">03</div>
+    <h2>Añadir y editar pacientes</h2>
+    <ol class="steps">
+      <li>Toca el botón <b>+</b> (esquina inferior derecha) o entra a la pestaña <b>Pacientes</b> y toca cualquier tarjeta para editar.</li>
+      <li>Llena nombre, categoría (Estatina / Hipertensión / Diabetes), plan médico y médico.</li>
+      <li>Añade cada medicamento con <b>+ Añadir</b> — puedes meter varios (por ejemplo si cambió de estatina a mitad de año).</li>
+      <li>Añade cada resurtido con su <b>fecha de despacho</b> y <b>días de suplido</b> — esto alimenta el cálculo de PDC. Ya puedes hacerlo desde que creas el paciente, no hace falta guardar primero.</li>
+      <li>Toca <b>Guardar paciente</b>.</li>
+    </ol>
+
+    <div class="card">
+      <h4>Un paciente con varias categorías</h4>
+      <p>Un mismo paciente puede tener más de un registro — uno por cada categoría en la que toma medicamentos (por ejemplo, Diabetes Y Hipertensión) — porque CMS mide el PDC de cada medida por separado. Para no tener que escribirlo todo de nuevo:</p>
+      <ol class="steps">
+        <li>Puedes hacerlo desde el momento en que estás <b>creando</b> el paciente (no hace falta guardarlo primero) — en cuanto escribes el nombre, aparece la sección con las categorías disponibles.</li>
+        <li>Elige la que corresponda (ej. Hipertensión) y toca <b>🔁 Crear en esa categoría</b> — si el paciente que estás creando todavía no se ha guardado, la app lo guarda automáticamente primero, y luego crea el segundo registro con el mismo nombre, plan y médico, y te lleva directo a ese registro para que le añadas sus medicamentos específicos de esa categoría.</li>
+      </ol>
+      <p>En la tarjeta del paciente (Panel y Pacientes) vas a ver una línea <b>"🔁 también en: Hipertensión"</b> para que sepas que ese mismo paciente tiene otro registro — así no se te olvida ni se ve como si estuviera duplicado por error.</p>
+    </div>
+
+    <div class="card amber">
+      <h4>Necesita Rx nueva del médico</h4>
+      <p>Cada medicamento tiene su propia casilla <b>"📋 Necesita Rx nueva del médico"</b>. Si un paciente tiene tres medicamentos y solo uno necesita autorización, marca solo ese — el reporte de Rx pendientes va a mostrar únicamente ese medicamento, no la lista completa. Si ese medicamento en particular lo receta un médico distinto al de arriba, puedes asignarle su propio médico justo ahí.</p>
+    </div>
+
+    <div class="card">
+      <h4>Historial de intervenciones en el perfil</h4>
+      <p>Al editar cualquier paciente, al final del formulario aparece su <b>timeline completo de intervenciones</b> — todas las llamadas, consejerías y notas que le has hecho, sin tener que salir a buscar en la pestaña de Intervenciones.</p>
+    </div>
+  </section>
+
+  <section id="medicos">
+    <div class="num">03.5</div>
+    <h2>Directorio de médicos</h2>
+    <p>En <b>Reportes → 🩺 Directorio de médicos</b> puedes añadir cada médico con teléfono, correo, dirección y ubicación GPS. Toca <b>✏️</b> en cualquiera para editarlo o eliminarlo. Estos son los médicos que después eliges al asignar cada medicamento de un paciente.</p>
+  </section>
+
+  <section id="pdc">
+    <div class="num">04</div>
+    <h2>Cómo se calcula el PDC</h2>
+    <p><b>PDC = días cubiertos ÷ días del período de medición</b>, contando desde el primer despacho del año (o el 1 de enero, lo que sea más tarde) hasta hoy. Los resurtidos que se solapan no se cuentan dos veces.</p>
+    <table>
+      <tr><th>PDC</th><th>Estatus</th><th>Qué significa</th></tr>
+      <tr><td>≥ 80%</td><td class="dot-ok">Al día</td><td>Cuenta a favor de las 5 estrellas del plan.</td></tr>
+      <tr><td>70–79%</td><td class="dot-warn">En riesgo</td><td>Requiere intervención pronto, antes de que baje de 70%.</td></tr>
+      <tr><td>&lt; 70%</td><td class="dot-crit">Brecha crítica</td><td>Prioridad de contacto — es lo primero que ve el Panel.</td></tr>
+    </table>
+  </section>
+
+  <section id="panel">
+    <div class="num">05</div>
+    <h2>El Panel — brechas, riesgo temprano y resumen del día</h2>
+    <p>Esta es la pestaña con la que se empieza el turno.</p>
+    <div class="card amber">
+      <h4>☀️ Resumen de hoy</h4>
+      <p>Arriba de todo, un conteo rápido: brechas críticas, en riesgo, en riesgo temprano, medicamentos esperando Rx, y CMR próximas/vencidas. Botón <b>✉️ Compartir resumen</b> para mandártelo por correo antes de empezar.</p>
+    </div>
+    <p>Debajo, un menú desplegable para filtrar por <b>plan</b> (MCS, Triple-S Advantage, MMM/PMC, First Medical, Plan Vital) — útil si trabajas un plan a la vez. El mismo filtro también está en <b>Pacientes</b> y se mantiene sincronizado entre las dos pestañas.</p>
+    <p><b>Brechas priorizadas</b> muestra a los pacientes con PDC menor a 80%, ordenados de más crítico a menos. Toca cualquier tarjeta para registrar la intervención directamente.</p>
+    <div class="card warn">
+      <h4>🔔 En riesgo temprano</h4>
+      <p>Debajo de las brechas, una segunda lista: pacientes que <b>todavía están al día</b> (PDC ≥ 80%) pero que van camino a convertirse en brecha — porque el resurtido está atrasado más de 5 días, o porque el PDC está en la zona de 80-86% (muy cerca del límite). Trabajarlos aquí evita que aparezcan mañana en la lista roja de arriba.</p>
+    </div>
+    <div class="card green">
+      <h4>Rutina sugerida</h4>
+      <p>Revisa el resumen del día, trabaja las brechas rojas primero, luego las amarillas, y termina con los de riesgo temprano. Cada llamada o consejería que documentes desaparece de esa lista en cuanto el resurtido mejora el PDC por encima de 80%.</p>
+    </div>
+  </section>
+
+  <section id="cmr">
+    <div class="num">05.5</div>
+    <h2>CMR / MTM</h2>
+    <p>Pestaña separada para trackear las <b>Comprehensive Medication Reviews</b> — la otra medida grande que pesa en las estrellas, aparte del PDC.</p>
+    <ol class="steps">
+      <li>Toca <b>+ Nueva CMR</b> y llena nombre del paciente, plan, fecha límite y notas.</li>
+      <li>La lista se ordena sola por urgencia: <b>⏰ Vencida</b> (roja) primero, luego <b>🔔 Próxima a vencer</b> (ámbar, dentro de 14 días), luego pendientes sin apuro, y al final las <b>✅ Completadas</b>.</li>
+      <li>Al terminarla, ábrela y toca <b>✅ Marcar como completada</b> — queda con la fecha de hoy.</li>
+    </ol>
+  </section>
+
+  <section id="estrellas">
+    <div class="num">05.7</div>
+    <h2>Progreso hacia 5 estrellas</h2>
+    <p>En <b>Reportes → 🎯 Progreso hacia 5 estrellas</b>, cada plan muestra una barra con el % de tus pacientes que están ≥80% de PDC ahora mismo, comparado contra una <b>meta editable</b> (el corte exacto que pide cada plan cambia por año y por medida, así que la pones tú misma tocando el número junto a "Meta:"). Debajo de la barra te dice exactamente <b>cuántos pacientes más</b> necesitas subir a ≥80% para llegar a esa meta.</p>
+  </section>
+
+  <section id="intervenciones">
+    <div class="num">06</div>
+    <h2>Registrar intervenciones</h2>
+    <p>Desde una tarjeta de paciente en el Panel, selecciona el tipo de intervención (llamada, consejería, sincronización de medicamentos, notificación al médico, CMR, mensaje de texto) y añade una nota breve. Queda guardada con fecha automática en la pestaña <b>Intervenciones</b>, visible para todo el equipo.</p>
+  </section>
+
+  <section id="reportes">
+    <div class="num">07</div>
+    <h2>Reportes, Rx pendientes y exportar</h2>
+    <p>En la pestaña <b>Reportes</b>, el botón <b>Descargar CSV</b> genera un archivo con el PDC actual y la última intervención de cada paciente — listo para adjuntar al reporte mensual que le envías al plan o para subir a EQUIPP como respaldo de tu trabajo de adherencia.</p>
+
+    <div class="card amber">
+      <h4>📋 Rx pendientes con el médico</h4>
+      <p>Muestra, agrupado por <b>plan → médico → clasificación</b>, cada medicamento marcado como "Necesita Rx". Arriba hay un selector <b>"Enviar a"</b> — elige un médico específico para que el correo y el WhatsApp salgan dirigidos solo a él (con su teléfono/correo prellenado si los tienes en el directorio), o deja "Todos los médicos" para mandar el paquete completo.</p>
+      <ul>
+        <li><b>🖨️ Imprimir</b> abre una vista previa en pantalla primero — revisas y ahí mismo tocas imprimir.</li>
+        <li><b>✉️ Correo</b> abre tu app de correo con el asunto y la lista ya escritos.</li>
+        <li><b>Enviar por WhatsApp</b> abre la app de WhatsApp directo en el teléfono (esto solo funciona bien si abres la app desde su enlace de GitHub Pages, no desde un archivo descargado).</li>
+      </ul>
+    </div>
+  </section>
+
+  <section id="sync">
+    <div class="num">08</div>
+    <h2>Sincronización entre dispositivos</h2>
+    <p>Todo lo que se guarda aparece en los demás dispositivos conectados en segundos, sin recargar la página. El punto de color junto al título indica el estado:</p>
+    <div class="card green"><h4>🟢 Sincronizado en tiempo real</h4><p>Todo funcionando normal.</p></div>
+    <div class="card red"><h4>🔴 Sin conexión — reintentando</h4><p>Revisa el internet del dispositivo; la app reintenta sola.</p></div>
+  </section>
+
+  <section id="problemas">
+    <div class="num">09</div>
+    <h2>Solución de problemas comunes</h2>
+
+    <h3>"No tengo permiso en schema adherencia"</h3>
+    <p>Le faltó otorgar permisos de uso sobre el schema a los roles de la API (esto se hace una sola vez, no por dispositivo). Corre el script <code>supabase_fix_permisos_adherencia.sql</code> en el SQL Editor del proyecto.</p>
+
+    <h3>El botón "Conectar" no responde</h3>
+    <ul>
+      <li>Revisa que la URL empiece con <code>https://</code> y que la anon key esté completa (son bien largas).</li>
+      <li>Confirma que el dispositivo tiene internet activo en ese momento.</li>
+      <li>Si nada funciona, abre las herramientas de desarrollador del navegador (F12 → Console) y busca el error en rojo.</li>
+    </ul>
+
+    <h3>Correo o contraseña incorrectos</h3>
+    <p>Verifica en <b>Authentication → Users</b> del dashboard de Supabase que la cuenta existe y está confirmada. Si acabas de crearla, puede que necesite confirmarse por correo antes de poder entrar (a menos que se haya marcado "Auto Confirm User" al crearla).</p>
+
+    <h3>Guardé un paciente pero no aparece en otro dispositivo</h3>
+    <p>Revisa el punto de sincronización — si está rojo, ese dispositivo perdió conexión. También confirma que ambos dispositivos están usando la <b>misma URL, key y schema</b> (<code>adherencia</code>).</p>
+  </section>
+
+  <div class="divider"></div>
+  <footer>Adherencia PR · Panel interno de farmacia</footer>
+</main>
+
+</body>
+</html>
