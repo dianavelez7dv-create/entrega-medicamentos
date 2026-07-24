@@ -756,14 +756,17 @@ document.querySelectorAll('.overlay').forEach(o=>{ o.addEventListener('click', e
 document.getElementById('fabAdd').addEventListener('click', ()=>openPatientModal(null));
 
 /* ================= Export ================= */
+function stripAccents(s){
+  return (s+'').normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+}
 function exportCSV(){
-  const rows = [['Paciente','Categoría','Plan','Medicamento','PDC %','Estatus','Última intervención']];
+  const rows = [['Paciente','Categoria','Plan','Medicamento','PDC %','Estatus','Ultima intervencion']];
   DB.patients.forEach(p=>{
     const r = calcPDC(p);
     const lastIntv = DB.interventions.filter(i=>i.patientId===p.id).sort((a,b)=>b.date.localeCompare(a.date))[0];
     rows.push([p.name, p.cat, p.plan, p.med||'', r.pct+'%', statusLabel(r.status), lastIntv?fmtDate(lastIntv.date)+' - '+lastIntv.type:'']);
   });
-  const csv = rows.map(r=>r.map(c=>`"${(c+'').replace(/"/g,'""')}"`).join(',')).join('\n');
+  const csv = rows.map(r=>r.map(c=>`"${stripAccents(c).replace(/"/g,'""')}"`).join(',')).join('\n');
   const blob = new Blob(['\uFEFF' + csv], {type:'text/csv;charset=utf-8;'});
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a'); a.href = url; a.download = `reporte_adherencia_${todayStr()}.csv`;
