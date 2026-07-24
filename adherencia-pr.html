@@ -660,29 +660,48 @@ function flaggedMedsText(p){
   if(flagged.length===0) return p.med || p.cat; // compatibilidad con datos viejos
   return flagged.map(m=> m.name + (m.note ? ' — ' + m.note : '')).join(', ');
 }
-function getRxPatients(filterMedico){
-  let list = DB.patients.filter(p=>p.needsRx);
-  if(filterMedico && filterMedico !== '__all__'){
-    list = list.filter(p=> (p.medico || 'Sin médico asignado') === filterMedico);
-  }
-  return list;
+function getMedicoById(id){
+  return id ? DB.medicos.find(x=>x.id===id) || null : null;
+}
+/* Lista plana: un ítem por CADA medicamento marcado con Rx, con su médico efectivo
+   (el del medicamento si se especificó, si no el del paciente/categoría) */
+function getRxItems(){
+  const items = [];
+  DB.patients.forEach(p=>{
+    (p.medsDetail||[]).filter(m=>m.needsRx).forEach(m=>{
+      const effectiveMedicoId = m.medicoId || p.medicoId || null;
+      const medicoObj = getMedicoById(effectiveMedicoId);
+      const medicoName = medicoObj ? medicoObj.nombre : (p.medico || 'Sin médico asignado');
+      const contact = medicoObj || p.medicoContact || null;
+      items.push({
+        patient: p,
+        medName: m.name,
+        medNote: m.note || '',
+        plan: p.plan || 'Sin plan',
+        medico: medicoName,
+        contact,
+        clasif: statusLabel(calcPDC(p).status)
+      });
+    });
+  });
+  return items;
 }
 function currentRxFilter(){
   const sel = document.getElementById('rxMedicoFilter');
   return sel ? sel.value : '__all__';
 }
-/* Agrupa: Plan -> Médico -> Clasificación (PDC) */
-function groupRxPatients(filterMedico){
+/* Agrupa: Plan -> Médico -> Clasificación (PDC), a nivel de medicamento */
+function groupRxItems(filterMedico){
   const groups = {};
-  getRxPatients(filterMedico).forEach(p=>{
-    const plan = p.plan || 'Sin plan';
-    const medico = p.medico || 'Sin médico asignado';
-    const r = calcPDC(p);
-    const clasif = statusLabel(r.status);
-    groups[plan] = groups[plan] || {};
-    groups[plan][medico] = groups[plan][medico] || { contact: p.medicoContact || null, clasifs: {} };
-    groups[plan][medico].clasifs[clasif] = groups[plan][medico].clasifs[clasif] || [];
-    groups[plan][medico].clasifs[clasif].push({p, r});
+  let items = getRxItems();
+  if(filterMedico && filterMedico !== '__all__'){
+    items = items.filter(it=> it.medico === filterMedico);
+  }
+  items.forEach(it=>{
+    groups[it.plan] = groups[it.plan] || {};
+    groups[it.plan][it.medico] = groups[it.plan][it.medico] || { contact: it.contact, clasifs: {} };
+    groups[it.plan][it.medico].clasifs[it.clasif] = groups[it.plan][it.medico].clasifs[it.clasif] || [];
+    groups[it.plan][it.medico].clasifs[it.clasif].push(it);
   });
   return groups;
 }
@@ -709,7 +728,7 @@ function renderRxList(){
   // poblar el selector de médicos, preservando la selección actual
   const filterSel = document.getElementById('rxMedicoFilter');
   const prevVal = filterSel ? filterSel.value : '__all__';
-  const medicosConPendientes = [...new Set(getRxPatients().map(p=> p.medico || 'Sin médico asignado'))].sort();
+  const medicosConPendientes = [...new Set(getRxItems().map(it=> it.medico))].sort();
   if(filterSel){
     filterSel.innerHTML = '<option value="__all__">Todos los médicos</option>' +
       medicosConPendientes.map(m=>`<option value="${escapeHTML(m)}">${escapeHTML(m)}</option>`).join('');
@@ -717,9 +736,9 @@ function renderRxList(){
   }
 
   const filter = currentRxFilter();
-  const groups = groupRxPatients(filter);
+  const groups = groupRxItems(filter);
   const plans = Object.keys(groups).sort();
-  if(plans.length===0){ el.innerHTML = '<p class="helptext">Ningún paciente marcado ahora mismo. Actívalo desde el perfil del paciente ("Necesita Rx nueva del médico").</p>'; return; }
+  if(plans.length===0){ el.innerHTML = '<p class="helptext">Ningún medicamento marcado ahora mismo. Actívalo desde el perfil del paciente, en cada medicamento ("Necesita Rx nueva del médico").</p>'; return; }
 
   let html = '';
   plans.forEach(plan=>{
@@ -732,9 +751,9 @@ function renderRxList(){
       clasifs.forEach(clasif=>{
         const items = groups[plan][medico].clasifs[clasif];
         html += `<div class="fillrow" style="border-bottom:none;padding:4px 0 4px 10px;"><span class="d">${escapeHTML(clasif)} (${items.length})</span></div>`;
-        items.forEach(({p})=>{
+        items.forEach(it=>{
           html += `<div class="fillrow" style="padding:4px 0 4px 20px;">
-            <span><b>${escapeHTML(p.name)}</b> <span class="d">· ${escapeHTML(flaggedMedsText(p))}</span></span>
+            <span><b>${escapeHTML(it.patient.name)}</b> <span class="d">· ${escapeHTML(it.medName)}</span>${it.medNote ? `<br><span class="d">${escapeHTML(it.medNote)}</span>` : ''}</span>
           </div>`;
         });
       });
@@ -748,10 +767,10 @@ function statusOrder(label){
   return 2;
 }
 function buildRxSummaryText(filterMedico){
-  const groups = groupRxPatients(filterMedico);
+  const groups = groupRxItems(filterMedico);
   const plans = Object.keys(groups).sort();
-  if(plans.length===0) return 'No hay pacientes pendientes de Rx en este momento.';
-  const lines = [`Pacientes que necesitan Rx nueva del médico (${fmtDate(todayStr())}):`, ''];
+  if(plans.length===0) return 'No hay medicamentos pendientes de Rx en este momento.';
+  const lines = [`Medicamentos que necesitan Rx nueva del médico (${fmtDate(todayStr())}):`, ''];
   plans.forEach(plan=>{
     lines.push(`— ${plan} —`);
     const medicos = Object.keys(groups[plan]).sort();
@@ -759,8 +778,8 @@ function buildRxSummaryText(filterMedico){
       lines.push(`  Dr(a). ${medico}${medicoContactTextLine(groups[plan][medico].contact)}:`);
       const clasifs = Object.keys(groups[plan][medico].clasifs).sort((a,b)=> statusOrder(a)-statusOrder(b));
       clasifs.forEach(clasif=>{
-        groups[plan][medico].clasifs[clasif].forEach(({p})=>{
-          lines.push(`    • ${p.name} — ${flaggedMedsText(p)} — ${clasif}`);
+        groups[plan][medico].clasifs[clasif].forEach(it=>{
+          lines.push(`    • ${it.patient.name} — ${it.medName}${it.medNote ? ' — ' + it.medNote : ''} — ${clasif}`);
         });
       });
     });
@@ -772,7 +791,7 @@ function buildRxSummaryText(filterMedico){
 /* ---- Vista previa de impresión (regla de oro: preview en pantalla antes de imprimir) ---- */
 function openRxPreview(){
   const filter = currentRxFilter();
-  const groups = groupRxPatients(filter);
+  const groups = groupRxItems(filter);
   const plans = Object.keys(groups).sort();
   let rows = '';
   plans.forEach(plan=>{
@@ -787,17 +806,17 @@ function openRxPreview(){
       rows += `<tr class="grp-medico"><td colspan="3">🩺 Dr(a). ${escapeHTML(medico)}${contactBits.length ? ' — '+escapeHTML(contactBits.join('  ·  ')) : ''}</td></tr>`;
       const clasifs = Object.keys(groups[plan][medico].clasifs).sort((a,b)=> statusOrder(a)-statusOrder(b));
       clasifs.forEach(clasif=>{
-        groups[plan][medico].clasifs[clasif].forEach(({p})=>{
+        groups[plan][medico].clasifs[clasif].forEach(it=>{
           rows += `<tr>
-            <td>${escapeHTML(p.name)}</td>
-            <td>${escapeHTML(flaggedMedsText(p))}</td>
+            <td>${escapeHTML(it.patient.name)}</td>
+            <td>${escapeHTML(it.medName)}${it.medNote ? ' — '+escapeHTML(it.medNote) : ''}</td>
             <td>${escapeHTML(clasif)}</td>
           </tr>`;
         });
       });
     });
   });
-  if(!rows) rows = '<tr><td colspan="3">Ningún paciente pendiente.</td></tr>';
+  if(!rows) rows = '<tr><td colspan="3">Ningún medicamento pendiente.</td></tr>';
 
   const subtitle = filter === '__all__' ? 'todos los médicos' : escapeHTML(filter);
   document.getElementById('printArea').innerHTML = `
@@ -847,8 +866,8 @@ function shareWhatsAppRx(){
   const text = encodeURIComponent(buildRxSummaryText(filter));
   let phone = null;
   if(filter !== '__all__'){
-    const p = DB.patients.find(p=> (p.medico||'Sin médico asignado') === filter && p.medicoContact && p.medicoContact.telefono);
-    if(p) phone = normalizePhoneForWa(p.medicoContact.telefono);
+    const it = getRxItems().find(it=> it.medico === filter && it.contact && it.contact.telefono);
+    if(it) phone = normalizePhoneForWa(it.contact.telefono);
   }
   const url = phone ? `https://wa.me/${phone}?text=${text}` : `https://wa.me/?text=${text}`;
   window.open(url, '_blank');
@@ -859,8 +878,8 @@ function shareEmailRx(){
   const body = encodeURIComponent(buildRxSummaryText(filter));
   let to = '';
   if(filter !== '__all__'){
-    const p = DB.patients.find(p=> (p.medico||'Sin médico asignado') === filter && p.medicoContact && p.medicoContact.email);
-    if(p) to = p.medicoContact.email;
+    const it = getRxItems().find(it=> it.medico === filter && it.contact && it.contact.email);
+    if(it) to = it.contact.email;
   }
   window.location.href = 'mailto:' + to + '?subject=' + subject + '&body=' + body;
 }
@@ -871,10 +890,10 @@ let formMeds = []; // [{name, needsRx, note}]
 
 function parseMeds(detailJson, fallbackMedStr){
   if(Array.isArray(detailJson) && detailJson.length){
-    return detailJson.map(m=>({name:m.name||'', needsRx:!!m.needsRx, note:m.note||''}));
+    return detailJson.map(m=>({name:m.name||'', needsRx:!!m.needsRx, note:m.note||'', medicoId:m.medicoId||null}));
   }
   // compatibilidad con pacientes viejos que solo tenían el texto "med"
-  return (fallbackMedStr||'').split(',').map(s=>s.trim()).filter(Boolean).map(name=>({name, needsRx:false, note:''}));
+  return (fallbackMedStr||'').split(',').map(s=>s.trim()).filter(Boolean).map(name=>({name, needsRx:false, note:'', medicoId:null}));
 }
 function renderMedsChips(){
   const el = document.getElementById('pmMedsChips');
@@ -889,7 +908,13 @@ function renderMedsChips(){
             <input type="checkbox" style="width:auto;" ${m.needsRx?'checked':''} onchange="toggleMedRx(${i}, this.checked)">
             📋 Necesita Rx nueva del médico
           </label>
-          ${m.needsRx ? `<input type="text" placeholder="Nota para el médico (opcional)" value="${escapeHTML(m.note)}" oninput="updateMedNote(${i}, this.value)" style="margin-top:5px;font-size:13px;padding:7px 10px;">` : ''}
+          ${m.needsRx ? `
+            <select onchange="updateMedMedico(${i}, this.value)" style="margin-top:5px;font-size:13px;padding:7px 10px;">
+              <option value="">Médico de este medicamento (si es distinto al de arriba)</option>
+              ${DB.medicos.map(md=>`<option value="${md.id}" ${m.medicoId===md.id?'selected':''}>${escapeHTML(md.nombre)}</option>`).join('')}
+            </select>
+            <input type="text" placeholder="Nota para el médico (opcional)" value="${escapeHTML(m.note)}" oninput="updateMedNote(${i}, this.value)" style="margin-top:5px;font-size:13px;padding:7px 10px;">
+          ` : ''}
         </span>
         <button type="button" class="small-x" onclick="removeMedFromForm(${i})">×</button>
       </div>`).join('');
@@ -907,7 +932,7 @@ function addMedToForm(){
   const val = input.value.trim();
   if(!val){ toast('Escribe el nombre del medicamento'); return; }
   if(formMeds.some(m=>m.name===val)){ toast('Ya está en la lista'); input.value=''; return; }
-  formMeds.push({name:val, needsRx:false, note:''});
+  formMeds.push({name:val, needsRx:false, note:'', medicoId:null});
   input.value = '';
   renderMedsChips();
 }
@@ -921,6 +946,9 @@ function toggleMedRx(i, checked){
 }
 function updateMedNote(i, val){
   formMeds[i].note = val;
+}
+function updateMedMedico(i, val){
+  formMeds[i].medicoId = val || null;
 }
 
 function renderMedicoOptions(){
