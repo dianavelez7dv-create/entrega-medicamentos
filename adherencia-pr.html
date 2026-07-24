@@ -651,7 +651,7 @@ function renderPatients(){
   let list = DB.patients.slice();
   if(activePlan!=='all') list = list.filter(p=>p.plan===activePlan);
   if(activeCat!=='all') list = list.filter(p=>p.cat===activeCat);
-  list = list.map(p=>({p, r:calcPDC(p)})).sort((a,b)=>a.r.pct-b.r.pct);
+  list = list.map(p=>({p, r:calcPDC(p)})).sort((a,b)=> a.p.name.localeCompare(b.p.name, 'es'));
   const el = document.getElementById('patientList');
   if(list.length===0){ el.innerHTML = `<div class="empty"><div class="disp">Aún no hay pacientes</div><p>Toca el botón + para añadir el primero.</p></div>`; return; }
   el.innerHTML = list.map(x=>patientCardHTML(x.p,x.r)).join('');
@@ -729,6 +729,7 @@ function groupRxItems(filterMedico){
   if(filterMedico && filterMedico !== '__all__'){
     items = items.filter(it=> it.medico === filterMedico);
   }
+  items.sort((a,b)=> a.patient.name.localeCompare(b.patient.name, 'es'));
   items.forEach(it=>{
     groups[it.plan] = groups[it.plan] || {};
     groups[it.plan][it.medico] = groups[it.plan][it.medico] || { contact: it.contact, clasifs: {} };
@@ -1140,7 +1141,7 @@ function openPatientModal(id){
     document.getElementById('pmName').value = '';
     document.getElementById('pmCat').value = 'Estatina';
     document.getElementById('pmPlan').value = 'MCS';
-    document.getElementById('pmFillsSection').style.display = 'none';
+    document.getElementById('pmFillsSection').style.display = 'block';
     document.getElementById('pmDeleteBtn').style.display = 'none';
     renderMedicoOptions();
     document.getElementById('pmMedicoSel').value = '';
