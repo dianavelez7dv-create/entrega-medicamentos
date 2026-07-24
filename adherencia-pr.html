@@ -174,11 +174,13 @@ textarea{resize:vertical;min-height:60px;}
 
 <main>
   <div class="view active" id="view-dash">
+    <select id="planFilterDash" onchange="setActivePlan(this.value)" style="margin-bottom:12px;"><option value="all">Todos los planes</option></select>
     <div class="section-title">Brechas priorizadas</div>
     <div id="gapList"></div>
   </div>
 
   <div class="view" id="view-pacientes">
+    <select id="planFilterPac" onchange="setActivePlan(this.value)" style="margin-bottom:10px;"><option value="all">Todos los planes</option></select>
     <div class="filters" id="catFilters">
       <button data-cat="all" class="on">Todos</button>
       <button data-cat="Estatina">Estatina</button>
@@ -601,10 +603,30 @@ function patientCardHTML(p, r){
     <div class="pdc"><div class="pct" style="color:${color};">${r.pct}%</div><div class="lbl">${statusLabel(r.status)}</div></div>
   </div>`;
 }
+const PLAN_OPTIONS = ['MCS','Triple-S Advantage','MMM/PMC','First Medical','Plan Vital','Otro'];
+let activePlan = 'all';
+function populatePlanFilters(){
+  const html = '<option value="all">Todos los planes</option>' + PLAN_OPTIONS.map(p=>`<option value="${escapeHTML(p)}">${escapeHTML(p)}</option>`).join('');
+  ['planFilterDash','planFilterPac'].forEach(id=>{
+    const sel = document.getElementById(id);
+    if(sel && !sel.dataset.filled){ sel.innerHTML = html; sel.dataset.filled = '1'; }
+  });
+}
+function setActivePlan(val){
+  activePlan = val;
+  ['planFilterDash','planFilterPac'].forEach(id=>{
+    const sel = document.getElementById(id);
+    if(sel) sel.value = val;
+  });
+  renderDash();
+  renderPatients();
+}
 function renderDash(){
-  const list = DB.patients.map(p=>({p, r:calcPDC(p)})).filter(x=>x.r.status!=='ok').sort((a,b)=> a.r.pct - b.r.pct);
+  let list = DB.patients.slice();
+  if(activePlan!=='all') list = list.filter(p=>p.plan===activePlan);
+  list = list.map(p=>({p, r:calcPDC(p)})).filter(x=>x.r.status!=='ok').sort((a,b)=> a.r.pct - b.r.pct);
   const el = document.getElementById('gapList');
-  if(list.length===0){ el.innerHTML = `<div class="empty"><div class="disp">Sin brechas activas</div><p>Todos los pacientes registrados están al día (PDC ≥ 80%).</p></div>`; return; }
+  if(list.length===0){ el.innerHTML = `<div class="empty"><div class="disp">Sin brechas activas</div><p>Todos los pacientes registrados están al día (PDC ≥ 80%)${activePlan!=='all' ? ' en '+escapeHTML(activePlan) : ''}.</p></div>`; return; }
   el.innerHTML = list.map(x=> patientCardHTML(x.p, x.r)).join('');
   el.querySelectorAll('.pcard').forEach(c=>c.addEventListener('click', ()=>openIntv(c.dataset.id)));
 }
@@ -618,6 +640,7 @@ document.getElementById('catFilters').addEventListener('click', e=>{
 });
 function renderPatients(){
   let list = DB.patients.slice();
+  if(activePlan!=='all') list = list.filter(p=>p.plan===activePlan);
   if(activeCat!=='all') list = list.filter(p=>p.cat===activeCat);
   list = list.map(p=>({p, r:calcPDC(p)})).sort((a,b)=>a.r.pct-b.r.pct);
   const el = document.getElementById('patientList');
@@ -635,7 +658,7 @@ function renderIntv(){
       <div class="note">${escapeHTML(i.notes||'')}</div>
     </div>`).join('');
 }
-function renderAll(){ renderStats(); renderDash(); renderPatients(); renderIntv(); renderRxList(); renderMedicosList(); }
+function renderAll(){ populatePlanFilters(); renderStats(); renderDash(); renderPatients(); renderIntv(); renderRxList(); renderMedicosList(); }
 
 function renderMedicosList(){
   const el = document.getElementById('medicosList');
@@ -870,7 +893,7 @@ function shareWhatsAppRx(){
     if(it) phone = normalizePhoneForWa(it.contact.telefono);
   }
   const url = phone ? `https://wa.me/${phone}?text=${text}` : `https://wa.me/?text=${text}`;
-  window.open(url, '_blank');
+  window.location.href = url;
 }
 function shareEmailRx(){
   const filter = currentRxFilter();
