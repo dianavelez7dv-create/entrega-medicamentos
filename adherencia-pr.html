@@ -265,21 +265,12 @@ textarea{resize:vertical;min-height:60px;}
       <button type="button" class="btn ghost sm" onclick="openMedicoModal()">+ Nuevo</button>
     </div>
     <label>Medicamento(s)</label>
-    <div id="pmMedsChips" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;"></div>
+    <div id="pmMedsChips" style="margin-bottom:8px;"></div>
     <div style="display:flex;gap:8px;">
       <input id="pmMedInput" placeholder="Ej. Atorvastatina 20mg" style="flex:1;">
       <button type="button" class="btn ghost sm" onclick="addMedToForm()">+ Añadir</button>
     </div>
-    <p class="helptext">Añade todos los que aplique — por ejemplo si cambió de estatina a mitad de año, o toma más de un producto de la misma categoría. El PDC cuenta el día como cubierto si tenía disponible cualquiera de ellos.</p>
-
-    <label style="display:flex;align-items:center;gap:8px;margin-top:16px;">
-      <input type="checkbox" id="pmNeedsRx" style="width:auto;">
-      <span style="text-transform:none;font-family:'Source Serif 4',serif;font-size:14.5px;letter-spacing:0;color:var(--ink);">Necesita Rx nueva del médico</span>
-    </label>
-    <div id="pmRxNoteWrap" style="display:none;">
-      <label>Nota para el médico (opcional)</label>
-      <textarea id="pmRxNote" placeholder="Ej. Sin refills disponibles, paciente reporta que le quedan 2 dosis"></textarea>
-    </div>
+    <p class="helptext">Añade todos los que aplique. Si a alguno le falta autorización del médico, marca su casilla "Necesita Rx" — el reporte solo incluirá ese medicamento específico, no la lista completa.</p>
 
     <div id="pmFillsSection" style="display:none;">
       <div class="section-title" style="margin-top:20px;">Historial de resurtidos</div>
@@ -498,6 +489,7 @@ async function fetchAll(){
 
   DB.patients = (patients||[]).map(p=>({
     id: p.id, name: p.name, cat: p.cat, plan: p.plan, med: p.med,
+    medsDetail: Array.isArray(p.meds_detail) ? p.meds_detail : [],
     medicoId: p.medico_id, medico: p.medicos ? p.medicos.nombre : null, medicoContact: p.medicos || null,
     needsRx: !!p.needs_rx, rxNote: p.rx_note,
     fills: (p.fills||[]).map(f=>({id:f.id, date:f.fill_date, days:f.days_supply, med:f.med_name||null}))
@@ -663,6 +655,11 @@ function renderMedicosList(){
   }).join('');
 }
 
+function flaggedMedsText(p){
+  const flagged = (p.medsDetail||[]).filter(m=>m.needsRx);
+  if(flagged.length===0) return p.med || p.cat; // compatibilidad con datos viejos
+  return flagged.map(m=> m.name + (m.note ? ' — ' + m.note : '')).join(', ');
+}
 function getRxPatients(filterMedico){
   let list = DB.patients.filter(p=>p.needsRx);
   if(filterMedico && filterMedico !== '__all__'){
@@ -737,7 +734,7 @@ function renderRxList(){
         html += `<div class="fillrow" style="border-bottom:none;padding:4px 0 4px 10px;"><span class="d">${escapeHTML(clasif)} (${items.length})</span></div>`;
         items.forEach(({p})=>{
           html += `<div class="fillrow" style="padding:4px 0 4px 20px;">
-            <span><b>${escapeHTML(p.name)}</b> <span class="d">· ${escapeHTML(p.med||p.cat)}</span>${p.rxNote ? `<br><span class="d">${escapeHTML(p.rxNote)}</span>` : ''}</span>
+            <span><b>${escapeHTML(p.name)}</b> <span class="d">· ${escapeHTML(flaggedMedsText(p))}</span></span>
           </div>`;
         });
       });
@@ -763,7 +760,7 @@ function buildRxSummaryText(filterMedico){
       const clasifs = Object.keys(groups[plan][medico].clasifs).sort((a,b)=> statusOrder(a)-statusOrder(b));
       clasifs.forEach(clasif=>{
         groups[plan][medico].clasifs[clasif].forEach(({p})=>{
-          lines.push(`    • ${p.name} — ${p.med || p.cat} — ${clasif}${p.rxNote ? ' — ' + p.rxNote : ''}`);
+          lines.push(`    • ${p.name} — ${flaggedMedsText(p)} — ${clasif}`);
         });
       });
     });
@@ -779,7 +776,7 @@ function openRxPreview(){
   const plans = Object.keys(groups).sort();
   let rows = '';
   plans.forEach(plan=>{
-    rows += `<tr class="grp-plan"><td colspan="4">${escapeHTML(plan)}</td></tr>`;
+    rows += `<tr class="grp-plan"><td colspan="3">${escapeHTML(plan)}</td></tr>`;
     const medicos = Object.keys(groups[plan]).sort();
     medicos.forEach(medico=>{
       const contact = groups[plan][medico].contact;
@@ -787,21 +784,20 @@ function openRxPreview(){
       if(contact && contact.telefono) contactBits.push('📞 '+contact.telefono);
       if(contact && contact.email) contactBits.push('✉️ '+contact.email);
       if(contact && contact.direccion) contactBits.push('📍 '+contact.direccion);
-      rows += `<tr class="grp-medico"><td colspan="4">🩺 Dr(a). ${escapeHTML(medico)}${contactBits.length ? ' — '+escapeHTML(contactBits.join('  ·  ')) : ''}</td></tr>`;
+      rows += `<tr class="grp-medico"><td colspan="3">🩺 Dr(a). ${escapeHTML(medico)}${contactBits.length ? ' — '+escapeHTML(contactBits.join('  ·  ')) : ''}</td></tr>`;
       const clasifs = Object.keys(groups[plan][medico].clasifs).sort((a,b)=> statusOrder(a)-statusOrder(b));
       clasifs.forEach(clasif=>{
         groups[plan][medico].clasifs[clasif].forEach(({p})=>{
           rows += `<tr>
             <td>${escapeHTML(p.name)}</td>
-            <td>${escapeHTML(p.med||p.cat)}</td>
+            <td>${escapeHTML(flaggedMedsText(p))}</td>
             <td>${escapeHTML(clasif)}</td>
-            <td>${escapeHTML(p.rxNote||'')}</td>
           </tr>`;
         });
       });
     });
   });
-  if(!rows) rows = '<tr><td colspan="4">Ningún paciente pendiente.</td></tr>';
+  if(!rows) rows = '<tr><td colspan="3">Ningún paciente pendiente.</td></tr>';
 
   const subtitle = filter === '__all__' ? 'todos los médicos' : escapeHTML(filter);
   document.getElementById('printArea').innerHTML = `
@@ -813,7 +809,7 @@ function openRxPreview(){
         </div>
         <p style="color:var(--ink-soft);font-size:13px;margin:0 0 12px;">${fmtDate(todayStr())} · ${subtitle}</p>
         <table style="width:100%;border-collapse:collapse;font-size:13px;">
-          <tr><th style="text-align:left;padding:6px;border-bottom:2px solid var(--navy);">Paciente</th><th style="text-align:left;padding:6px;border-bottom:2px solid var(--navy);">Medicamento</th><th style="text-align:left;padding:6px;border-bottom:2px solid var(--navy);">Clasificación</th><th style="text-align:left;padding:6px;border-bottom:2px solid var(--navy);">Nota</th></tr>
+          <tr><th style="text-align:left;padding:6px;border-bottom:2px solid var(--navy);">Paciente</th><th style="text-align:left;padding:6px;border-bottom:2px solid var(--navy);">Medicamento</th><th style="text-align:left;padding:6px;border-bottom:2px solid var(--navy);">Clasificación</th></tr>
           ${rows}
         </table>
         <div style="display:flex;gap:10px;margin-top:18px;">
@@ -871,37 +867,60 @@ function shareEmailRx(){
 
 /* ================= Modal: patient ================= */
 let formFills = [];
-let formMeds = [];
+let formMeds = []; // [{name, needsRx, note}]
 
-function parseMeds(medStr){
-  return (medStr||'').split(',').map(s=>s.trim()).filter(Boolean);
+function parseMeds(detailJson, fallbackMedStr){
+  if(Array.isArray(detailJson) && detailJson.length){
+    return detailJson.map(m=>({name:m.name||'', needsRx:!!m.needsRx, note:m.note||''}));
+  }
+  // compatibilidad con pacientes viejos que solo tenían el texto "med"
+  return (fallbackMedStr||'').split(',').map(s=>s.trim()).filter(Boolean).map(name=>({name, needsRx:false, note:''}));
 }
 function renderMedsChips(){
   const el = document.getElementById('pmMedsChips');
-  if(formMeds.length===0){ el.innerHTML = '<span class="helptext">Sin medicamentos añadidos aún.</span>'; }
-  else {
-    el.innerHTML = formMeds.map((m,i)=>`<span class="tag" style="background:var(--amber-soft);color:#7A4E17;font-size:12px;padding:5px 10px;">${escapeHTML(m)} <button type="button" onclick="removeMedFromForm(${i})" style="border:none;background:none;color:#7A4E17;cursor:pointer;font-weight:700;margin-left:3px;">×</button></span>`).join('');
+  if(formMeds.length===0){
+    el.innerHTML = '<span class="helptext">Sin medicamentos añadidos aún.</span>';
+  } else {
+    el.innerHTML = formMeds.map((m,i)=>`
+      <div class="fillrow" style="align-items:flex-start;">
+        <span style="flex:1;">
+          <b>${escapeHTML(m.name)}</b>
+          <label style="display:flex;align-items:center;gap:6px;margin-top:5px;font-size:12.5px;text-transform:none;letter-spacing:0;font-family:'Source Serif 4',serif;color:var(--ink);">
+            <input type="checkbox" style="width:auto;" ${m.needsRx?'checked':''} onchange="toggleMedRx(${i}, this.checked)">
+            📋 Necesita Rx nueva del médico
+          </label>
+          ${m.needsRx ? `<input type="text" placeholder="Nota para el médico (opcional)" value="${escapeHTML(m.note)}" oninput="updateMedNote(${i}, this.value)" style="margin-top:5px;font-size:13px;padding:7px 10px;">` : ''}
+        </span>
+        <button type="button" class="small-x" onclick="removeMedFromForm(${i})">×</button>
+      </div>`).join('');
   }
-  // keep the per-fill medication selector in sync
+  // mantener sincronizado el selector de medicamento por resurtido
   const sel = document.getElementById('pmFillMed');
   const prev = sel.value;
   sel.innerHTML = formMeds.length
-    ? formMeds.map(m=>`<option value="${escapeHTML(m)}">${escapeHTML(m)}</option>`).join('')
+    ? formMeds.map(m=>`<option value="${escapeHTML(m.name)}">${escapeHTML(m.name)}</option>`).join('')
     : '<option value="">(añade un medicamento arriba primero)</option>';
-  if(formMeds.includes(prev)) sel.value = prev;
+  if(formMeds.some(m=>m.name===prev)) sel.value = prev;
 }
 function addMedToForm(){
   const input = document.getElementById('pmMedInput');
   const val = input.value.trim();
   if(!val){ toast('Escribe el nombre del medicamento'); return; }
-  if(formMeds.includes(val)){ toast('Ya está en la lista'); input.value=''; return; }
-  formMeds.push(val);
+  if(formMeds.some(m=>m.name===val)){ toast('Ya está en la lista'); input.value=''; return; }
+  formMeds.push({name:val, needsRx:false, note:''});
   input.value = '';
   renderMedsChips();
 }
 function removeMedFromForm(i){
   formMeds.splice(i,1);
   renderMedsChips();
+}
+function toggleMedRx(i, checked){
+  formMeds[i].needsRx = checked;
+  renderMedsChips();
+}
+function updateMedNote(i, val){
+  formMeds[i].note = val;
 }
 
 function renderMedicoOptions(){
@@ -1016,12 +1035,10 @@ function openPatientModal(id){
     document.getElementById('pmName').value = p.name;
     document.getElementById('pmCat').value = p.cat;
     document.getElementById('pmPlan').value = p.plan;
-    formMeds = parseMeds(p.med);
+    formMeds = parseMeds(p.medsDetail, p.med);
     formFills = (p.fills||[]).slice();
     document.getElementById('pmFillsSection').style.display = 'block';
     document.getElementById('pmDeleteBtn').style.display = 'block';
-    document.getElementById('pmNeedsRx').checked = !!p.needsRx;
-    document.getElementById('pmRxNote').value = p.rxNote || '';
     renderMedicoOptions();
     document.getElementById('pmMedicoSel').value = p.medicoId || '';
   } else {
@@ -1032,12 +1049,9 @@ function openPatientModal(id){
     document.getElementById('pmPlan').value = 'MCS';
     document.getElementById('pmFillsSection').style.display = 'none';
     document.getElementById('pmDeleteBtn').style.display = 'none';
-    document.getElementById('pmNeedsRx').checked = false;
-    document.getElementById('pmRxNote').value = '';
     renderMedicoOptions();
     document.getElementById('pmMedicoSel').value = '';
   }
-  document.getElementById('pmRxNoteWrap').style.display = document.getElementById('pmNeedsRx').checked ? 'block' : 'none';
   document.getElementById('pmMedInput').value = '';
   renderMedsChips();
   renderFillsInForm();
@@ -1064,10 +1078,6 @@ function removeFillFromForm(k){
   renderFillsInForm();
 }
 
-document.getElementById('pmNeedsRx').addEventListener('change', e=>{
-  document.getElementById('pmRxNoteWrap').style.display = e.target.checked ? 'block' : 'none';
-});
-
 async function savePatient(){
   const name = document.getElementById('pmName').value.trim();
   if(!name){ toast('Escribe el nombre del paciente'); return; }
@@ -1075,14 +1085,16 @@ async function savePatient(){
   const btn = document.getElementById('pmSaveBtn');
   btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Guardando…';
 
+  const flagged = formMeds.filter(m=>m.needsRx);
   const payload = {
     name,
     cat: document.getElementById('pmCat').value,
     plan: document.getElementById('pmPlan').value,
-    med: formMeds.length ? formMeds.join(', ') : null,
+    med: formMeds.length ? formMeds.map(m=>m.name).join(', ') : null,
+    meds_detail: formMeds,
     medico_id: document.getElementById('pmMedicoSel').value || null,
-    needs_rx: document.getElementById('pmNeedsRx').checked,
-    rx_note: document.getElementById('pmRxNote').value.trim() || null,
+    needs_rx: flagged.length > 0,
+    rx_note: flagged.length ? flagged.map(m=> m.name + (m.note ? ' — '+m.note : '')).join('; ') : null,
   };
 
   try{
