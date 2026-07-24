@@ -107,9 +107,10 @@ footer{text-align:center;color:var(--gris);font-size:12px;padding:20px 0 40px;}
     <h2><span class="ic">🪪</span>2. Directorio de pacientes</h2>
     <p class="desc">Guarda el perfil de cada paciente una sola vez y reutilízalo en cada visita — evita escribir todo de nuevo y mezclar pacientes con nombres parecidos.</p>
     <div class="step"><div class="stepnum">1</div><div class="stepbody"><b>Pestaña "Pac."</b><span>Ahí ves todos los pacientes guardados, con foto, plan médico, teléfono y dirección.</span></div></div>
-    <div class="step"><div class="stepnum">2</div><div class="stepbody"><b>➕ Nuevo paciente</b><span>Escribe nombre completo (con ambos apellidos + inicial si aplica), plan médico, teléfono, email, dirección, quién recoge, y toma la foto de identificación.</span></div></div>
+    <div class="step"><div class="stepnum">2</div><div class="stepbody"><b>➕ Nuevo paciente</b><span>Escribe nombre completo (con ambos apellidos + inicial si aplica), plan médico, teléfono, email, dirección, quién recoge, clasificación de adherencia (opcional, texto libre — ej. "Diabetes"), y toma la foto de identificación.</span></div></div>
     <div class="step"><div class="stepnum">3</div><div class="stepbody"><b>✏️ Editar</b><span>Cambia cualquier dato o la foto en cualquier momento desde la misma tarjeta del paciente.</span></div></div>
     <div class="step"><div class="stepnum">4</div><div class="stepbody"><b>🗺️ Mapa / 💬 WhatsApp</b><span>Si el paciente tiene dirección o teléfono guardado, salen botones directos para navegación o avisos.</span></div></div>
+    <div class="step"><div class="stepnum">5</div><div class="stepbody"><b>Filtrar por clasificación de adherencia</b><span>Selector desplegable arriba de la lista, se llena solo con las clasificaciones que ya hayas usado. El buscador normal también las reconoce.</span></div></div>
     <div class="warn"><b>Ojo con nombres parecidos:</b> si hay dos pacientes con el mismo primer nombre, la app te avisa mientras escribes — confirma que sea la persona correcta antes de guardar.</div>
   </section>
 
@@ -160,7 +161,7 @@ footer{text-align:center;color:var(--gris);font-size:12px;padding:20px 0 40px;}
   <section class="card" id="inventario">
     <h2><span class="ic">📦</span>6. Inventario</h2>
     <p class="desc">Control de existencias de medicamentos y productos OTC, paralelo a Pharmascan.</p>
-    <div class="step"><div class="stepnum">1</div><div class="stepbody"><b>➕ Nuevo producto</b><span>Nombre, presentación, tipo (medicamento/OTC), si es controlado, alerta de stock mínimo, costo, precio de venta, proveedor, NDC (a mano o con "📷 Escanear"), y si cobra IVU.</span></div></div>
+    <div class="step"><div class="stepnum">1</div><div class="stepbody"><b>➕ Nuevo producto</b><span>Nombre, nombre genérico (opcional, ej. "Zocor" / "Simvastatin"), presentación, tipo (medicamento/OTC), si es controlado, alerta de stock mínimo, costo, precio de venta, proveedor, NDC (a mano o con "📷 Escanear"), y si cobra IVU.</span></div></div>
     <div class="step"><div class="stepnum">2</div><div class="stepbody"><b>Lotes múltiples</b><span>Cada producto puede tener varios lotes, cada uno con su número, cantidad y fecha de vencimiento propios. La cantidad total se suma sola. Al entregar o vender, se descuenta primero del lote que vence más pronto (FEFO).</span></div></div>
     <div class="step"><div class="stepnum">3</div><div class="stepbody"><b>Precios especiales por cantidad</b><span>Opcional: "Desde X unidades" (precio por unidad) o "Paquete" (cantidad exacta por un total fijo, ej. 100 tabletas por $5). Se aplican solos al vender sin receta. Lista imprimible con "🖨️ Lista de precios especiales".</span></div></div>
     <div class="step"><div class="stepnum">4</div><div class="stepbody"><b>Alertas automáticas</b><span><span class="badgeex b-parcial">🟡 Stock bajo</span> <span class="badgeex b-completa">🔴 Por vencer (60 días o menos)</span> — pueden salir las dos juntas, con filtros rápidos arriba de la lista.</span></div></div>
@@ -181,15 +182,16 @@ footer{text-align:center;color:var(--gris);font-size:12px;padding:20px 0 40px;}
 
   <section class="card" id="adherencia">
     <h2><span class="ic">📅</span>8. Adherencia Medicare</h2>
-    <p class="desc">Para las métricas de adherencia (PDC) de Medicare — funciona en paralelo a Pharmascan, ya que no tiene esta función.</p>
-    <div class="step"><div class="stepnum">1</div><div class="stepbody"><b>Sync → "📅 Medicamentos de adherencia"</b><span>Agrega ahí los medicamentos específicos que Medicare rastrea, marcando cuáles son controlados por el DEA.</span></div></div>
+    <p class="desc">Para las métricas de adherencia (PDC) de Medicare — funciona en paralelo a Pharmascan, ya que no tiene esta función. Todo lo de adherencia vive junto en el mismo panel.</p>
+    <div class="step"><div class="stepnum">1</div><div class="stepbody"><b>Historial → "📅 Panel de adherencia" → "⚙️ Gestionar lista de medicamentos"</b><span>Se despliega ahí mismo el formulario para agregar medicamentos: nombre, nombre genérico (opcional, para que reconozca cualquiera de los dos), y si es controlado por el DEA.</span></div></div>
     <div class="step"><div class="stepnum">2</div><div class="stepbody"><b>Fecha de proceso en Pharmascan</b><span>Al registrar la receta, si ya sabes cuándo se procesó, escríbela ahí mismo. Si no, la app te pregunta al momento de entregar (solo para medicamentos de la lista) — y respeta la fecha que ya hayas puesto.</span></div></div>
     <div class="step"><div class="stepnum">3</div><div class="stepbody"><b>Repeticiones (refills)</b><span>Escribe cuántas autorizó el médico (1 a 5). La app detecta sola cuántas lleva usadas por paciente/medicamento, y avisa "🔴 Necesita Rx nueva" cuando se agotan.</span></div></div>
-    <div class="step"><div class="stepnum">4</div><div class="stepbody"><b>Historial → "📅 Panel de adherencia"</b><span>
+    <div class="step"><div class="stepnum">4</div><div class="stepbody"><b>Filtros del panel</b><span>
       <span class="badgeex b-ok">✅ Listos ahora</span> en ventana de proceso (6 días antes si no es controlado, 2 días antes si sí) —
       <span class="badgeex b-completa">🔴 Necesitan Rx</span> a quién pedirle receta nueva —
       <b>👥 Por paciente:</b> agrupa todo por persona, incluyendo pendientes que nunca se han procesado —
-      <b>🏥 Por plan médico:</b> agrupa por el plan del paciente y luego por medicamento, para trabajar cada plataforma de plan de un tirón.
+      <b>🏥 Por plan médico:</b> agrupa por el plan del paciente y luego por medicamento, para trabajar cada plataforma de plan de un tirón —
+      <b>📋 ¿Quién toca HOY?:</b> acceso directo a los listos para procesar, agrupados por paciente, para el trabajo del día.
     </span></div></div>
     <div class="step"><div class="stepnum">5</div><div class="stepbody"><b>✏️ Corregir fecha de proceso</b><span>Si te equivocaste o lo registras días después, puedes corregir la fecha directo desde cualquier fila del panel.</span></div></div>
   </section>
@@ -212,7 +214,7 @@ footer{text-align:center;color:var(--gris);font-size:12px;padding:20px 0 40px;}
     <div class="step"><div class="stepnum">3</div><div class="stepbody"><b>🚚 Operacional</b><span>Entregas completadas, días promedio de espera, entregas por empleado.</span></div></div>
     <div class="step"><div class="stepnum">4</div><div class="stepbody"><b>📦 Inventario</b><span>Valor en costo vs. venta, ganancia potencial, productos más movidos en el rango.</span></div></div>
     <div class="step"><div class="stepnum">5</div><div class="stepbody"><b>🧾 Compras</b><span>Total gastado, desglose por proveedor.</span></div></div>
-    <div class="step"><div class="stepnum">6</div><div class="stepbody"><b>🪪 Pacientes</b><span>Nuevos en el período, más frecuentes.</span></div></div>
+    <div class="step"><div class="stepnum">6</div><div class="stepbody"><b>🪪 Pacientes</b><span>Nuevos en el período, más frecuentes, y desglose por clasificación de adherencia.</span></div></div>
     <div class="tip"><b>Imprimir:</b> cada tarjeta tiene su propio botón para imprimir solo esa sección, o "🖨️ Imprimir todo" arriba para el reporte completo.</div>
   </section>
 
