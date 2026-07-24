@@ -198,6 +198,8 @@ textarea{resize:vertical;min-height:60px;}
       <h3 style="margin:0 0 4px;color:var(--navy);">📋 Rx pendientes con el médico</h3>
       <p class="helptext">Pacientes marcados como "Necesita Rx nueva del médico" desde su perfil.</p>
       <div id="rxList" style="margin-top:10px;"></div>
+      <label style="margin-top:14px;">Enviar a</label>
+      <select id="rxMedicoFilter" onchange="renderRxList()"><option value="__all__">Todos los médicos</option></select>
       <div class="row2" style="margin-top:6px;">
         <button class="btn ghost sm" style="width:100%;" onclick="printRxList()">🖨️ Imprimir</button>
         <button class="btn ghost sm" style="width:100%;" onclick="shareEmailRx()">✉️ Correo</button>
@@ -317,7 +319,8 @@ textarea{resize:vertical;min-height:60px;}
 <!-- MODAL: médico -->
 <div class="overlay" id="modalMedico">
   <div class="modal">
-    <div class="modal-head"><h2>Nuevo médico</h2><button class="x" onclick="closeModal('modalMedico')">×</button></div>
+    <div class="modal-head"><h2 id="mdTitle">Nuevo médico</h2><button class="x" onclick="closeModal('modalMedico')">×</button></div>
+    <input type="hidden" id="mdId">
     <label>Nombre</label>
     <input id="mdNombre" placeholder="Dr(a). Nombre Apellido">
     <div class="row2">
@@ -326,9 +329,12 @@ textarea{resize:vertical;min-height:60px;}
     </div>
     <label>Dirección física</label>
     <input id="mdDireccion" placeholder="Calle, ciudad, PR, código postal">
+    <button type="button" class="btn ghost sm" style="width:100%;margin-top:8px;" onclick="capturarGPSMedico()">📍 Usar mi ubicación actual (GPS)</button>
+    <div id="mdGpsStatus" class="helptext"></div>
     <label>Notas (opcional)</label>
     <textarea id="mdNotas" placeholder="Horario, especialidad, preferencia de contacto..."></textarea>
     <button class="btn primary" id="mdSaveBtn" onclick="saveMedico()">Guardar médico</button>
+    <button class="btn danger" id="mdDeleteBtn" style="display:none;" onclick="deleteMedico()">Eliminar médico</button>
   </div>
 </div>
 
@@ -643,22 +649,35 @@ function renderMedicosList(){
   const el = document.getElementById('medicosList');
   if(!el) return;
   if(DB.medicos.length===0){ el.innerHTML = '<p class="helptext">Aún no hay médicos en el directorio.</p>'; return; }
-  el.innerHTML = DB.medicos.map(m=>`
+  el.innerHTML = DB.medicos.map(m=>{
+    const map = mapsLink(m);
+    return `
     <div class="fillrow" style="align-items:flex-start;">
       <span>
         <b style="font-family:'Space Grotesk',sans-serif;color:var(--navy);">${escapeHTML(m.nombre)}</b>
         ${medicoContactLine(m)}
+        ${map ? `<a href="${map}" target="_blank" rel="noopener" style="font-size:11.5px;color:var(--navy);">🗺️ Ver en mapa</a>` : ''}
       </span>
-    </div>`).join('');
+      <button class="small-x" style="color:var(--navy);font-size:14px;" onclick="openMedicoModal('${m.id}')">✏️</button>
+    </div>`;
+  }).join('');
 }
 
-function getRxPatients(){
-  return DB.patients.filter(p=>p.needsRx);
+function getRxPatients(filterMedico){
+  let list = DB.patients.filter(p=>p.needsRx);
+  if(filterMedico && filterMedico !== '__all__'){
+    list = list.filter(p=> (p.medico || 'Sin médico asignado') === filterMedico);
+  }
+  return list;
+}
+function currentRxFilter(){
+  const sel = document.getElementById('rxMedicoFilter');
+  return sel ? sel.value : '__all__';
 }
 /* Agrupa: Plan -> Médico -> Clasificación (PDC) */
-function groupRxPatients(){
+function groupRxPatients(filterMedico){
   const groups = {};
-  getRxPatients().forEach(p=>{
+  getRxPatients(filterMedico).forEach(p=>{
     const plan = p.plan || 'Sin plan';
     const medico = p.medico || 'Sin médico asignado';
     const r = calcPDC(p);
@@ -689,7 +708,19 @@ function medicoContactTextLine(contact){
 function renderRxList(){
   const el = document.getElementById('rxList');
   if(!el) return;
-  const groups = groupRxPatients();
+
+  // poblar el selector de médicos, preservando la selección actual
+  const filterSel = document.getElementById('rxMedicoFilter');
+  const prevVal = filterSel ? filterSel.value : '__all__';
+  const medicosConPendientes = [...new Set(getRxPatients().map(p=> p.medico || 'Sin médico asignado'))].sort();
+  if(filterSel){
+    filterSel.innerHTML = '<option value="__all__">Todos los médicos</option>' +
+      medicosConPendientes.map(m=>`<option value="${escapeHTML(m)}">${escapeHTML(m)}</option>`).join('');
+    filterSel.value = medicosConPendientes.includes(prevVal) || prevVal==='__all__' ? prevVal : '__all__';
+  }
+
+  const filter = currentRxFilter();
+  const groups = groupRxPatients(filter);
   const plans = Object.keys(groups).sort();
   if(plans.length===0){ el.innerHTML = '<p class="helptext">Ningún paciente marcado ahora mismo. Actívalo desde el perfil del paciente ("Necesita Rx nueva del médico").</p>'; return; }
 
@@ -719,8 +750,8 @@ function statusOrder(label){
   if(label==='En riesgo') return 1;
   return 2;
 }
-function buildRxSummaryText(){
-  const groups = groupRxPatients();
+function buildRxSummaryText(filterMedico){
+  const groups = groupRxPatients(filterMedico);
   const plans = Object.keys(groups).sort();
   if(plans.length===0) return 'No hay pacientes pendientes de Rx en este momento.';
   const lines = [`Pacientes que necesitan Rx nueva del médico (${fmtDate(todayStr())}):`, ''];
@@ -743,7 +774,8 @@ function buildRxSummaryText(){
 
 /* ---- Vista previa de impresión (regla de oro: preview en pantalla antes de imprimir) ---- */
 function openRxPreview(){
-  const groups = groupRxPatients();
+  const filter = currentRxFilter();
+  const groups = groupRxPatients(filter);
   const plans = Object.keys(groups).sort();
   let rows = '';
   plans.forEach(plan=>{
@@ -771,6 +803,7 @@ function openRxPreview(){
   });
   if(!rows) rows = '<tr><td colspan="4">Ningún paciente pendiente.</td></tr>';
 
+  const subtitle = filter === '__all__' ? 'todos los médicos' : escapeHTML(filter);
   document.getElementById('printArea').innerHTML = `
     <div id="vistaPreviaOverlay" style="display:flex;position:fixed;inset:0;background:rgba(23,37,63,.55);z-index:100;align-items:center;justify-content:center;padding:16px;">
       <div style="background:#fff;max-width:720px;width:100%;max-height:90vh;overflow-y:auto;border-radius:14px;padding:22px;">
@@ -778,7 +811,7 @@ function openRxPreview(){
           <h2 style="margin:0;font-family:'Space Grotesk',sans-serif;color:var(--navy);">Rx pendientes con el médico</h2>
           <button onclick="closeRxPreview()" style="border:none;background:none;font-size:22px;cursor:pointer;color:var(--ink-soft);" class="btn-outline">×</button>
         </div>
-        <p style="color:var(--ink-soft);font-size:13px;margin:0 0 12px;">${fmtDate(todayStr())} · agrupado por plan → médico → clasificación</p>
+        <p style="color:var(--ink-soft);font-size:13px;margin:0 0 12px;">${fmtDate(todayStr())} · ${subtitle}</p>
         <table style="width:100%;border-collapse:collapse;font-size:13px;">
           <tr><th style="text-align:left;padding:6px;border-bottom:2px solid var(--navy);">Paciente</th><th style="text-align:left;padding:6px;border-bottom:2px solid var(--navy);">Medicamento</th><th style="text-align:left;padding:6px;border-bottom:2px solid var(--navy);">Clasificación</th><th style="text-align:left;padding:6px;border-bottom:2px solid var(--navy);">Nota</th></tr>
           ${rows}
@@ -806,14 +839,34 @@ function doRxPrint(){
   setTimeout(()=> document.body.classList.remove('printing-rx'), 300);
 }
 function printRxList(){ openRxPreview(); }
+
+function normalizePhoneForWa(phone){
+  let digits = (phone||'').replace(/\D/g,'');
+  if(!digits) return null;
+  if(digits.length === 10) digits = '1' + digits; // Puerto Rico / EE.UU.
+  return digits;
+}
 function shareWhatsAppRx(){
-  const text = encodeURIComponent(buildRxSummaryText());
-  window.location.href = 'whatsapp://send?text=' + text;
+  const filter = currentRxFilter();
+  const text = encodeURIComponent(buildRxSummaryText(filter));
+  let phone = null;
+  if(filter !== '__all__'){
+    const p = DB.patients.find(p=> (p.medico||'Sin médico asignado') === filter && p.medicoContact && p.medicoContact.telefono);
+    if(p) phone = normalizePhoneForWa(p.medicoContact.telefono);
+  }
+  const url = phone ? `https://wa.me/${phone}?text=${text}` : `https://wa.me/?text=${text}`;
+  window.open(url, '_blank');
 }
 function shareEmailRx(){
-  const subject = encodeURIComponent('Rx pendientes con el médico — ' + fmtDate(todayStr()));
-  const body = encodeURIComponent(buildRxSummaryText());
-  window.location.href = 'mailto:?subject=' + subject + '&body=' + body;
+  const filter = currentRxFilter();
+  const subject = encodeURIComponent('Rx pendientes con el médico — ' + fmtDate(todayStr()) + (filter!=='__all__' ? ' — Dr(a). '+filter : ''));
+  const body = encodeURIComponent(buildRxSummaryText(filter));
+  let to = '';
+  if(filter !== '__all__'){
+    const p = DB.patients.find(p=> (p.medico||'Sin médico asignado') === filter && p.medicoContact && p.medicoContact.email);
+    if(p) to = p.medicoContact.email;
+  }
+  window.location.href = 'mailto:' + to + '?subject=' + subject + '&body=' + body;
 }
 
 /* ================= Modal: patient ================= */
@@ -858,17 +911,54 @@ function renderMedicoOptions(){
     DB.medicos.map(m=>`<option value="${m.id}">${escapeHTML(m.nombre)}</option>`).join('');
   sel.value = prev;
 }
-function openMedicoModal(){
-  document.getElementById('mdNombre').value = '';
-  document.getElementById('mdTelefono').value = '';
-  document.getElementById('mdEmail').value = '';
-  document.getElementById('mdDireccion').value = '';
-  document.getElementById('mdNotas').value = '';
+let mdGpsCoords = null;
+function openMedicoModal(id){
+  mdGpsCoords = null;
+  document.getElementById('mdGpsStatus').textContent = '';
+  if(id){
+    const m = DB.medicos.find(x=>x.id===id);
+    if(!m) return;
+    document.getElementById('mdTitle').textContent = 'Editar médico';
+    document.getElementById('mdId').value = m.id;
+    document.getElementById('mdNombre').value = m.nombre || '';
+    document.getElementById('mdTelefono').value = m.telefono || '';
+    document.getElementById('mdEmail').value = m.email || '';
+    document.getElementById('mdDireccion').value = m.direccion || '';
+    document.getElementById('mdNotas').value = m.notas || '';
+    if(m.lat != null && m.lng != null){
+      mdGpsCoords = {lat:m.lat, lng:m.lng};
+      document.getElementById('mdGpsStatus').textContent = '📍 Ubicación guardada (' + m.lat.toFixed(5) + ', ' + m.lng.toFixed(5) + ')';
+    }
+    document.getElementById('mdDeleteBtn').style.display = 'block';
+  } else {
+    document.getElementById('mdTitle').textContent = 'Nuevo médico';
+    document.getElementById('mdId').value = '';
+    document.getElementById('mdNombre').value = '';
+    document.getElementById('mdTelefono').value = '';
+    document.getElementById('mdEmail').value = '';
+    document.getElementById('mdDireccion').value = '';
+    document.getElementById('mdNotas').value = '';
+    document.getElementById('mdDeleteBtn').style.display = 'none';
+  }
   document.getElementById('modalMedico').classList.add('show');
+}
+function capturarGPSMedico(){
+  const statusEl = document.getElementById('mdGpsStatus');
+  if(!navigator.geolocation){ statusEl.textContent = 'Este dispositivo/navegador no soporta GPS.'; return; }
+  statusEl.textContent = 'Obteniendo ubicación…';
+  navigator.geolocation.getCurrentPosition(
+    pos=>{
+      mdGpsCoords = {lat: pos.coords.latitude, lng: pos.coords.longitude};
+      statusEl.textContent = '📍 Ubicación capturada (' + mdGpsCoords.lat.toFixed(5) + ', ' + mdGpsCoords.lng.toFixed(5) + ')';
+    },
+    err=>{ statusEl.textContent = 'No se pudo obtener la ubicación: ' + err.message; },
+    { enableHighAccuracy:true, timeout:10000 }
+  );
 }
 async function saveMedico(){
   const nombre = document.getElementById('mdNombre').value.trim();
   if(!nombre){ toast('Escribe el nombre del médico'); return; }
+  const id = document.getElementById('mdId').value;
   const btn = document.getElementById('mdSaveBtn');
   btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Guardando…';
   const payload = {
@@ -877,16 +967,43 @@ async function saveMedico(){
     email: document.getElementById('mdEmail').value.trim() || null,
     direccion: document.getElementById('mdDireccion').value.trim() || null,
     notas: document.getElementById('mdNotas').value.trim() || null,
-    created_by: currentUser.id
   };
-  const { data, error } = await sb.from('medicos').insert(payload).select('id').single();
+  if(mdGpsCoords){ payload.lat = mdGpsCoords.lat; payload.lng = mdGpsCoords.lng; }
+
+  let newId = id;
+  let error;
+  if(id){
+    ({ error } = await sb.from('medicos').update(payload).eq('id', id));
+  } else {
+    const res = await sb.from('medicos').insert({...payload, created_by: currentUser.id}).select('id').single();
+    error = res.error;
+    if(!error) newId = res.data.id;
+  }
   btn.disabled = false; btn.textContent = 'Guardar médico';
   if(error){ toast('Error al guardar médico: ' + error.message); return; }
   await fetchAll();
   renderMedicoOptions();
-  document.getElementById('pmMedicoSel').value = data.id;
+  document.getElementById('pmMedicoSel').value = newId;
+  renderAll();
   closeModal('modalMedico');
-  toast('Médico añadido');
+  toast('Médico guardado');
+}
+async function deleteMedico(){
+  const id = document.getElementById('mdId').value;
+  if(!id) return;
+  if(!confirm('¿Eliminar este médico del directorio? Los pacientes que lo tenían asignado quedarán sin médico.')) return;
+  const { error } = await sb.from('medicos').delete().eq('id', id);
+  if(error){ toast('Error al eliminar: ' + error.message); return; }
+  await fetchAll();
+  renderMedicoOptions();
+  renderAll();
+  closeModal('modalMedico');
+  toast('Médico eliminado');
+}
+function mapsLink(m){
+  if(m.lat != null && m.lng != null) return `https://www.google.com/maps/search/?api=1&query=${m.lat},${m.lng}`;
+  if(m.direccion) return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(m.direccion)}`;
+  return null;
 }
 
 function openPatientModal(id){
