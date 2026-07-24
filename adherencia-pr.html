@@ -234,8 +234,13 @@ textarea{resize:vertical;min-height:60px;}
         </select>
       </div>
     </div>
-    <label>Medicamento</label>
-    <input id="pmMed" placeholder="Ej. Atorvastatina 20mg">
+    <label>Medicamento(s)</label>
+    <div id="pmMedsChips" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;"></div>
+    <div style="display:flex;gap:8px;">
+      <input id="pmMedInput" placeholder="Ej. Atorvastatina 20mg" style="flex:1;">
+      <button type="button" class="btn ghost sm" onclick="addMedToForm()">+ Añadir</button>
+    </div>
+    <p class="helptext">Añade todos los que aplique — por ejemplo si cambió de estatina a mitad de año, o toma más de un producto de la misma categoría. El PDC cuenta el día como cubierto si tenía disponible cualquiera de ellos.</p>
 
     <div id="pmFillsSection" style="display:none;">
       <div class="section-title" style="margin-top:20px;">Historial de resurtidos</div>
@@ -244,7 +249,9 @@ textarea{resize:vertical;min-height:60px;}
         <div><label>Fecha de despacho</label><input type="date" id="pmFillDate"></div>
         <div><label>Días de suplido</label><input type="number" id="pmFillDays" placeholder="30" min="1"></div>
       </div>
-      <button class="btn ghost sm" style="width:100%;margin-top:10px;" onclick="addFillToForm()">+ Añadir resurtido</button>
+      <label>¿Cuál medicamento fue este resurtido?</label>
+      <select id="pmFillMed"></select>
+      <button type="button" class="btn ghost sm" style="width:100%;margin-top:10px;" onclick="addFillToForm()">+ Añadir resurtido</button>
     </div>
 
     <button class="btn primary" id="pmSaveBtn" onclick="savePatient()">Guardar paciente</button>
@@ -275,7 +282,7 @@ textarea{resize:vertical;min-height:60px;}
 <script>
 /* ================= Config & Supabase client ================= */
 const CFG_KEY = 'adherenciaPR_cfg';
-let supabase = null;
+let sb = null;
 let currentUser = null;
 let DB = { patients: [], interventions: [] };
 let realtimeChannel = null;
@@ -285,23 +292,34 @@ function getConfig(){
 }
 function setConfig(cfg){ localStorage.setItem(CFG_KEY, JSON.stringify(cfg)); }
 function resetConfig(){
-  localStorage.removeItem(CFG_KEY);
+  try{ localStorage.removeItem(CFG_KEY); }catch(e){}
   location.reload();
 }
 
 async function saveConfig(){
-  const url = document.getElementById('cfgUrl').value.trim();
-  const key = document.getElementById('cfgKey').value.trim();
-  const schema = document.getElementById('cfgSchema').value.trim() || 'public';
   const errEl = document.getElementById('cfgErr');
   errEl.classList.remove('show');
-  if(!url || !key || !url.startsWith('http')){
-    errEl.textContent = 'Ingresa la URL y la anon key completas de tu proyecto Supabase.';
+  try{
+    const url = document.getElementById('cfgUrl').value.trim();
+    const key = document.getElementById('cfgKey').value.trim();
+    const schema = document.getElementById('cfgSchema').value.trim() || 'public';
+
+    if(!url || !key || !url.startsWith('http')){
+      errEl.textContent = 'Ingresa la URL y la anon key completas de tu proyecto Supabase.';
+      errEl.classList.add('show');
+      return;
+    }
+    if(typeof window.supabase === 'undefined' || !window.supabase.createClient){
+      errEl.textContent = 'No se pudo cargar la librería de Supabase (revisa tu conexión a internet, o que ningún bloqueador/antivirus esté frenando cdn.jsdelivr.net). Recarga la página e intenta de nuevo.';
+      errEl.classList.add('show');
+      return;
+    }
+    setConfig({url, key, schema});
+    await boot();
+  }catch(err){
+    errEl.textContent = 'Error inesperado: ' + (err && err.message ? err.message : err);
     errEl.classList.add('show');
-    return;
   }
-  setConfig({url, key, schema});
-  boot();
 }
 
 function initGates(){
@@ -315,24 +333,38 @@ function initGates(){
 
 async function boot(){
   const cfg = getConfig();
-  document.getElementById('gateConfig').style.display = 'none';
+  if(!cfg){ document.getElementById('gateConfig').style.display = 'flex'; return; }
+
+  let client;
   try{
-    supabase = window.supabase.createClient(cfg.url, cfg.key, { db: { schema: cfg.schema || 'public' } });
+    client = window.supabase.createClient(cfg.url, cfg.key, { db: { schema: cfg.schema || 'public' } });
   }catch(e){
+    console.error('createClient error', e);
     document.getElementById('gateConfig').style.display = 'flex';
-    document.getElementById('cfgErr').textContent = 'No se pudo conectar. Revisa la URL y la key.';
+    document.getElementById('cfgErr').textContent = 'No se pudo conectar. Revisa la URL y la key. (' + (e.message||e) + ')';
     document.getElementById('cfgErr').classList.add('show');
     return;
   }
-  const { data: { session } } = await supabase.auth.getSession();
-  if(session && session.user){
-    currentUser = session.user;
-    showApp();
-  } else {
+  sb = client;
+  document.getElementById('gateConfig').style.display = 'none';
+
+  try{
+    const { data, error } = await sb.auth.getSession();
+    if(error) throw error;
+    if(data && data.session && data.session.user){
+      currentUser = data.session.user;
+      await showApp();
+    } else {
+      document.getElementById('gateLogin').style.display = 'flex';
+    }
+  }catch(e){
+    console.error('getSession error', e);
     document.getElementById('gateLogin').style.display = 'flex';
+    document.getElementById('loginErr').textContent = 'No se pudo verificar la sesión: ' + (e.message||e) + '. Revisa que la URL/key sean correctas.';
+    document.getElementById('loginErr').classList.add('show');
   }
 
-  supabase.auth.onAuthStateChange((event, session)=>{
+  sb.auth.onAuthStateChange((event, session)=>{
     if(event === 'SIGNED_IN' && session){
       currentUser = session.user;
       showApp();
@@ -340,7 +372,7 @@ async function boot(){
       currentUser = null;
       document.getElementById('appRoot').style.display = 'none';
       document.getElementById('gateLogin').style.display = 'flex';
-      if(realtimeChannel){ supabase.removeChannel(realtimeChannel); realtimeChannel = null; }
+      if(realtimeChannel){ sb.removeChannel(realtimeChannel); realtimeChannel = null; }
     }
   });
 }
@@ -353,7 +385,7 @@ async function doLogin(){
   errEl.classList.remove('show');
   if(!email || !pass){ errEl.textContent='Completa correo y contraseña.'; errEl.classList.add('show'); return; }
   btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Entrando…';
-  const { data, error } = await supabase.auth.signInWithPassword({ email, password: pass });
+  const { data, error } = await sb.auth.signInWithPassword({ email, password: pass });
   btn.disabled = false; btn.textContent = 'Entrar';
   if(error){
     errEl.textContent = 'Correo o contraseña incorrectos.';
@@ -366,7 +398,7 @@ async function doLogin(){
 
 async function doLogout(){
   if(!confirm('¿Cerrar sesión?')) return;
-  await supabase.auth.signOut();
+  await sb.auth.signOut();
 }
 
 async function showApp(){
@@ -390,17 +422,17 @@ function setSyncStatus(state){
 
 /* ================= Data fetch ================= */
 async function fetchAll(){
-  const { data: patients, error: pErr } = await supabase
-    .from('patients').select('*, fills(id, fill_date, days_supply)').order('name');
+  const { data: patients, error: pErr } = await sb
+    .from('patients').select('*, fills(id, fill_date, days_supply, med_name)').order('name');
   if(pErr){ toast('Error cargando pacientes'); setSyncStatus('err'); return; }
 
-  const { data: intv, error: iErr } = await supabase
+  const { data: intv, error: iErr } = await sb
     .from('interventions').select('*, patients(name)').order('intv_date', {ascending:false});
   if(iErr){ toast('Error cargando intervenciones'); setSyncStatus('err'); return; }
 
   DB.patients = (patients||[]).map(p=>({
     id: p.id, name: p.name, cat: p.cat, plan: p.plan, med: p.med,
-    fills: (p.fills||[]).map(f=>({id:f.id, date:f.fill_date, days:f.days_supply}))
+    fills: (p.fills||[]).map(f=>({id:f.id, date:f.fill_date, days:f.days_supply, med:f.med_name||null}))
   }));
   DB.interventions = (intv||[]).map(i=>({
     id: i.id, patientId: i.patient_id, date: i.intv_date, type: i.intv_type,
@@ -410,10 +442,10 @@ async function fetchAll(){
 }
 
 function setupRealtime(){
-  if(realtimeChannel) supabase.removeChannel(realtimeChannel);
+  if(realtimeChannel) sb.removeChannel(realtimeChannel);
   const cfg = getConfig();
   const dbSchema = (cfg && cfg.schema) || 'public';
-  realtimeChannel = supabase.channel('adherencia-live')
+  realtimeChannel = sb.channel('adherencia-live')
     .on('postgres_changes', {event:'*', schema:dbSchema, table:'patients'}, handleRemoteChange)
     .on('postgres_changes', {event:'*', schema:dbSchema, table:'fills'}, handleRemoteChange)
     .on('postgres_changes', {event:'*', schema:dbSchema, table:'interventions'}, handleRemoteChange)
@@ -544,8 +576,42 @@ function renderAll(){ renderStats(); renderDash(); renderPatients(); renderIntv(
 
 /* ================= Modal: patient ================= */
 let formFills = [];
+let formMeds = [];
+
+function parseMeds(medStr){
+  return (medStr||'').split(',').map(s=>s.trim()).filter(Boolean);
+}
+function renderMedsChips(){
+  const el = document.getElementById('pmMedsChips');
+  if(formMeds.length===0){ el.innerHTML = '<span class="helptext">Sin medicamentos añadidos aún.</span>'; }
+  else {
+    el.innerHTML = formMeds.map((m,i)=>`<span class="tag" style="background:var(--amber-soft);color:#7A4E17;font-size:12px;padding:5px 10px;">${escapeHTML(m)} <button type="button" onclick="removeMedFromForm(${i})" style="border:none;background:none;color:#7A4E17;cursor:pointer;font-weight:700;margin-left:3px;">×</button></span>`).join('');
+  }
+  // keep the per-fill medication selector in sync
+  const sel = document.getElementById('pmFillMed');
+  const prev = sel.value;
+  sel.innerHTML = formMeds.length
+    ? formMeds.map(m=>`<option value="${escapeHTML(m)}">${escapeHTML(m)}</option>`).join('')
+    : '<option value="">(añade un medicamento arriba primero)</option>';
+  if(formMeds.includes(prev)) sel.value = prev;
+}
+function addMedToForm(){
+  const input = document.getElementById('pmMedInput');
+  const val = input.value.trim();
+  if(!val){ toast('Escribe el nombre del medicamento'); return; }
+  if(formMeds.includes(val)){ toast('Ya está en la lista'); input.value=''; return; }
+  formMeds.push(val);
+  input.value = '';
+  renderMedsChips();
+}
+function removeMedFromForm(i){
+  formMeds.splice(i,1);
+  renderMedsChips();
+}
+
 function openPatientModal(id){
   formFills = [];
+  formMeds = [];
   if(id){
     const p = DB.patients.find(p=>p.id===id);
     document.getElementById('pmTitle').textContent = 'Editar paciente';
@@ -553,7 +619,7 @@ function openPatientModal(id){
     document.getElementById('pmName').value = p.name;
     document.getElementById('pmCat').value = p.cat;
     document.getElementById('pmPlan').value = p.plan;
-    document.getElementById('pmMed').value = p.med||'';
+    formMeds = parseMeds(p.med);
     formFills = (p.fills||[]).slice();
     document.getElementById('pmFillsSection').style.display = 'block';
     document.getElementById('pmDeleteBtn').style.display = 'block';
@@ -563,10 +629,11 @@ function openPatientModal(id){
     document.getElementById('pmName').value = '';
     document.getElementById('pmCat').value = 'Estatina';
     document.getElementById('pmPlan').value = 'MCS';
-    document.getElementById('pmMed').value = '';
     document.getElementById('pmFillsSection').style.display = 'none';
     document.getElementById('pmDeleteBtn').style.display = 'none';
   }
+  document.getElementById('pmMedInput').value = '';
+  renderMedsChips();
   renderFillsInForm();
   document.getElementById('pmFillDate').value = todayStr();
   document.getElementById('pmFillDays').value = '30';
@@ -576,13 +643,14 @@ function renderFillsInForm(){
   const el = document.getElementById('pmFillsList');
   if(formFills.length===0){ el.innerHTML = '<p class="helptext">Sin resurtidos aún.</p>'; return; }
   const sorted = formFills.slice().sort((a,b)=>b.date.localeCompare(a.date));
-  el.innerHTML = sorted.map(f=>`<div class="fillrow"><span>${fmtDate(f.date)} <span class="d">· ${f.days}d suplido</span></span><button class="small-x" onclick="removeFillFromForm('${f._k||f.id}')">×</button></div>`).join('');
+  el.innerHTML = sorted.map(f=>`<div class="fillrow"><span>${fmtDate(f.date)} <span class="d">· ${f.days}d suplido${f.med ? ' · '+escapeHTML(f.med) : ''}</span></span><button class="small-x" onclick="removeFillFromForm('${f._k||f.id}')">×</button></div>`).join('');
 }
 function addFillToForm(){
   const date = document.getElementById('pmFillDate').value;
   const days = document.getElementById('pmFillDays').value;
+  const med = document.getElementById('pmFillMed').value || null;
   if(!date || !days || parseInt(days)<=0){ toast('Completa fecha y días de suplido'); return; }
-  formFills.push({_k:uid(), date, days: parseInt(days)});
+  formFills.push({_k:uid(), date, days: parseInt(days), med});
   renderFillsInForm();
 }
 function removeFillFromForm(k){
@@ -601,35 +669,35 @@ async function savePatient(){
     name,
     cat: document.getElementById('pmCat').value,
     plan: document.getElementById('pmPlan').value,
-    med: document.getElementById('pmMed').value.trim() || null,
+    med: formMeds.length ? formMeds.join(', ') : null,
   };
 
   try{
     let patientId = id;
     if(id){
-      const { error } = await supabase.from('patients').update(payload).eq('id', id);
+      const { error } = await sb.from('patients').update(payload).eq('id', id);
       if(error) throw error;
       // reconcile fills: delete removed ones, insert new ones
-      const { data: existingFills } = await supabase.from('fills').select('id').eq('patient_id', id);
+      const { data: existingFills } = await sb.from('fills').select('id').eq('patient_id', id);
       const keepIds = new Set(formFills.filter(f=>f.id).map(f=>f.id));
       const toDelete = (existingFills||[]).filter(f=>!keepIds.has(f.id)).map(f=>f.id);
       if(toDelete.length){
-        const { error: delErr } = await supabase.from('fills').delete().in('id', toDelete);
+        const { error: delErr } = await sb.from('fills').delete().in('id', toDelete);
         if(delErr) throw delErr;
       }
-      const toInsert = formFills.filter(f=>!f.id).map(f=>({patient_id:id, fill_date:f.date, days_supply:f.days, created_by: currentUser.id}));
+      const toInsert = formFills.filter(f=>!f.id).map(f=>({patient_id:id, fill_date:f.date, days_supply:f.days, med_name:f.med||null, created_by: currentUser.id}));
       if(toInsert.length){
-        const { error: insErr } = await supabase.from('fills').insert(toInsert);
+        const { error: insErr } = await sb.from('fills').insert(toInsert);
         if(insErr) throw insErr;
       }
     } else {
-      const { data: inserted, error } = await supabase.from('patients')
+      const { data: inserted, error } = await sb.from('patients')
         .insert({...payload, created_by: currentUser.id}).select('id').single();
       if(error) throw error;
       patientId = inserted.id;
       if(formFills.length){
-        const toInsert = formFills.map(f=>({patient_id: patientId, fill_date:f.date, days_supply:f.days, created_by: currentUser.id}));
-        const { error: insErr } = await supabase.from('fills').insert(toInsert);
+        const toInsert = formFills.map(f=>({patient_id: patientId, fill_date:f.date, days_supply:f.days, med_name:f.med||null, created_by: currentUser.id}));
+        const { error: insErr } = await sb.from('fills').insert(toInsert);
         if(insErr) throw insErr;
       }
     }
@@ -648,7 +716,7 @@ async function deletePatientFromModal(){
   const id = document.getElementById('pmId').value;
   if(!id) return;
   if(!confirm('¿Eliminar este paciente y su historial?')) return;
-  const { error } = await supabase.from('patients').delete().eq('id', id);
+  const { error } = await sb.from('patients').delete().eq('id', id);
   if(error){ toast('Error al eliminar'); return; }
   await fetchAll();
   closeModal('modalPatient');
@@ -672,7 +740,7 @@ async function saveIntervention(){
   const notes = document.getElementById('imNotes').value.trim();
   const btn = document.getElementById('imSaveBtn');
   btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Guardando…';
-  const { error } = await supabase.from('interventions').insert({
+  const { error } = await sb.from('interventions').insert({
     patient_id: patientId, intv_date: todayStr(), intv_type: type, notes, created_by: currentUser.id
   });
   btn.disabled = false; btn.textContent = 'Guardar intervención';
