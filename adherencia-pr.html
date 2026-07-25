@@ -672,12 +672,24 @@ function renderStats(){
     <div class="stat-pill warn"><div class="n">${warn}</div><div class="l">En riesgo</div></div>
     <div class="stat-pill crit"><div class="n">${crit}</div><div class="l">Brecha</div></div>`;
 }
+function actionButtonsHTML(p){
+  const hasMedicoPhone = p.medicoContact && p.medicoContact.telefono;
+  const hasMedicoEmail = p.medicoContact && p.medicoContact.email;
+  const others = sameNamePatients(p).map(x=>x.cat);
+  const availableCats = ALL_CATS.filter(c=> c!==p.cat && !others.includes(c));
+  return `<div class="pcard-actions">
+      <button title="Registrar intervención" onclick="openIntv('${p.id}')">📋</button>
+      <button title="Editar paciente" onclick="openPatientModal('${p.id}')">✏️</button>
+      <button title="Llamar al médico" class="${hasMedicoPhone?'':'disabled'}" onclick="callMedicoOf('${p.id}')">📞</button>
+      <button title="WhatsApp al médico" class="${hasMedicoPhone?'':'disabled'}" onclick="waMedicoOf('${p.id}')">💬</button>
+      <button title="Correo al médico" class="${hasMedicoEmail?'':'disabled'}" onclick="emailMedicoOf('${p.id}')">✉️</button>
+      <button title="Ver nota de Rx pendiente" class="${p.needsRx?'':'disabled'}" onclick="showRxNote('${p.id}')">📝</button>
+      <button title="Duplicar en otra categoría" class="${availableCats.length?'':'disabled'}" onclick="quickDuplicate('${p.id}')">🔁</button>
+    </div>`;
+}
 function patientCardHTML(p, r){
   const color = statusColor(r.status);
   const others = sameNamePatients(p).map(x=>x.cat);
-  const hasMedicoPhone = p.medicoContact && p.medicoContact.telefono;
-  const hasMedicoEmail = p.medicoContact && p.medicoContact.email;
-  const availableCats = ALL_CATS.filter(c=> c!==p.cat && !others.includes(c));
   return `
   <div class="pcard" data-id="${p.id}">
     <div class="pcard-top" data-id="${p.id}">
@@ -692,15 +704,7 @@ function patientCardHTML(p, r){
       </div>
       <div class="pdc"><div class="pct" style="color:${color};">${r.pct}%</div><div class="lbl">${statusLabel(r.status)}</div></div>
     </div>
-    <div class="pcard-actions">
-      <button title="Registrar intervención" onclick="openIntv('${p.id}')">📋</button>
-      <button title="Editar paciente" onclick="openPatientModal('${p.id}')">✏️</button>
-      <button title="Llamar al médico" class="${hasMedicoPhone?'':'disabled'}" onclick="callMedicoOf('${p.id}')">📞</button>
-      <button title="WhatsApp al médico" class="${hasMedicoPhone?'':'disabled'}" onclick="waMedicoOf('${p.id}')">💬</button>
-      <button title="Correo al médico" class="${hasMedicoEmail?'':'disabled'}" onclick="emailMedicoOf('${p.id}')">✉️</button>
-      <button title="Ver nota de Rx pendiente" class="${p.needsRx?'':'disabled'}" onclick="showRxNote('${p.id}')">📝</button>
-      <button title="Duplicar en otra categoría" class="${availableCats.length?'':'disabled'}" onclick="quickDuplicate('${p.id}')">🔁</button>
-    </div>
+    ${actionButtonsHTML(p)}
   </div>`;
 }
 const PLAN_OPTIONS = ['MCS','Triple-S Advantage','MMM/PMC','First Medical','Plan Vital','Otro'];
@@ -759,6 +763,34 @@ function shareResumenDia(){
   const body = encodeURIComponent(buildResumenDiaText());
   window.location.href = 'mailto:?subject=' + subject + '&body=' + body;
 }
+function groupedPatientCardsHTML(items, chipClickFn){
+  const groups = {};
+  items.forEach(x=>{
+    const key = x.p.name.trim().toLowerCase();
+    groups[key] = groups[key] || [];
+    groups[key].push(x);
+  });
+  const names = Object.keys(groups).sort((a,b)=> a.localeCompare(b, 'es'));
+  return names.map(key=>{
+    const recs = groups[key].slice().sort((a,b)=> ALL_CATS.indexOf(a.p.cat)-ALL_CATS.indexOf(b.p.cat));
+    const plans = [...new Set(recs.map(x=>x.p.plan))];
+    const first = recs[0].p;
+    return `
+    <div class="pcard">
+      <div class="pcard-top" style="cursor:default;">
+        <div class="info" style="flex:1;">
+          <div class="name">${escapeHTML(first.name)}</div>
+          <div class="meds">${escapeHTML(plans.join(', '))}</div>
+        </div>
+      </div>
+      ${recs.map((x,i)=>`
+        <div style="${i>0?'border-top:1px solid var(--line);margin-top:9px;padding-top:9px;':''}">
+          <button onclick="${chipClickFn}('${x.p.id}')" style="border:1.5px solid ${statusColor(x.r.status)};background:none;color:${statusColor(x.r.status)};border-radius:20px;padding:5px 11px;font-size:12px;font-family:'Space Grotesk',sans-serif;font-weight:600;cursor:pointer;margin-bottom:7px;">${x.p.cat} ${x.r.pct}%</button>
+          ${actionButtonsHTML(x.p)}
+        </div>`).join('')}
+    </div>`;
+  }).join('');
+}
 function renderDash(){
   renderResumenDia();
   let list = DB.patients.slice();
@@ -768,45 +800,13 @@ function renderDash(){
   const el = document.getElementById('gapList');
   if(gaps.length===0){ el.innerHTML = `<div class="empty"><div class="disp">Sin brechas activas</div><p>Todos los pacientes registrados están al día (PDC ≥ 80%)${activePlan!=='all' ? ' en '+escapeHTML(activePlan) : ''}.</p></div>`; }
   else {
-    el.innerHTML = gaps.map(x=> patientCardHTML(x.p, x.r)).join('');
-    el.querySelectorAll('.pcard-top').forEach(c=>c.addEventListener('click', ()=>openIntv(c.dataset.id)));
+    el.innerHTML = groupedPatientCardsHTML(gaps, 'openIntv');
   }
 
   const early = withPdc.filter(x=> isEarlyRisk(x.p, x.r)).sort((a,b)=> a.r.pct - b.r.pct);
   const earlyEl = document.getElementById('earlyRiskList');
   if(early.length===0){ earlyEl.innerHTML = `<div class="empty"><div class="disp">Nada en riesgo temprano</div><p>Los resurtidos van a tiempo.</p></div>`; return; }
-  earlyEl.innerHTML = early.map(x=>{
-    const nf = nextFillInfo(x.p);
-    const color = statusColor(x.r.status);
-    const lateNote = nf && nf.daysLate > GRACE_DAYS ? `⏰ resurtido esperado hace ${nf.daysLate} días` : '📉 PDC cerca del límite';
-    const hasMedicoPhone = x.p.medicoContact && x.p.medicoContact.telefono;
-    const hasMedicoEmail = x.p.medicoContact && x.p.medicoContact.email;
-    const others = sameNamePatients(x.p).map(o=>o.cat);
-    const availableCats = ALL_CATS.filter(c=> c!==x.p.cat && !others.includes(c));
-    return `
-    <div class="pcard" data-id="${x.p.id}">
-      <div class="pcard-top" data-id="${x.p.id}">
-        <div class="bottle"><div class="fill" style="height:${x.r.pct}%;background:${color};"></div><div class="cap"></div></div>
-        <div class="info">
-          <div class="name">${escapeHTML(x.p.name)}</div>
-          <div class="meds">${escapeHTML(x.p.med||'—')}</div>
-          <span class="tag ok">${x.p.cat}</span>
-          <span class="tag" style="background:#EFE8D8;color:var(--ink-soft);">${x.p.plan}</span>
-          <div class="d" style="margin-top:3px;color:var(--warn);">${lateNote}</div>
-        </div>
-        <div class="pdc"><div class="pct" style="color:${color};">${x.r.pct}%</div><div class="lbl">${statusLabel(x.r.status)}</div></div>
-      </div>
-      <div class="pcard-actions">
-        <button title="Registrar intervención" onclick="openIntv('${x.p.id}')">📋</button>
-        <button title="Editar paciente" onclick="openPatientModal('${x.p.id}')">✏️</button>
-        <button title="Llamar al médico" class="${hasMedicoPhone?'':'disabled'}" onclick="callMedicoOf('${x.p.id}')">📞</button>
-        <button title="WhatsApp al médico" class="${hasMedicoPhone?'':'disabled'}" onclick="waMedicoOf('${x.p.id}')">💬</button>
-        <button title="Correo al médico" class="${hasMedicoEmail?'':'disabled'}" onclick="emailMedicoOf('${x.p.id}')">✉️</button>
-        <button title="Ver nota de Rx pendiente" class="${x.p.needsRx?'':'disabled'}" onclick="showRxNote('${x.p.id}')">📝</button>
-        <button title="Duplicar en otra categoría" class="${availableCats.length?'':'disabled'}" onclick="quickDuplicate('${x.p.id}')">🔁</button>
-      </div>
-    </div>`;
-  }).join('');
+  earlyEl.innerHTML = groupedPatientCardsHTML(early, 'openIntv');
 }
 let activeCat = 'all';
 document.getElementById('catFilters').addEventListener('click', e=>{
@@ -824,31 +824,9 @@ function renderPatients(){
   if(list.length===0){ el.innerHTML = `<div class="empty"><div class="disp">Aún no hay pacientes</div><p>Toca el botón + para añadir el primero.</p></div>`; return; }
 
   if(activeCat==='all'){
-    // agrupado por nombre: una tarjeta por paciente, categorías como pastillas
-    const groups = {};
-    list.forEach(p=>{
-      const key = p.name.trim().toLowerCase();
-      groups[key] = groups[key] || [];
-      groups[key].push(p);
-    });
-    const names = Object.keys(groups).sort((a,b)=> a.localeCompare(b, 'es'));
-    el.innerHTML = names.map(key=>{
-      const recs = groups[key].map(p=>({p, r:calcPDC(p)})).sort((a,b)=> ALL_CATS.indexOf(a.p.cat)-ALL_CATS.indexOf(b.p.cat));
-      const plans = [...new Set(recs.map(x=>x.p.plan))];
-      const first = recs[0].p;
-      return `
-      <div class="pcard">
-        <div class="pcard-top" style="cursor:default;">
-          <div class="info" style="flex:1;">
-            <div class="name">${escapeHTML(first.name)}</div>
-            <div class="meds">${escapeHTML(plans.join(', '))}</div>
-            <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:7px;">
-              ${recs.map(x=>`<button onclick="openPatientModal('${x.p.id}')" style="border:1.5px solid ${statusColor(x.r.status)};background:none;color:${statusColor(x.r.status)};border-radius:20px;padding:5px 11px;font-size:12px;font-family:'Space Grotesk',sans-serif;font-weight:600;cursor:pointer;">${x.p.cat} ${x.r.pct}%</button>`).join('')}
-            </div>
-          </div>
-        </div>
-      </div>`;
-    }).join('');
+    // agrupado por nombre: una tarjeta por paciente, cada categoría con sus botones
+    const items = list.map(p=>({p, r:calcPDC(p)}));
+    el.innerHTML = groupedPatientCardsHTML(items, 'openPatientModal');
     return;
   }
 
