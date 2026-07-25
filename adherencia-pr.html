@@ -820,10 +820,40 @@ function renderPatients(){
   let list = DB.patients.slice();
   if(activePlan!=='all') list = list.filter(p=>p.plan===activePlan);
   if(activeCat!=='all') list = list.filter(p=>p.cat===activeCat);
-  list = list.map(p=>({p, r:calcPDC(p)})).sort((a,b)=> a.p.name.localeCompare(b.p.name, 'es'));
   const el = document.getElementById('patientList');
   if(list.length===0){ el.innerHTML = `<div class="empty"><div class="disp">Aún no hay pacientes</div><p>Toca el botón + para añadir el primero.</p></div>`; return; }
-  el.innerHTML = list.map(x=>patientCardHTML(x.p,x.r)).join('');
+
+  if(activeCat==='all'){
+    // agrupado por nombre: una tarjeta por paciente, categorías como pastillas
+    const groups = {};
+    list.forEach(p=>{
+      const key = p.name.trim().toLowerCase();
+      groups[key] = groups[key] || [];
+      groups[key].push(p);
+    });
+    const names = Object.keys(groups).sort((a,b)=> a.localeCompare(b, 'es'));
+    el.innerHTML = names.map(key=>{
+      const recs = groups[key].map(p=>({p, r:calcPDC(p)})).sort((a,b)=> ALL_CATS.indexOf(a.p.cat)-ALL_CATS.indexOf(b.p.cat));
+      const plans = [...new Set(recs.map(x=>x.p.plan))];
+      const first = recs[0].p;
+      return `
+      <div class="pcard">
+        <div class="pcard-top" style="cursor:default;">
+          <div class="info" style="flex:1;">
+            <div class="name">${escapeHTML(first.name)}</div>
+            <div class="meds">${escapeHTML(plans.join(', '))}</div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:7px;">
+              ${recs.map(x=>`<button onclick="openPatientModal('${x.p.id}')" style="border:1.5px solid ${statusColor(x.r.status)};background:none;color:${statusColor(x.r.status)};border-radius:20px;padding:5px 11px;font-size:12px;font-family:'Space Grotesk',sans-serif;font-weight:600;cursor:pointer;">${x.p.cat} ${x.r.pct}%</button>`).join('')}
+            </div>
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+    return;
+  }
+
+  const withPdc = list.map(p=>({p, r:calcPDC(p)})).sort((a,b)=> a.p.name.localeCompare(b.p.name, 'es'));
+  el.innerHTML = withPdc.map(x=>patientCardHTML(x.p,x.r)).join('');
   el.querySelectorAll('.pcard-top').forEach(c=>c.addEventListener('click', ()=>openPatientModal(c.dataset.id)));
 }
 function renderIntv(){
