@@ -43,7 +43,12 @@ main{padding:16px;max-width:860px;margin:0 auto;padding-bottom:90px;}
 .section-title{font-size:12px;text-transform:uppercase;letter-spacing:.1em;color:var(--ink-soft);font-family:'IBM Plex Mono',monospace;margin:18px 0 8px;}
 .section-title:first-child{margin-top:0;}
 
-.pcard{display:flex;align-items:center;gap:12px;padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--card);margin-bottom:9px;cursor:pointer;}
+.pcard{padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--card);margin-bottom:9px;}
+.pcard-top{display:flex;align-items:center;gap:12px;cursor:pointer;}
+.pcard-actions{display:flex;gap:6px;margin-top:9px;padding-top:9px;border-top:1px solid var(--line);overflow-x:auto;}
+.pcard-actions button{flex:0 0 auto;border:1.5px solid var(--line);background:#fff;border-radius:8px;padding:6px 10px;font-size:14px;cursor:pointer;color:var(--ink);}
+.pcard-actions button:active{background:var(--paper);}
+.pcard-actions button.disabled{opacity:.35;pointer-events:none;}
 .pcard .bottle{width:38px;height:46px;border-radius:6px 6px 10px 10px;position:relative;flex:0 0 auto;background:var(--paper);border:2px solid var(--line);overflow:hidden;}
 .pcard .bottle .fill{position:absolute;bottom:0;left:0;right:0;transition:height .3s;}
 .pcard .bottle .cap{position:absolute;top:-2px;left:8px;right:8px;height:7px;background:var(--ink-soft);border-radius:2px 2px 0 0;}
@@ -670,18 +675,32 @@ function renderStats(){
 function patientCardHTML(p, r){
   const color = statusColor(r.status);
   const others = sameNamePatients(p).map(x=>x.cat);
+  const hasMedicoPhone = p.medicoContact && p.medicoContact.telefono;
+  const hasMedicoEmail = p.medicoContact && p.medicoContact.email;
+  const availableCats = ALL_CATS.filter(c=> c!==p.cat && !others.includes(c));
   return `
   <div class="pcard" data-id="${p.id}">
-    <div class="bottle"><div class="fill" style="height:${r.pct}%;background:${color};"></div><div class="cap"></div></div>
-    <div class="info">
-      <div class="name">${escapeHTML(p.name)}</div>
-      <div class="meds">${escapeHTML(p.med||'—')}</div>
-      <span class="tag ${r.status}">${p.cat}</span>
-      <span class="tag" style="background:#EFE8D8;color:var(--ink-soft);">${p.plan}</span>
-      ${p.needsRx ? '<span class="tag" style="background:#E7DEF2;color:#5B3E96;">📋 Rx pendiente</span>' : ''}
-      ${others.length ? `<div class="d" style="margin-top:3px;">🔁 también en: ${others.map(escapeHTML).join(', ')}</div>` : ''}
+    <div class="pcard-top" data-id="${p.id}">
+      <div class="bottle"><div class="fill" style="height:${r.pct}%;background:${color};"></div><div class="cap"></div></div>
+      <div class="info">
+        <div class="name">${escapeHTML(p.name)}</div>
+        <div class="meds">${escapeHTML(p.med||'—')}</div>
+        <span class="tag ${r.status}">${p.cat}</span>
+        <span class="tag" style="background:#EFE8D8;color:var(--ink-soft);">${p.plan}</span>
+        ${p.needsRx ? '<span class="tag" style="background:#E7DEF2;color:#5B3E96;">📋 Rx pendiente</span>' : ''}
+        ${others.length ? `<div class="d" style="margin-top:3px;">🔁 ${others.map(escapeHTML).join(', ')}</div>` : ''}
+      </div>
+      <div class="pdc"><div class="pct" style="color:${color};">${r.pct}%</div><div class="lbl">${statusLabel(r.status)}</div></div>
     </div>
-    <div class="pdc"><div class="pct" style="color:${color};">${r.pct}%</div><div class="lbl">${statusLabel(r.status)}</div></div>
+    <div class="pcard-actions">
+      <button title="Registrar intervención" onclick="openIntv('${p.id}')">📋</button>
+      <button title="Editar paciente" onclick="openPatientModal('${p.id}')">✏️</button>
+      <button title="Llamar al médico" class="${hasMedicoPhone?'':'disabled'}" onclick="callMedicoOf('${p.id}')">📞</button>
+      <button title="WhatsApp al médico" class="${hasMedicoPhone?'':'disabled'}" onclick="waMedicoOf('${p.id}')">💬</button>
+      <button title="Correo al médico" class="${hasMedicoEmail?'':'disabled'}" onclick="emailMedicoOf('${p.id}')">✉️</button>
+      <button title="Ver nota de Rx pendiente" class="${p.needsRx?'':'disabled'}" onclick="showRxNote('${p.id}')">📝</button>
+      <button title="Duplicar en otra categoría" class="${availableCats.length?'':'disabled'}" onclick="quickDuplicate('${p.id}')">🔁</button>
+    </div>
   </div>`;
 }
 const PLAN_OPTIONS = ['MCS','Triple-S Advantage','MMM/PMC','First Medical','Plan Vital','Otro'];
@@ -750,7 +769,7 @@ function renderDash(){
   if(gaps.length===0){ el.innerHTML = `<div class="empty"><div class="disp">Sin brechas activas</div><p>Todos los pacientes registrados están al día (PDC ≥ 80%)${activePlan!=='all' ? ' en '+escapeHTML(activePlan) : ''}.</p></div>`; }
   else {
     el.innerHTML = gaps.map(x=> patientCardHTML(x.p, x.r)).join('');
-    el.querySelectorAll('.pcard').forEach(c=>c.addEventListener('click', ()=>openIntv(c.dataset.id)));
+    el.querySelectorAll('.pcard-top').forEach(c=>c.addEventListener('click', ()=>openIntv(c.dataset.id)));
   }
 
   const early = withPdc.filter(x=> isEarlyRisk(x.p, x.r)).sort((a,b)=> a.r.pct - b.r.pct);
@@ -760,20 +779,34 @@ function renderDash(){
     const nf = nextFillInfo(x.p);
     const color = statusColor(x.r.status);
     const lateNote = nf && nf.daysLate > GRACE_DAYS ? `⏰ resurtido esperado hace ${nf.daysLate} días` : '📉 PDC cerca del límite';
+    const hasMedicoPhone = x.p.medicoContact && x.p.medicoContact.telefono;
+    const hasMedicoEmail = x.p.medicoContact && x.p.medicoContact.email;
+    const others = sameNamePatients(x.p).map(o=>o.cat);
+    const availableCats = ALL_CATS.filter(c=> c!==x.p.cat && !others.includes(c));
     return `
     <div class="pcard" data-id="${x.p.id}">
-      <div class="bottle"><div class="fill" style="height:${x.r.pct}%;background:${color};"></div><div class="cap"></div></div>
-      <div class="info">
-        <div class="name">${escapeHTML(x.p.name)}</div>
-        <div class="meds">${escapeHTML(x.p.med||'—')}</div>
-        <span class="tag ok">${x.p.cat}</span>
-        <span class="tag" style="background:#EFE8D8;color:var(--ink-soft);">${x.p.plan}</span>
-        <div class="d" style="margin-top:3px;color:var(--warn);">${lateNote}</div>
+      <div class="pcard-top" data-id="${x.p.id}">
+        <div class="bottle"><div class="fill" style="height:${x.r.pct}%;background:${color};"></div><div class="cap"></div></div>
+        <div class="info">
+          <div class="name">${escapeHTML(x.p.name)}</div>
+          <div class="meds">${escapeHTML(x.p.med||'—')}</div>
+          <span class="tag ok">${x.p.cat}</span>
+          <span class="tag" style="background:#EFE8D8;color:var(--ink-soft);">${x.p.plan}</span>
+          <div class="d" style="margin-top:3px;color:var(--warn);">${lateNote}</div>
+        </div>
+        <div class="pdc"><div class="pct" style="color:${color};">${x.r.pct}%</div><div class="lbl">${statusLabel(x.r.status)}</div></div>
       </div>
-      <div class="pdc"><div class="pct" style="color:${color};">${x.r.pct}%</div><div class="lbl">${statusLabel(x.r.status)}</div></div>
+      <div class="pcard-actions">
+        <button title="Registrar intervención" onclick="openIntv('${x.p.id}')">📋</button>
+        <button title="Editar paciente" onclick="openPatientModal('${x.p.id}')">✏️</button>
+        <button title="Llamar al médico" class="${hasMedicoPhone?'':'disabled'}" onclick="callMedicoOf('${x.p.id}')">📞</button>
+        <button title="WhatsApp al médico" class="${hasMedicoPhone?'':'disabled'}" onclick="waMedicoOf('${x.p.id}')">💬</button>
+        <button title="Correo al médico" class="${hasMedicoEmail?'':'disabled'}" onclick="emailMedicoOf('${x.p.id}')">✉️</button>
+        <button title="Ver nota de Rx pendiente" class="${x.p.needsRx?'':'disabled'}" onclick="showRxNote('${x.p.id}')">📝</button>
+        <button title="Duplicar en otra categoría" class="${availableCats.length?'':'disabled'}" onclick="quickDuplicate('${x.p.id}')">🔁</button>
+      </div>
     </div>`;
   }).join('');
-  earlyEl.querySelectorAll('.pcard').forEach(c=>c.addEventListener('click', ()=>openIntv(c.dataset.id)));
 }
 let activeCat = 'all';
 document.getElementById('catFilters').addEventListener('click', e=>{
@@ -791,7 +824,7 @@ function renderPatients(){
   const el = document.getElementById('patientList');
   if(list.length===0){ el.innerHTML = `<div class="empty"><div class="disp">Aún no hay pacientes</div><p>Toca el botón + para añadir el primero.</p></div>`; return; }
   el.innerHTML = list.map(x=>patientCardHTML(x.p,x.r)).join('');
-  el.querySelectorAll('.pcard').forEach(c=>c.addEventListener('click', ()=>openPatientModal(c.dataset.id)));
+  el.querySelectorAll('.pcard-top').forEach(c=>c.addEventListener('click', ()=>openPatientModal(c.dataset.id)));
 }
 function renderIntv(){
   const list = DB.interventions.slice().sort((a,b)=> b.date.localeCompare(a.date));
@@ -865,7 +898,7 @@ function renderCmrList(){
     const color = st==='crit' ? 'var(--red)' : st==='warn' ? 'var(--warn)' : st==='done' ? 'var(--green)' : 'var(--ink-soft)';
     const label = st==='done' ? '✅ Completada '+fmtDate(c.completed_date) : st==='crit' ? '⏰ Vencida' : st==='warn' ? '🔔 Próxima a vencer' : c.due_date ? 'Pendiente' : 'Sin fecha';
     return `
-    <div class="pcard" data-id="${c.id}" style="cursor:pointer;">
+    <div class="pcard" data-id="${c.id}" style="cursor:pointer;display:flex;align-items:center;gap:12px;">
       <div class="info" style="flex:1;">
         <div class="name">${escapeHTML(c.patient_name)}</div>
         <div class="meds">${escapeHTML(c.plan||'—')}${c.due_date ? ' · vence '+fmtDate(c.due_date) : ''}</div>
@@ -1159,6 +1192,51 @@ function doRxPrint(){
   setTimeout(()=> document.body.classList.remove('printing-rx'), 300);
 }
 function printRxList(){ openRxPreview(); }
+
+/* ---- Acciones rápidas desde la tarjeta del paciente ---- */
+function callMedicoOf(patientId){
+  const p = DB.patients.find(p=>p.id===patientId);
+  const phone = p && p.medicoContact && p.medicoContact.telefono;
+  if(!phone){ toast('Este paciente no tiene médico con teléfono guardado'); return; }
+  window.location.href = 'tel:' + phone;
+}
+function waMedicoOf(patientId){
+  const p = DB.patients.find(p=>p.id===patientId);
+  const phone = p && p.medicoContact && p.medicoContact.telefono;
+  if(!phone){ toast('Este paciente no tiene médico con teléfono guardado'); return; }
+  const wa = normalizePhoneForWa(phone);
+  window.location.href = `https://wa.me/${wa}`;
+}
+function emailMedicoOf(patientId){
+  const p = DB.patients.find(p=>p.id===patientId);
+  const email = p && p.medicoContact && p.medicoContact.email;
+  if(!email){ toast('Este paciente no tiene médico con correo guardado'); return; }
+  window.location.href = 'mailto:' + email;
+}
+function showRxNote(patientId){
+  const p = DB.patients.find(p=>p.id===patientId);
+  if(!p || !p.needsRx){ toast('Este paciente no tiene Rx pendiente'); return; }
+  toast(flaggedMedsText(p));
+}
+async function quickDuplicate(patientId){
+  const p = DB.patients.find(p=>p.id===patientId);
+  if(!p) return;
+  const others = sameNamePatients(p).map(x=>x.cat);
+  const usedCats = new Set([p.cat, ...others]);
+  const available = ALL_CATS.filter(c=>!usedCats.has(c));
+  if(available.length===0){ toast('Ya tiene registro en todas las categorías'); return; }
+  const newCat = available[0];
+  const { data, error } = await sb.from('patients').insert({
+    name: p.name, cat: newCat, plan: p.plan, medico_id: p.medicoId || null,
+    med: null, meds_detail: [], needs_rx: false, rx_note: null,
+    created_by: currentUser.id
+  }).select('id').single();
+  if(error){ toast('Error al duplicar: ' + error.message); return; }
+  await fetchAll();
+  renderAll();
+  toast(p.name + ' creado también en ' + newCat);
+  openPatientModal(data.id);
+}
 
 function normalizePhoneForWa(phone){
   let digits = (phone||'').replace(/\D/g,'');
