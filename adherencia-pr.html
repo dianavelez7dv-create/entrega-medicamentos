@@ -703,6 +703,7 @@ function actionButtonsHTML(p){
       <button title="Ver nota de Rx pendiente" class="${p.needsRx?'':'disabled'}" onclick="showRxNote('${p.id}')">📝</button>
       <button title="Duplicar en otra categoría" class="${availableCats.length?'':'disabled'}" onclick="quickDuplicate('${p.id}')">🔁</button>
       <button title="Navegar a la casa del paciente" class="${hasAddress?'':'disabled'}" onclick="navigateToPatient('${p.id}')">🧭</button>
+      <button title="Ver ubicación en el mapa" class="${hasAddress?'':'disabled'}" onclick="viewPatientOnMap('${p.id}')">🗺️</button>
     </div>`;
 }
 function patientCardHTML(p, r){
@@ -1397,6 +1398,12 @@ function patientMapsLink(p){
   if(p.lat != null && p.lng != null) return `https://www.google.com/maps/search/?api=1&query=${p.lat},${p.lng}`;
   if(p.direccion) return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(p.direccion)}`;
   return null;
+}
+function viewPatientOnMap(patientId){
+  const p = DB.patients.find(p=>p.id===patientId);
+  const link = p && patientMapsLink(p);
+  if(!link){ toast('Este paciente no tiene dirección ni GPS guardado'); return; }
+  window.open(link, '_blank');
 }
 function navigateToPatient(patientId){
   const p = DB.patients.find(p=>p.id===patientId);
