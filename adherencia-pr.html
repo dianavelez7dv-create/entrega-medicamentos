@@ -703,7 +703,6 @@ function actionButtonsHTML(p){
       <button title="Ver nota de Rx pendiente" class="${p.needsRx?'':'disabled'}" onclick="showRxNote('${p.id}')">📝</button>
       <button title="Duplicar en otra categoría" class="${availableCats.length?'':'disabled'}" onclick="quickDuplicate('${p.id}')">🔁</button>
       <button title="Navegar a la casa del paciente" class="${hasAddress?'':'disabled'}" onclick="navigateToPatient('${p.id}')">🧭</button>
-      <button title="Ver ubicación en el mapa" class="${hasAddress?'':'disabled'}" onclick="viewPatientOnMap('${p.id}')">🗺️</button>
     </div>`;
 }
 function patientCardHTML(p, r){
@@ -1014,7 +1013,7 @@ function renderMedicosList(){
       <span>
         <b style="font-family:'Space Grotesk',sans-serif;color:var(--navy);">${escapeHTML(m.nombre)}</b>
         ${medicoContactLine(m)}
-        ${map ? `<a href="${map}" target="_blank" rel="noopener" style="font-size:11.5px;color:var(--navy);">🗺️ Ver en mapa</a>` : ''}
+        ${map ? `<a href="${map}" target="_blank" rel="noopener" style="font-size:11.5px;color:var(--navy);">🧭 Navegar</a>` : ''}
       </span>
       <button class="small-x" style="color:var(--navy);font-size:14px;" onclick="openMedicoModal('${m.id}')">✏️</button>
     </div>`;
@@ -1515,8 +1514,8 @@ async function deleteMedico(){
   toast('Médico eliminado');
 }
 function mapsLink(m){
-  if(m.lat != null && m.lng != null) return `https://www.google.com/maps/search/?api=1&query=${m.lat},${m.lng}`;
-  if(m.direccion) return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(m.direccion)}`;
+  if(m.lat != null && m.lng != null) return `https://www.google.com/maps/dir/?api=1&destination=${m.lat},${m.lng}`;
+  if(m.direccion) return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(m.direccion)}`;
   return null;
 }
 
