@@ -81,6 +81,7 @@ footer{text-align:center;padding:26px 20px;color:var(--ink-soft);font-size:12px;
     <a href="#pacientes">3. Añadir y editar pacientes</a>
     <a href="#medicos">3.5 Directorio de médicos</a>
     <a href="#pdc">4. Cómo se calcula el PDC (y qué significan los colores)</a>
+    <a href="#tarjetas">4.5 Las tarjetas y sus botones de acción rápida</a>
     <a href="#panel">5. El Panel — brechas, riesgo temprano y resumen del día</a>
     <a href="#cmr">5.5 CMR / MTM</a>
     <a href="#estrellas">5.7 Progreso hacia 5 estrellas</a>
@@ -135,7 +136,7 @@ footer{text-align:center;padding:26px 20px;color:var(--ink-soft);font-size:12px;
         <li>Puedes hacerlo desde el momento en que estás <b>creando</b> el paciente (no hace falta guardarlo primero) — en cuanto escribes el nombre, aparece la sección con las categorías disponibles.</li>
         <li>Elige la que corresponda (ej. Hipertensión) y toca <b>🔁 Crear en esa categoría</b> — si el paciente que estás creando todavía no se ha guardado, la app lo guarda automáticamente primero, y luego crea el segundo registro con el mismo nombre, plan y médico, y te lleva directo a ese registro para que le añadas sus medicamentos específicos de esa categoría.</li>
       </ol>
-      <p>En la tarjeta del paciente (Panel y Pacientes) vas a ver una línea <b>"🔁 también en: Hipertensión"</b> para que sepas que ese mismo paciente tiene otro registro — así no se te olvida ni se ve como si estuviera duplicado por error.</p>
+      <p>En la tarjeta del paciente vas a ver una línea <b>"🔁 Hipertensión"</b> para que sepas que ese mismo paciente tiene otro registro — así no se te olvida ni se ve como si estuviera duplicado por error.</p>
     </div>
 
     <div class="card amber">
@@ -165,6 +166,37 @@ footer{text-align:center;padding:26px 20px;color:var(--ink-soft);font-size:12px;
       <tr><td>70–79%</td><td class="dot-warn">En riesgo</td><td>Requiere intervención pronto, antes de que baje de 70%.</td></tr>
       <tr><td>&lt; 70%</td><td class="dot-crit">Brecha crítica</td><td>Prioridad de contacto — es lo primero que ve el Panel.</td></tr>
     </table>
+    <div class="card">
+      <h4>La botellita de colores en cada tarjeta</h4>
+      <p>En Panel y Pacientes, cada tarjeta tiene un ícono de botella junto al nombre. Es un indicador de "nivel de pastillas": la parte de abajo, coloreada según su estatus (verde/ámbar/rojo), representa el % de PDC que tiene cubierto; la parte de arriba, en crema, representa lo que le falta. Por eso se ve de <b>dos colores</b> cuando el paciente está en un punto intermedio (por ejemplo 65% o 92%). Se ve de un solo color cuando está en los extremos: toda crema si el PDC es 0% (sin resurtidos registrados), o toda llena si es 100%.</p>
+    </div>
+  </section>
+
+  <section id="tarjetas">
+    <div class="num">04.5</div>
+    <h2>Las tarjetas de paciente y sus botones</h2>
+    <p>En Panel y Pacientes, cada tarjeta trae una fila de botones de acción rápida debajo, sin tener que abrir nada:</p>
+    <table>
+      <tr><th>Botón</th><th>Qué hace</th></tr>
+      <tr><td>📋</td><td>Registrar una intervención para ese paciente/categoría</td></tr>
+      <tr><td>✏️</td><td>Editar el paciente completo</td></tr>
+      <tr><td>📞</td><td>Llamar al médico asignado a ese medicamento/categoría</td></tr>
+      <tr><td>💬</td><td>WhatsApp directo al médico</td></tr>
+      <tr><td>✉️</td><td>Correo directo al médico</td></tr>
+      <tr><td>📝</td><td>Ver la nota de Rx pendiente de ese paciente</td></tr>
+      <tr><td>🔁</td><td>Duplicar de un toque en la primera categoría disponible</td></tr>
+    </table>
+    <p class="helptext" style="margin-top:8px;">Si un botón sale atenuado (más clarito) es porque no aplica — por ejemplo, el médico de ese paciente no tiene teléfono guardado en el directorio.</p>
+
+    <div class="card">
+      <h4>Pacientes con varias categorías: una sola tarjeta</h4>
+      <p>Cuando no filtras por categoría específica (queda en "Todos"), los pacientes con más de un registro salen consolidados en <b>una sola tarjeta</b> con el nombre arriba, y cada categoría como su propia fila — con su pastilla de color/PDC y su fila completa de botones. Si filtras por una categoría en particular, vuelve a la vista normal de tarjetas individuales.</p>
+    </div>
+
+    <div class="card amber">
+      <h4>Las pastillas de arriba también filtran</h4>
+      <p>En el encabezado (debajo de "Sincronizado en tiempo real"), las pastillas <b>Pacientes</b>, <b>Al día</b>, <b>En riesgo</b> y <b>Brecha</b> son botones: al tocar cualquiera, te lleva directo a <b>Pacientes</b> filtrado solo por ese estatus. Se puede combinar con los filtros de plan y categoría. "PDC prom." es solo informativo (es un promedio, no un grupo de pacientes).</p>
+    </div>
   </section>
 
   <section id="panel">

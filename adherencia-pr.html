@@ -290,6 +290,11 @@ textarea{resize:vertical;min-height:60px;}
       <select id="pmMedicoSel" style="flex:1;"><option value="">— Selecciona —</option></select>
       <button type="button" class="btn ghost sm" onclick="openMedicoModal()">+ Nuevo</button>
     </div>
+    <label>Dirección de entrega (para entregas a domicilio)</label>
+    <input id="pmDireccion" placeholder="Calle, urbanización, ciudad, PR, código postal">
+    <button type="button" class="btn ghost sm" style="width:100%;margin-top:8px;" onclick="capturarGPSPaciente()">📍 Usar mi ubicación actual (GPS)</button>
+    <div id="pmGpsStatus" class="helptext"></div>
+    <button type="button" id="pmClearGpsBtn" class="btn ghost sm" style="width:100%;margin-top:6px;display:none;" onclick="quitarGPSPaciente()">🗑️ Quitar GPS guardado (usar la dirección escrita)</button>
     <label>Medicamento(s)</label>
     <div id="pmMedsChips" style="margin-bottom:8px;"></div>
     <div style="display:flex;gap:8px;">
@@ -379,6 +384,7 @@ textarea{resize:vertical;min-height:60px;}
     <input id="mdDireccion" placeholder="Calle, ciudad, PR, código postal">
     <button type="button" class="btn ghost sm" style="width:100%;margin-top:8px;" onclick="capturarGPSMedico()">📍 Usar mi ubicación actual (GPS)</button>
     <div id="mdGpsStatus" class="helptext"></div>
+    <button type="button" id="mdClearGpsBtn" class="btn ghost sm" style="width:100%;margin-top:6px;display:none;" onclick="quitarGPSMedico()">🗑️ Quitar GPS guardado (usar la dirección escrita)</button>
     <label>Notas (opcional)</label>
     <textarea id="mdNotas" placeholder="Horario, especialidad, preferencia de contacto..."></textarea>
     <button class="btn primary" id="mdSaveBtn" onclick="saveMedico()">Guardar médico</button>
@@ -549,6 +555,7 @@ async function fetchAll(){
     medsDetail: Array.isArray(p.meds_detail) ? p.meds_detail : [],
     medicoId: p.medico_id, medico: p.medicos ? p.medicos.nombre : null, medicoContact: p.medicos || null,
     needsRx: !!p.needs_rx, rxNote: p.rx_note,
+    direccion: p.direccion, lat: p.lat, lng: p.lng,
     fills: (p.fills||[]).map(f=>({id:f.id, date:f.fill_date, days:f.days_supply, med:f.med_name||null}))
   }));
   DB.interventions = (intv||[]).map(i=>({
@@ -651,6 +658,7 @@ function isEarlyRisk(patient, pdcResult){
 document.getElementById('tabs').addEventListener('click', e=>{
   const btn = e.target.closest('button[data-view]');
   if(!btn) return;
+  activeStatusFilter = 'all';
   document.querySelectorAll('nav.tabs button').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active');
   document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
@@ -666,15 +674,24 @@ function renderStats(){
   const crit = withPdc.filter(x=>x.r.status==='crit').length;
   const avg = withPdc.length ? Math.round(withPdc.reduce((s,x)=>s+x.r.pct,0)/withPdc.length) : 0;
   document.getElementById('statsRow').innerHTML = `
-    <div class="stat-pill"><div class="n">${DB.patients.length}</div><div class="l">Pacientes</div></div>
+    <div class="stat-pill" style="cursor:pointer;" onclick="setStatusFilter('all')"><div class="n">${DB.patients.length}</div><div class="l">Pacientes</div></div>
     <div class="stat-pill"><div class="n">${avg}%</div><div class="l">PDC prom.</div></div>
-    <div class="stat-pill ok"><div class="n">${ok}</div><div class="l">Al día</div></div>
-    <div class="stat-pill warn"><div class="n">${warn}</div><div class="l">En riesgo</div></div>
-    <div class="stat-pill crit"><div class="n">${crit}</div><div class="l">Brecha</div></div>`;
+    <div class="stat-pill ok" style="cursor:pointer;" onclick="setStatusFilter('ok')"><div class="n">${ok}</div><div class="l">Al día</div></div>
+    <div class="stat-pill warn" style="cursor:pointer;" onclick="setStatusFilter('warn')"><div class="n">${warn}</div><div class="l">En riesgo</div></div>
+    <div class="stat-pill crit" style="cursor:pointer;" onclick="setStatusFilter('crit')"><div class="n">${crit}</div><div class="l">Brecha</div></div>`;
+}
+function setStatusFilter(status){
+  activeStatusFilter = status;
+  document.querySelectorAll('nav.tabs button').forEach(b=>b.classList.remove('active'));
+  document.querySelector('nav.tabs button[data-view="pacientes"]').classList.add('active');
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.getElementById('view-pacientes').classList.add('active');
+  renderPatients();
 }
 function actionButtonsHTML(p){
   const hasMedicoPhone = p.medicoContact && p.medicoContact.telefono;
   const hasMedicoEmail = p.medicoContact && p.medicoContact.email;
+  const hasAddress = (p.lat!=null && p.lng!=null) || p.direccion;
   const others = sameNamePatients(p).map(x=>x.cat);
   const availableCats = ALL_CATS.filter(c=> c!==p.cat && !others.includes(c));
   return `<div class="pcard-actions">
@@ -685,6 +702,7 @@ function actionButtonsHTML(p){
       <button title="Correo al médico" class="${hasMedicoEmail?'':'disabled'}" onclick="emailMedicoOf('${p.id}')">✉️</button>
       <button title="Ver nota de Rx pendiente" class="${p.needsRx?'':'disabled'}" onclick="showRxNote('${p.id}')">📝</button>
       <button title="Duplicar en otra categoría" class="${availableCats.length?'':'disabled'}" onclick="quickDuplicate('${p.id}')">🔁</button>
+      <button title="Navegar a la casa del paciente" class="${hasAddress?'':'disabled'}" onclick="navigateToPatient('${p.id}')">🧭</button>
     </div>`;
 }
 function patientCardHTML(p, r){
@@ -809,6 +827,7 @@ function renderDash(){
   earlyEl.innerHTML = groupedPatientCardsHTML(early, 'openIntv');
 }
 let activeCat = 'all';
+let activeStatusFilter = 'all';
 document.getElementById('catFilters').addEventListener('click', e=>{
   const btn = e.target.closest('button[data-cat]'); if(!btn) return;
   activeCat = btn.dataset.cat;
@@ -820,10 +839,11 @@ function renderPatients(){
   let list = DB.patients.slice();
   if(activePlan!=='all') list = list.filter(p=>p.plan===activePlan);
   if(activeCat!=='all') list = list.filter(p=>p.cat===activeCat);
+  if(activeStatusFilter!=='all') list = list.filter(p=> calcPDC(p).status===activeStatusFilter);
   const el = document.getElementById('patientList');
-  if(list.length===0){ el.innerHTML = `<div class="empty"><div class="disp">Aún no hay pacientes</div><p>Toca el botón + para añadir el primero.</p></div>`; return; }
+  if(list.length===0){ el.innerHTML = `<div class="empty"><div class="disp">Aún no hay pacientes${activeStatusFilter!=='all' ? ' con ese estatus':''}</div><p>Toca el botón + para añadir el primero.</p></div>`; return; }
 
-  if(activeCat==='all'){
+  if(activeCat==='all' && activeStatusFilter==='all'){
     // agrupado por nombre: una tarjeta por paciente, cada categoría con sus botones
     const items = list.map(p=>({p, r:calcPDC(p)}));
     el.innerHTML = groupedPatientCardsHTML(items, 'openPatientModal');
@@ -1237,6 +1257,7 @@ async function quickDuplicate(patientId){
   const { data, error } = await sb.from('patients').insert({
     name: p.name, cat: newCat, plan: p.plan, medico_id: p.medicoId || null,
     med: null, meds_detail: [], needs_rx: false, rx_note: null,
+    direccion: p.direccion || null, lat: p.lat ?? null, lng: p.lng ?? null,
     created_by: currentUser.id
   }).select('id').single();
   if(error){ toast('Error al duplicar: ' + error.message); return; }
@@ -1349,10 +1370,48 @@ function renderMedicoOptions(){
     DB.medicos.map(m=>`<option value="${m.id}">${escapeHTML(m.nombre)}</option>`).join('');
   sel.value = prev;
 }
+let pmGpsCoords = null;
+let pmGpsCleared = false;
+function capturarGPSPaciente(){
+  const statusEl = document.getElementById('pmGpsStatus');
+  if(!navigator.geolocation){ statusEl.textContent = 'Este dispositivo/navegador no soporta GPS.'; return; }
+  statusEl.textContent = 'Obteniendo ubicación…';
+  navigator.geolocation.getCurrentPosition(
+    pos=>{
+      pmGpsCoords = {lat: pos.coords.latitude, lng: pos.coords.longitude};
+      pmGpsCleared = false;
+      statusEl.textContent = '📍 Ubicación capturada (' + pmGpsCoords.lat.toFixed(5) + ', ' + pmGpsCoords.lng.toFixed(5) + ') — tiene prioridad sobre la dirección escrita.';
+      document.getElementById('pmClearGpsBtn').style.display = 'block';
+    },
+    err=>{ statusEl.textContent = 'No se pudo obtener la ubicación: ' + err.message; },
+    { enableHighAccuracy:true, timeout:10000 }
+  );
+}
+function quitarGPSPaciente(){
+  pmGpsCoords = null;
+  pmGpsCleared = true;
+  document.getElementById('pmGpsStatus').textContent = 'GPS quitado — se usará la dirección escrita.';
+  document.getElementById('pmClearGpsBtn').style.display = 'none';
+}
+function patientMapsLink(p){
+  if(p.lat != null && p.lng != null) return `https://www.google.com/maps/search/?api=1&query=${p.lat},${p.lng}`;
+  if(p.direccion) return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(p.direccion)}`;
+  return null;
+}
+function navigateToPatient(patientId){
+  const p = DB.patients.find(p=>p.id===patientId);
+  if(!p || (p.lat==null && !p.direccion)){ toast('Este paciente no tiene dirección ni GPS guardado'); return; }
+  const dest = (p.lat != null && p.lng != null) ? `${p.lat},${p.lng}` : encodeURIComponent(p.direccion);
+  window.open(`https://www.google.com/maps/dir/?api=1&destination=${dest}`, '_blank');
+}
+
 let mdGpsCoords = null;
+let mdGpsCleared = false;
 function openMedicoModal(id){
   mdGpsCoords = null;
+  mdGpsCleared = false;
   document.getElementById('mdGpsStatus').textContent = '';
+  document.getElementById('mdClearGpsBtn').style.display = 'none';
   if(id){
     const m = DB.medicos.find(x=>x.id===id);
     if(!m) return;
@@ -1365,7 +1424,8 @@ function openMedicoModal(id){
     document.getElementById('mdNotas').value = m.notas || '';
     if(m.lat != null && m.lng != null){
       mdGpsCoords = {lat:m.lat, lng:m.lng};
-      document.getElementById('mdGpsStatus').textContent = '📍 Ubicación guardada (' + m.lat.toFixed(5) + ', ' + m.lng.toFixed(5) + ')';
+      document.getElementById('mdGpsStatus').textContent = '📍 Ubicación GPS guardada (' + m.lat.toFixed(5) + ', ' + m.lng.toFixed(5) + ') — tiene prioridad sobre la dirección escrita.';
+      document.getElementById('mdClearGpsBtn').style.display = 'block';
     }
     document.getElementById('mdDeleteBtn').style.display = 'block';
   } else {
@@ -1387,11 +1447,19 @@ function capturarGPSMedico(){
   navigator.geolocation.getCurrentPosition(
     pos=>{
       mdGpsCoords = {lat: pos.coords.latitude, lng: pos.coords.longitude};
-      statusEl.textContent = '📍 Ubicación capturada (' + mdGpsCoords.lat.toFixed(5) + ', ' + mdGpsCoords.lng.toFixed(5) + ')';
+      mdGpsCleared = false;
+      statusEl.textContent = '📍 Ubicación capturada (' + mdGpsCoords.lat.toFixed(5) + ', ' + mdGpsCoords.lng.toFixed(5) + ') — tiene prioridad sobre la dirección escrita.';
+      document.getElementById('mdClearGpsBtn').style.display = 'block';
     },
     err=>{ statusEl.textContent = 'No se pudo obtener la ubicación: ' + err.message; },
     { enableHighAccuracy:true, timeout:10000 }
   );
+}
+function quitarGPSMedico(){
+  mdGpsCoords = null;
+  mdGpsCleared = true;
+  document.getElementById('mdGpsStatus').textContent = 'GPS quitado — se usará la dirección escrita.';
+  document.getElementById('mdClearGpsBtn').style.display = 'none';
 }
 async function saveMedico(){
   const nombre = document.getElementById('mdNombre').value.trim();
@@ -1407,6 +1475,7 @@ async function saveMedico(){
     notas: document.getElementById('mdNotas').value.trim() || null,
   };
   if(mdGpsCoords){ payload.lat = mdGpsCoords.lat; payload.lng = mdGpsCoords.lng; }
+  else if(mdGpsCleared){ payload.lat = null; payload.lng = null; }
 
   let newId = id;
   let error;
@@ -1481,6 +1550,8 @@ async function duplicatePatientCategory(evt){
       plan: document.getElementById('pmPlan').value,
       medico_id: document.getElementById('pmMedicoSel').value || null,
       med: null, meds_detail: [], needs_rx: false, rx_note: null,
+      direccion: p.direccion || document.getElementById('pmDireccion').value.trim() || null,
+      lat: p.lat ?? pmGpsCoords?.lat ?? null, lng: p.lng ?? pmGpsCoords?.lng ?? null,
       created_by: currentUser.id
     }).select('id').single();
     if(error) throw error;
@@ -1514,6 +1585,10 @@ function renderPatientTimeline(patientId){
 function openPatientModal(id){
   formFills = [];
   formMeds = [];
+  pmGpsCoords = null;
+  pmGpsCleared = false;
+  document.getElementById('pmGpsStatus').textContent = '';
+  document.getElementById('pmClearGpsBtn').style.display = 'none';
   if(id){
     const p = DB.patients.find(p=>p.id===id);
     document.getElementById('pmTitle').textContent = 'Editar paciente';
@@ -1521,6 +1596,12 @@ function openPatientModal(id){
     document.getElementById('pmName').value = p.name;
     document.getElementById('pmCat').value = p.cat;
     document.getElementById('pmPlan').value = p.plan;
+    document.getElementById('pmDireccion').value = p.direccion || '';
+    if(p.lat != null && p.lng != null){
+      pmGpsCoords = {lat:p.lat, lng:p.lng};
+      document.getElementById('pmGpsStatus').textContent = '📍 Ubicación GPS guardada (' + p.lat.toFixed(5) + ', ' + p.lng.toFixed(5) + ') — tiene prioridad sobre la dirección escrita.';
+      document.getElementById('pmClearGpsBtn').style.display = 'block';
+    }
     formMeds = parseMeds(p.medsDetail, p.med);
     formFills = (p.fills||[]).slice();
     document.getElementById('pmFillsSection').style.display = 'block';
@@ -1534,6 +1615,7 @@ function openPatientModal(id){
     document.getElementById('pmName').value = '';
     document.getElementById('pmCat').value = 'Estatina';
     document.getElementById('pmPlan').value = 'MCS';
+    document.getElementById('pmDireccion').value = '';
     document.getElementById('pmFillsSection').style.display = 'block';
     document.getElementById('pmDeleteBtn').style.display = 'none';
     renderMedicoOptions();
@@ -1582,7 +1664,10 @@ async function persistCurrentPatient(){
     medico_id: document.getElementById('pmMedicoSel').value || null,
     needs_rx: flagged.length > 0,
     rx_note: flagged.length ? flagged.map(m=> m.name + (m.note ? ' — '+m.note : '')).join('; ') : null,
+    direccion: document.getElementById('pmDireccion').value.trim() || null,
   };
+  if(pmGpsCoords){ payload.lat = pmGpsCoords.lat; payload.lng = pmGpsCoords.lng; }
+  else if(pmGpsCleared){ payload.lat = null; payload.lng = null; }
 
   let patientId = id;
   if(id){
