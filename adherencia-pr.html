@@ -232,7 +232,7 @@ textarea{resize:vertical;min-height:60px;}
       <input id="staffNewName" placeholder="Tu nombre">
       <label>PIN (4 dígitos, para que nadie más use tu nombre)</label>
       <input id="staffNewPin" type="tel" inputmode="numeric" maxlength="4" placeholder="0000">
-      <button class="btn primary" onclick="createStaff()">Guardar y entrar</button>
+      <button class="btn primary" id="staffCreateBtn" onclick="createStaff()">Guardar y entrar</button>
       <button class="btn ghost sm" style="width:100%;margin-top:8px;" onclick="backToStaffPick()">← Volver</button>
     </div>
 
@@ -352,6 +352,11 @@ textarea{resize:vertical;min-height:60px;}
     <div class="card">
       <h3 style="margin:0 0 4px;color:var(--navy);">🏥 Mi farmacia</h3>
       <div id="miFarmaciaBody"><p class="helptext">Cargando…</p></div>
+    </div>
+    <div class="card">
+      <h3 style="margin:0 0 4px;color:var(--navy);">👥 Personal</h3>
+      <p class="helptext">Empleados que han entrado con su nombre/PIN. Borra duplicados o quien ya no trabaje aquí.</p>
+      <div id="staffMgmtList" style="margin-top:10px;"></div>
     </div>
     <div class="card">
       <h3 style="margin:0 0 4px;color:var(--navy);">📋 Rx pendientes con el médico</h3>
@@ -1029,7 +1034,11 @@ async function createStaff(){
     errEl.classList.add('show');
     return;
   }
+  const btn = document.getElementById('staffCreateBtn');
+  if(btn.disabled) return; // ya se está guardando, ignora toques repetidos
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Guardando…';
   const { data, error } = await sb.from('staff').insert({nombre, pin, farmacia_id: myFarmaciaId, created_by: currentUser.id}).select('id').single();
+  btn.disabled = false; btn.textContent = 'Guardar y entrar';
   if(error){
     errEl.textContent = 'Error: ' + error.message;
     errEl.classList.add('show');
@@ -1457,7 +1466,31 @@ function renderIntv(){
       <div class="note">${escapeHTML(i.notes||'')}</div>
     </div>`).join('');
 }
-function renderAll(){ populatePlanFilters(); renderStats(); renderDash(); renderPatients(); renderIntv(); renderRxList(); renderMedicosList(); renderCmrList(); renderEstrellasList(); renderAuditLog(); renderConsultorioSelect(); if(consultorioActivoId) loadConsultorioMedico(consultorioActivoId); renderMiFarmacia(); }
+function renderAll(){ populatePlanFilters(); renderStats(); renderDash(); renderPatients(); renderIntv(); renderRxList(); renderMedicosList(); renderCmrList(); renderEstrellasList(); renderAuditLog(); renderConsultorioSelect(); if(consultorioActivoId) loadConsultorioMedico(consultorioActivoId); renderMiFarmacia(); renderStaffMgmt(); }
+
+function renderStaffMgmt(){
+  const el = document.getElementById('staffMgmtList');
+  if(!el) return;
+  if(DB.staff.length===0){ el.innerHTML = '<p class="helptext">Nadie se ha añadido todavía.</p>'; return; }
+  el.innerHTML = DB.staff.map(s=>`
+    <div class="fillrow">
+      <span>${escapeHTML(s.nombre)}</span>
+      <button class="small-x" onclick="deleteStaff('${s.id}','${escapeHTML(s.nombre)}')">🗑️</button>
+    </div>`).join('');
+}
+async function deleteStaff(id, nombre){
+  if(!confirm(`¿Eliminar a "${nombre}" del personal?`)) return;
+  const { error } = await sb.from('staff').delete().eq('id', id);
+  if(error){ toast('Error: ' + error.message); return; }
+  logAudit('staff', id, 'eliminar', nombre);
+  if(currentStaff && currentStaff.id === id){
+    currentStaff = null;
+    localStorage.removeItem('adherenciaPR_staffId');
+  }
+  await fetchAll();
+  renderAll();
+  toast('Eliminado del personal');
+}
 
 function renderMiFarmacia(){
   const el = document.getElementById('miFarmaciaBody');
