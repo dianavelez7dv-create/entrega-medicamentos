@@ -214,6 +214,7 @@ textarea{resize:vertical;min-height:60px;}
   <button data-view="cmr">CMR</button>
   <button data-view="intervenciones">Intervenciones</button>
   <button data-view="reportes">Reportes</button>
+  <button data-view="auditoria">Auditoría</button>
 </nav>
 
 <main>
@@ -298,6 +299,12 @@ textarea{resize:vertical;min-height:60px;}
       <div id="whoami" class="helptext"></div>
       <button class="btn ghost" onclick="doLogout()">Cerrar sesión</button>
     </div>
+  </div>
+  <div class="view" id="view-auditoria">
+    <div class="searchbox"><span class="ic">🔍</span><input id="searchAudit" placeholder="Buscar por empleado, acción o paciente..." oninput="renderAuditLog()"></div>
+    <div class="section-title">Registro de auditoría</div>
+    <p class="helptext" style="margin-top:-6px;margin-bottom:10px;">Cada creación, edición o eliminación en la app, con quién la hizo y cuándo. No se puede editar ni borrar.</p>
+    <div id="auditList"></div>
   </div>
 </main>
 
@@ -442,7 +449,7 @@ textarea{resize:vertical;min-height:60px;}
 const CFG_KEY = 'adherenciaPR_cfg';
 let sb = null;
 let currentUser = null;
-let DB = { patients: [], interventions: [], medicos: [], cmr: [], metas: [], staff: [] };
+let DB = { patients: [], interventions: [], medicos: [], cmr: [], metas: [], staff: [], auditLog: [] };
 let currentStaff = null; // {id, nombre}
 let realtimeChannel = null;
 
@@ -652,6 +659,7 @@ async function createStaff(){
   await fetchAll();
   currentStaff = {id: data.id, nombre};
   localStorage.setItem('adherenciaPR_staffId', data.id);
+  logAudit('staff', data.id, 'crear', nombre);
   document.getElementById('gateStaff').style.display = 'none';
   document.getElementById('appRoot').style.display = 'block';
   document.getElementById('staffLabel').textContent = nombre;
@@ -668,6 +676,16 @@ function setSyncStatus(state){
 }
 
 /* ================= Data fetch ================= */
+async function logAudit(table, recordId, action, summary){
+  try{
+    await sb.from('audit_log').insert({
+      table_name: table, record_id: recordId ? String(recordId) : null, action, summary,
+      staff_name: currentStaff ? currentStaff.nombre : null,
+      account_email: currentUser ? currentUser.email : null,
+    });
+  }catch(e){ console.error('audit log error', e); }
+}
+
 async function fetchAll(){
   const { data: patients, error: pErr } = await sb
     .from('patients').select('*, fills(id, fill_date, days_supply, med_name), medicos(id,nombre,telefono,email,direccion)').order('name');
@@ -703,6 +721,9 @@ async function fetchAll(){
 
   const { data: staff, error: staffErr } = await sb.from('staff').select('*').order('nombre');
   if(staffErr){ toast('Error cargando personal'); } else { DB.staff = staff||[]; }
+
+  const { data: auditLog, error: auditErr } = await sb.from('audit_log').select('*').order('created_at', {ascending:false}).limit(300);
+  if(auditErr){ /* silencioso: puede que aún no exista la tabla */ } else { DB.auditLog = auditLog||[]; }
   setSyncStatus('live');
 }
 
@@ -718,6 +739,7 @@ function setupRealtime(){
     .on('postgres_changes', {event:'*', schema:dbSchema, table:'cmr'}, handleRemoteChange)
     .on('postgres_changes', {event:'*', schema:dbSchema, table:'metas'}, handleRemoteChange)
     .on('postgres_changes', {event:'*', schema:dbSchema, table:'staff'}, handleRemoteChange)
+    .on('postgres_changes', {event:'*', schema:dbSchema, table:'audit_log'}, handleRemoteChange)
     .subscribe(status=>{
       if(status==='SUBSCRIBED') setSyncStatus('live');
       else if(status==='CHANNEL_ERROR' || status==='TIMED_OUT') setSyncStatus('err');
@@ -1005,7 +1027,33 @@ function renderIntv(){
       <div class="note">${escapeHTML(i.notes||'')}</div>
     </div>`).join('');
 }
-function renderAll(){ populatePlanFilters(); renderStats(); renderDash(); renderPatients(); renderIntv(); renderRxList(); renderMedicosList(); renderCmrList(); renderEstrellasList(); }
+function renderAll(){ populatePlanFilters(); renderStats(); renderDash(); renderPatients(); renderIntv(); renderRxList(); renderMedicosList(); renderCmrList(); renderEstrellasList(); renderAuditLog(); }
+
+const actionIcon = {crear:'🆕', editar:'✏️', eliminar:'🗑️'};
+const tableLabel = {
+  patients:'Paciente', fills:'Resurtido', interventions:'Intervención',
+  medicos:'Médico', cmr:'CMR', metas:'Meta', staff:'Personal'
+};
+function renderAuditLog(){
+  const el = document.getElementById('auditList');
+  if(!el) return;
+  const searchEl = document.getElementById('searchAudit');
+  const q = searchEl ? searchEl.value.trim().toLowerCase() : '';
+  let list = DB.auditLog.slice();
+  if(q) list = list.filter(a=>
+    (a.staff_name||'').toLowerCase().includes(q) ||
+    (a.summary||'').toLowerCase().includes(q) ||
+    (a.action||'').toLowerCase().includes(q) ||
+    (tableLabel[a.table_name]||a.table_name||'').toLowerCase().includes(q)
+  );
+  if(list.length===0){ el.innerHTML = `<div class="empty"><div class="disp">${q?'Sin resultados':'Aún no hay actividad registrada'}</div><p>${q?'Prueba con otro término.':'Cada acción que hagas en la app va a quedar aquí.'}</p></div>`; return; }
+  el.innerHTML = list.map(a=>`
+    <div class="intv-item">
+      <div class="who">${actionIcon[a.action]||''} ${escapeHTML(tableLabel[a.table_name]||a.table_name)} — ${escapeHTML(a.action)}</div>
+      <div class="meta">${fmtDate(a.created_at.slice(0,10))} ${new Date(a.created_at).toLocaleTimeString('es-PR',{hour:'2-digit',minute:'2-digit'})} · ${escapeHTML(a.staff_name || a.account_email || 'desconocido')}</div>
+      <div class="note">${escapeHTML(a.summary||'')}</div>
+    </div>`).join('');
+}
 
 /* ---- Progreso hacia 5 estrellas por plan ---- */
 function renderEstrellasList(){
@@ -1043,6 +1091,7 @@ async function setMeta(plan, value){
   if(isNaN(target)) return;
   const { error } = await sb.from('metas').upsert({plan, target});
   if(error){ toast('Error al guardar meta: ' + error.message); return; }
+  logAudit('metas', plan, 'editar', `${plan} — meta ${target}%`);
   await fetchAll();
   renderAll();
 }
@@ -1122,6 +1171,7 @@ async function saveCmr(){
   else { ({error} = await sb.from('cmr').insert({...payload, created_by: currentUser.id})); }
   btn.disabled = false; btn.textContent = 'Guardar';
   if(error){ toast('Error: ' + error.message); return; }
+  logAudit('cmr', id||null, id?'editar':'crear', name);
   await fetchAll();
   renderAll();
   closeModal('modalCmr');
@@ -1131,6 +1181,8 @@ async function completeCmr(){
   const id = document.getElementById('cmrId').value;
   const { error } = await sb.from('cmr').update({completed_date: todayStr()}).eq('id', id);
   if(error){ toast('Error: ' + error.message); return; }
+  const c = DB.cmr.find(x=>x.id===id);
+  logAudit('cmr', id, 'editar', (c?c.patient_name:'') + ' — completada');
   await fetchAll();
   renderAll();
   closeModal('modalCmr');
@@ -1138,9 +1190,11 @@ async function completeCmr(){
 }
 async function deleteCmr(){
   const id = document.getElementById('cmrId').value;
+  const c = DB.cmr.find(x=>x.id===id);
   if(!confirm('¿Eliminar esta CMR?')) return;
   const { error } = await sb.from('cmr').delete().eq('id', id);
   if(error){ toast('Error: ' + error.message); return; }
+  logAudit('cmr', id, 'eliminar', c ? c.patient_name : id);
   await fetchAll();
   renderAll();
   closeModal('modalCmr');
@@ -1411,6 +1465,7 @@ async function quickDuplicate(patientId){
     created_by: currentUser.id
   }).select('id').single();
   if(error){ toast('Error al duplicar: ' + error.message); return; }
+  logAudit('patients', data.id, 'crear', `${p.name} — ${newCat} (duplicado de ${p.cat})`);
   await fetchAll();
   renderAll();
   toast(p.name + ' creado también en ' + newCat);
@@ -1644,6 +1699,7 @@ async function saveMedico(){
   }
   btn.disabled = false; btn.textContent = 'Guardar médico';
   if(error){ toast('Error al guardar médico: ' + error.message); return; }
+  logAudit('medicos', newId, id?'editar':'crear', nombre);
   await fetchAll();
   renderMedicoOptions();
   document.getElementById('pmMedicoSel').value = newId;
@@ -1654,9 +1710,11 @@ async function saveMedico(){
 async function deleteMedico(){
   const id = document.getElementById('mdId').value;
   if(!id) return;
+  const m = DB.medicos.find(x=>x.id===id);
   if(!confirm('¿Eliminar este médico del directorio? Los pacientes que lo tenían asignado quedarán sin médico.')) return;
   const { error } = await sb.from('medicos').delete().eq('id', id);
   if(error){ toast('Error al eliminar: ' + error.message); return; }
+  logAudit('medicos', id, 'eliminar', m ? m.nombre : id);
   await fetchAll();
   renderMedicoOptions();
   renderAll();
@@ -1711,6 +1769,7 @@ async function duplicatePatientCategory(evt){
       created_by: currentUser.id
     }).select('id').single();
     if(error) throw error;
+    logAudit('patients', data.id, 'crear', `${p.name} — ${newCat} (duplicado)`);
     await fetchAll();
     renderAll();
     toast('Creado también en ' + newCat);
@@ -1854,6 +1913,7 @@ async function persistCurrentPatient(){
     }
   }
   document.getElementById('pmId').value = patientId;
+  logAudit('patients', patientId, id?'editar':'crear', `${name} — ${payload.cat} (${payload.plan})`);
   return patientId;
 }
 
@@ -1877,9 +1937,11 @@ async function savePatient(){
 async function deletePatientFromModal(){
   const id = document.getElementById('pmId').value;
   if(!id) return;
+  const p = DB.patients.find(p=>p.id===id);
   if(!confirm('¿Eliminar este paciente y su historial?')) return;
   const { error } = await sb.from('patients').delete().eq('id', id);
   if(error){ toast('Error al eliminar'); return; }
+  logAudit('patients', id, 'eliminar', p ? `${p.name} — ${p.cat}` : id);
   await fetchAll();
   closeModal('modalPatient');
   renderAll();
@@ -1908,6 +1970,8 @@ async function saveIntervention(){
   });
   btn.disabled = false; btn.textContent = 'Guardar intervención';
   if(error){ toast('Error al guardar intervención'); return; }
+  const p = DB.patients.find(p=>p.id===patientId);
+  logAudit('interventions', patientId, 'crear', `${p?p.name:''} — ${type}`);
   await fetchAll();
   closeModal('modalIntv');
   renderAll();
