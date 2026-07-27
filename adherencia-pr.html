@@ -1458,9 +1458,23 @@ function renderMiFarmacia(){
   if(!el) return;
   if(!DB.miFarmacia){ el.innerHTML = '<p class="helptext">No se pudo cargar.</p>'; return; }
   el.innerHTML = `
-    <p style="margin:0 0 6px;font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:15px;color:var(--navy);">${escapeHTML(DB.miFarmacia.nombre)}</p>
-    <p class="helptext">Código de tu farmacia — compártelo con el resto de tu equipo para que se unan (pantalla "¿Cómo vas a usar la app?" → "Unirme a mi farmacia"):</p>
+    <label>Nombre de la farmacia</label>
+    <div style="display:flex;gap:8px;">
+      <input id="miFarmaciaNombreInput" value="${escapeHTML(DB.miFarmacia.nombre)}" style="flex:1;">
+      <button class="btn ghost sm" onclick="saveMiFarmaciaNombre()">Guardar</button>
+    </div>
+    <p class="helptext" style="margin-top:10px;">Código de tu farmacia — compártelo con el resto de tu equipo para que se unan (pantalla "¿Cómo vas a usar la app?" → "Unirme a mi farmacia"):</p>
     <p style="font-family:'IBM Plex Mono',monospace;font-size:18px;letter-spacing:.1em;color:var(--navy);font-weight:700;background:var(--amber-soft);display:inline-block;padding:6px 14px;border-radius:8px;">${escapeHTML(DB.miFarmacia.invite_code||'—')}</p>`;
+}
+async function saveMiFarmaciaNombre(){
+  const nombre = document.getElementById('miFarmaciaNombreInput').value.trim();
+  if(!nombre){ toast('Escribe un nombre'); return; }
+  const { error } = await sb.from('farmacias').update({nombre}).eq('id', myFarmaciaId);
+  if(error){ toast('Error: ' + error.message); return; }
+  logAudit('farmacias', myFarmaciaId, 'editar', nombre);
+  await fetchAll();
+  renderAll();
+  toast('Nombre actualizado');
 }
 
 function renderConsultorioSelect(){
