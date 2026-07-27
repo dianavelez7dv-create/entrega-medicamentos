@@ -36,6 +36,8 @@ header.top .sub{font-size:13px;color:#C9CFDB;font-family:'IBM Plex Mono',monospa
 nav.tabs{display:flex;position:sticky;top:0;z-index:20;background:var(--paper);border-bottom:1px solid var(--line);overflow-x:auto;}
 nav.tabs button{flex:0 0 auto;border:none;background:none;font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:600;color:var(--ink-soft);padding:13px 16px 11px;border-bottom:3px solid transparent;cursor:pointer;white-space:nowrap;}
 nav.tabs button.active{color:var(--navy);border-bottom-color:var(--amber);}
+nav.tabs button{position:relative;}
+.tab-dot{position:absolute;top:8px;right:4px;width:8px;height:8px;background:var(--red);border-radius:50%;}
 
 main{padding:16px;max-width:860px;margin:0 auto;padding-bottom:90px;}
 .view{display:none;} .view.active{display:block;}
@@ -172,15 +174,36 @@ textarea{resize:vertical;min-height:60px;}
     <div class="eyebrow">Primera vez con esta cuenta</div>
     <h2>¿Cómo vas a usar la app?</h2>
     <p>Esto solo se pregunta una vez por cuenta.</p>
-    <button class="btn primary" onclick="chooseFarmacia()">🏥 Trabajo en la farmacia</button>
-    <button class="btn ghost" style="margin-top:10px;" onclick="showMedicoCodeForm()">🩺 Soy del consultorio de un médico</button>
-    <div id="medicoCodeForm" style="display:none;margin-top:16px;">
+
+    <div id="roleChoiceMain">
+      <button class="btn primary" onclick="showCreateFarmaciaForm()">🏥 Crear una farmacia nueva</button>
+      <button class="btn ghost" style="margin-top:10px;" onclick="showJoinFarmaciaForm()">👥 Unirme a mi farmacia (ya existe)</button>
+      <button class="btn ghost" style="margin-top:10px;" onclick="showMedicoCodeForm()">🩺 Soy del consultorio de un médico</button>
+    </div>
+
+    <div id="createFarmaciaForm" style="display:none;">
+      <label>Nombre de tu farmacia</label>
+      <input id="newFarmaciaNombre" placeholder="Ej. Farmacia Central">
+      <button class="btn primary" onclick="createFarmacia()">Crear farmacia</button>
+      <button class="btn ghost sm" style="width:100%;margin-top:8px;" onclick="backToRoleChoice()">← Volver</button>
+    </div>
+
+    <div id="joinFarmaciaForm" style="display:none;">
+      <label>Código de tu farmacia</label>
+      <input id="joinFarmaciaCode" placeholder="Código que te dio tu administrador" style="text-transform:uppercase;">
+      <button class="btn primary" onclick="joinFarmacia()">Entrar</button>
+      <button class="btn ghost sm" style="width:100%;margin-top:8px;" onclick="backToRoleChoice()">← Volver</button>
+    </div>
+
+    <div id="medicoCodeForm" style="display:none;">
       <label>Tu nombre</label>
       <input id="medicoJoinNombre" placeholder="Tu nombre">
       <label>Código del consultorio</label>
       <input id="medicoJoinCode" placeholder="Código que te dio la farmacia" style="text-transform:uppercase;">
       <button class="btn amber" onclick="joinMedicoPortal()">Entrar al portal</button>
+      <button class="btn ghost sm" style="width:100%;margin-top:8px;" onclick="backToRoleChoice()">← Volver</button>
     </div>
+
     <div class="err-box" id="roleChoiceErr"></div>
   </div>
 </div>
@@ -326,6 +349,10 @@ textarea{resize:vertical;min-height:60px;}
   </div>
 
   <div class="view" id="view-reportes">
+    <div class="card">
+      <h3 style="margin:0 0 4px;color:var(--navy);">🏥 Mi farmacia</h3>
+      <div id="miFarmaciaBody"><p class="helptext">Cargando…</p></div>
+    </div>
     <div class="card">
       <h3 style="margin:0 0 4px;color:var(--navy);">📋 Rx pendientes con el médico</h3>
       <p class="helptext">Pacientes marcados como "Necesita Rx nueva del médico" desde su perfil.</p>
@@ -529,7 +556,7 @@ textarea{resize:vertical;min-height:60px;}
 const CFG_KEY = 'adherenciaPR_cfg';
 let sb = null;
 let currentUser = null;
-let DB = { patients: [], interventions: [], medicos: [], cmr: [], metas: [], staff: [], auditLog: [] };
+let DB = { patients: [], interventions: [], medicos: [], cmr: [], metas: [], staff: [], auditLog: [], miFarmacia: null };
 let currentStaff = null; // {id, nombre}
 let realtimeChannel = null;
 
@@ -653,6 +680,7 @@ async function doLogout(){
 let myRole = 'farmacia';
 let myMedicoId = null;
 let myMedicoNombreCuenta = null;
+let myFarmaciaId = null;
 
 async function showApp(){
   document.getElementById('gateLogin').style.display = 'none';
@@ -666,17 +694,17 @@ async function showApp(){
   }catch(e){ /* tabla puede no existir aún si no se ha corrido el SQL */ }
 
   if(roleRow && roleRow.role === 'medico'){
-    myRole = 'medico'; myMedicoId = roleRow.medico_id; myMedicoNombreCuenta = roleRow.nombre;
+    myRole = 'medico'; myMedicoId = roleRow.medico_id; myMedicoNombreCuenta = roleRow.nombre; myFarmaciaId = roleRow.farmacia_id;
     await enterMedicoPortal();
     return;
   }
-
-  const knownFarmacia = localStorage.getItem('adherenciaPR_isFarmacia') === '1';
-  if(!roleRow && !knownFarmacia){
-    document.getElementById('gateRoleChoice').style.display = 'flex';
+  if(roleRow && roleRow.role === 'farmacia'){
+    myFarmaciaId = roleRow.farmacia_id;
+    await continuePharmacyFlow();
     return;
   }
-  await continuePharmacyFlow();
+  // sin fila todavía: cuenta nueva, hay que elegir
+  document.getElementById('gateRoleChoice').style.display = 'flex';
 }
 
 async function continuePharmacyFlow(){
@@ -684,6 +712,7 @@ async function continuePharmacyFlow(){
   document.getElementById('gateRoleChoice').style.display = 'none';
   await fetchAll();
   setupRealtime();
+  askNotificationPermission();
 
   const savedStaffId = localStorage.getItem('adherenciaPR_staffId');
   const match = savedStaffId ? DB.staff.find(s=>s.id===savedStaffId) : null;
@@ -696,12 +725,45 @@ async function continuePharmacyFlow(){
     openStaffGate();
   }
 }
-function chooseFarmacia(){
-  localStorage.setItem('adherenciaPR_isFarmacia', '1');
-  continuePharmacyFlow();
+function backToRoleChoice(){
+  ['createFarmaciaForm','joinFarmaciaForm','medicoCodeForm'].forEach(id=> document.getElementById(id).style.display='none');
+  document.getElementById('roleChoiceMain').style.display = 'block';
+  document.getElementById('roleChoiceErr').classList.remove('show');
+}
+function showCreateFarmaciaForm(){
+  document.getElementById('roleChoiceMain').style.display = 'none';
+  document.getElementById('createFarmaciaForm').style.display = 'block';
+}
+function showJoinFarmaciaForm(){
+  document.getElementById('roleChoiceMain').style.display = 'none';
+  document.getElementById('joinFarmaciaForm').style.display = 'block';
 }
 function showMedicoCodeForm(){
+  document.getElementById('roleChoiceMain').style.display = 'none';
   document.getElementById('medicoCodeForm').style.display = 'block';
+}
+async function createFarmacia(){
+  const nombre = document.getElementById('newFarmaciaNombre').value.trim();
+  const errEl = document.getElementById('roleChoiceErr');
+  errEl.classList.remove('show');
+  if(!nombre){ errEl.textContent = 'Escribe el nombre de tu farmacia.'; errEl.classList.add('show'); return; }
+  const { data: code, error } = await sb.rpc('create_farmacia', { p_nombre: nombre });
+  if(error){ errEl.textContent = 'Error: ' + error.message; errEl.classList.add('show'); return; }
+  const { data: roleRow } = await sb.from('user_roles').select('*').maybeSingle();
+  myFarmaciaId = roleRow.farmacia_id;
+  toast('Farmacia creada. Código del equipo: ' + code);
+  await continuePharmacyFlow();
+}
+async function joinFarmacia(){
+  const code = document.getElementById('joinFarmaciaCode').value.trim().toUpperCase();
+  const errEl = document.getElementById('roleChoiceErr');
+  errEl.classList.remove('show');
+  if(!code){ errEl.textContent = 'Escribe el código.'; errEl.classList.add('show'); return; }
+  const { data, error } = await sb.rpc('join_farmacia', { p_code: code });
+  if(error || data !== 'ok'){ errEl.textContent = 'Código inválido.'; errEl.classList.add('show'); return; }
+  const { data: roleRow } = await sb.from('user_roles').select('*').maybeSingle();
+  myFarmaciaId = roleRow.farmacia_id;
+  await continuePharmacyFlow();
 }
 async function joinMedicoPortal(){
   const nombre = document.getElementById('medicoJoinNombre').value.trim();
@@ -716,7 +778,7 @@ async function joinMedicoPortal(){
     return;
   }
   const { data: roleRow } = await sb.from('user_roles').select('*').maybeSingle();
-  myRole = 'medico'; myMedicoId = roleRow.medico_id; myMedicoNombreCuenta = roleRow.nombre;
+  myRole = 'medico'; myMedicoId = roleRow.medico_id; myMedicoNombreCuenta = roleRow.nombre; myFarmaciaId = roleRow.farmacia_id;
   document.getElementById('gateRoleChoice').style.display = 'none';
   await enterMedicoPortal();
 }
@@ -736,6 +798,7 @@ async function enterMedicoPortal(){
   renderCitasAgenda();
   renderMensajesThread();
   setPortalSyncStatus('live');
+  askNotificationPermission();
 }
 async function fetchMedicoInfo(id){
   const { data } = await sb.from('medicos').select('*').eq('id', id).maybeSingle();
@@ -751,8 +814,21 @@ function setupPortalRealtime(){
   if(portalRealtimeChannel) sb.removeChannel(portalRealtimeChannel);
   const dbSchema = (getConfig()||{}).schema || 'public';
   portalRealtimeChannel = sb.channel('portal-live')
+    .on('postgres_changes', {event:'INSERT', schema:dbSchema, table:'citas'}, payload=>{
+      fetchPortalData().then(renderCitasAgenda);
+      if(payload.new.medico_id === myMedicoId){
+        notifyAlert('📅 Cita nueva', payload.new.patient_name);
+        if(document.querySelector('#pview-citas:not(.active)')) markTabDot('citas', true);
+      }
+    })
     .on('postgres_changes', {event:'*', schema:dbSchema, table:'citas'}, async ()=>{ await fetchPortalData(); renderCitasAgenda(); })
-    .on('postgres_changes', {event:'*', schema:dbSchema, table:'mensajes'}, async ()=>{ await fetchPortalData(); renderMensajesThread(); })
+    .on('postgres_changes', {event:'INSERT', schema:dbSchema, table:'mensajes'}, payload=>{
+      fetchPortalData().then(renderMensajesThread);
+      if(payload.new.medico_id === myMedicoId && payload.new.sender_role === 'farmacia'){
+        notifyAlert('💬 Mensaje nuevo', payload.new.body);
+        if(document.querySelector('#pview-mensajes:not(.active)')) markTabDot('mensajes', true);
+      }
+    })
     .subscribe(status=>{
       if(status==='SUBSCRIBED') setPortalSyncStatus('live');
       else if(status==='CHANNEL_ERROR'||status==='TIMED_OUT') setPortalSyncStatus('err');
@@ -774,6 +850,7 @@ document.getElementById('portalTabs').addEventListener('click', e=>{
   btn.classList.add('active');
   document.querySelectorAll('#portalMedico .view').forEach(v=>v.classList.remove('active'));
   document.getElementById('pview-'+btn.dataset.pview).classList.add('active');
+  markTabDot(btn.dataset.pview, false);
 });
 
 /* ---- Citas ---- */
@@ -826,7 +903,7 @@ async function saveCita(){
   const btn = document.getElementById('citaSaveBtn');
   btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Guardando…';
   const payload = {
-    medico_id: myMedicoId, patient_name: name, fecha,
+    medico_id: myMedicoId, farmacia_id: myFarmaciaId, patient_name: name, fecha,
     hora: document.getElementById('citaHora').value || null,
     motivo: document.getElementById('citaMotivo').value.trim() || null,
     estado: document.getElementById('citaEstado').value,
@@ -875,7 +952,7 @@ async function sendMensajePortal(){
   if(!body) return;
   input.value = '';
   const { error } = await sb.from('mensajes').insert({
-    medico_id: myMedicoId, sender_role: 'medico', sender_name: myMedicoNombreCuenta || 'Consultorio', body
+    medico_id: myMedicoId, farmacia_id: myFarmaciaId, sender_role: 'medico', sender_name: myMedicoNombreCuenta || 'Consultorio', body
   });
   if(error){ toast('Error al enviar: ' + error.message); return; }
   await fetchPortalData();
@@ -946,7 +1023,7 @@ async function createStaff(){
     errEl.classList.add('show');
     return;
   }
-  const { data, error } = await sb.from('staff').insert({nombre, pin, created_by: currentUser.id}).select('id').single();
+  const { data, error } = await sb.from('staff').insert({nombre, pin, farmacia_id: myFarmaciaId, created_by: currentUser.id}).select('id').single();
   if(error){
     errEl.textContent = 'Error: ' + error.message;
     errEl.classList.add('show');
@@ -976,6 +1053,7 @@ async function logAudit(table, recordId, action, summary){
   try{
     await sb.from('audit_log').insert({
       table_name: table, record_id: recordId ? String(recordId) : null, action, summary,
+      farmacia_id: myFarmaciaId,
       staff_name: currentStaff ? currentStaff.nombre : null,
       account_email: currentUser ? currentUser.email : null,
     });
@@ -1018,6 +1096,9 @@ async function fetchAll(){
   const { data: staff, error: staffErr } = await sb.from('staff').select('*').order('nombre');
   if(staffErr){ toast('Error cargando personal'); } else { DB.staff = staff||[]; }
 
+  const { data: farmacia } = await sb.from('farmacias').select('*').eq('id', myFarmaciaId).maybeSingle();
+  DB.miFarmacia = farmacia || null;
+
   const { data: auditLog, error: auditErr } = await sb.from('audit_log').select('*').order('created_at', {ascending:false}).limit(300);
   if(auditErr){ /* silencioso: puede que aún no exista la tabla */ } else { DB.auditLog = auditLog||[]; }
   setSyncStatus('live');
@@ -1038,6 +1119,17 @@ function setupRealtime(){
     .on('postgres_changes', {event:'*', schema:dbSchema, table:'audit_log'}, handleRemoteChange)
     .on('postgres_changes', {event:'*', schema:dbSchema, table:'citas'}, handleRemoteChange)
     .on('postgres_changes', {event:'*', schema:dbSchema, table:'mensajes'}, handleRemoteChange)
+    .on('postgres_changes', {event:'INSERT', schema:dbSchema, table:'citas'}, payload=>{
+      const m = DB.medicos.find(x=>x.id===payload.new.medico_id);
+      notifyAlert('📅 Cita nueva' + (m?' — '+m.nombre:''), payload.new.patient_name);
+      if(payload.new.medico_id !== consultorioActivoId) markTabDot('reportes', true);
+    })
+    .on('postgres_changes', {event:'INSERT', schema:dbSchema, table:'mensajes'}, payload=>{
+      if(payload.new.sender_role !== 'medico') return;
+      const m = DB.medicos.find(x=>x.id===payload.new.medico_id);
+      notifyAlert('💬 Mensaje de ' + (m?m.nombre:'consultorio'), payload.new.body);
+      if(payload.new.medico_id !== consultorioActivoId) markTabDot('reportes', true);
+    })
     .subscribe(status=>{
       if(status==='SUBSCRIBED') setSyncStatus('live');
       else if(status==='CHANNEL_ERROR' || status==='TIMED_OUT') setSyncStatus('err');
@@ -1061,6 +1153,39 @@ function toast(msg){
   t.textContent = msg; t.classList.add('show');
   clearTimeout(toast._h); toast._h = setTimeout(()=>t.classList.remove('show'), 2200);
 }
+
+/* ---- Alertas de mensaje/cita nueva ---- */
+function playPingSound(){
+  try{
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.type = 'sine'; osc.frequency.value = 880;
+    gain.gain.setValueAtTime(0.15, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
+    osc.start(); osc.stop(ctx.currentTime + 0.35);
+  }catch(e){}
+}
+function askNotificationPermission(){
+  if('Notification' in window && Notification.permission === 'default'){
+    Notification.requestPermission();
+  }
+}
+function notifyAlert(title, body){
+  playPingSound();
+  toast(title + (body ? ' — ' + body : ''));
+  if('Notification' in window && Notification.permission === 'granted'){
+    try{ new Notification(title, {body: body||'', icon:''}); }catch(e){}
+  }
+}
+function markTabDot(view, on){
+  const btn = document.querySelector(`[data-view="${view}"], [data-pview="${view}"]`);
+  if(!btn) return;
+  if(on){ if(!btn.querySelector('.tab-dot')) btn.insertAdjacentHTML('beforeend', '<span class="tab-dot"></span>'); }
+  else { const d = btn.querySelector('.tab-dot'); if(d) d.remove(); }
+}
+
 function escapeHTML(s){ return (s||'').replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
 
 function calcPDC(patient){
@@ -1118,6 +1243,7 @@ document.getElementById('tabs').addEventListener('click', e=>{
   btn.classList.add('active');
   document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
   document.getElementById('view-'+btn.dataset.view).classList.add('active');
+  markTabDot(btn.dataset.view, false);
   renderAll();
 });
 
@@ -1325,7 +1451,17 @@ function renderIntv(){
       <div class="note">${escapeHTML(i.notes||'')}</div>
     </div>`).join('');
 }
-function renderAll(){ populatePlanFilters(); renderStats(); renderDash(); renderPatients(); renderIntv(); renderRxList(); renderMedicosList(); renderCmrList(); renderEstrellasList(); renderAuditLog(); renderConsultorioSelect(); if(consultorioActivoId) loadConsultorioMedico(consultorioActivoId); }
+function renderAll(){ populatePlanFilters(); renderStats(); renderDash(); renderPatients(); renderIntv(); renderRxList(); renderMedicosList(); renderCmrList(); renderEstrellasList(); renderAuditLog(); renderConsultorioSelect(); if(consultorioActivoId) loadConsultorioMedico(consultorioActivoId); renderMiFarmacia(); }
+
+function renderMiFarmacia(){
+  const el = document.getElementById('miFarmaciaBody');
+  if(!el) return;
+  if(!DB.miFarmacia){ el.innerHTML = '<p class="helptext">No se pudo cargar.</p>'; return; }
+  el.innerHTML = `
+    <p style="margin:0 0 6px;font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:15px;color:var(--navy);">${escapeHTML(DB.miFarmacia.nombre)}</p>
+    <p class="helptext">Código de tu farmacia — compártelo con el resto de tu equipo para que se unan (pantalla "¿Cómo vas a usar la app?" → "Unirme a mi farmacia"):</p>
+    <p style="font-family:'IBM Plex Mono',monospace;font-size:18px;letter-spacing:.1em;color:var(--navy);font-weight:700;background:var(--amber-soft);display:inline-block;padding:6px 14px;border-radius:8px;">${escapeHTML(DB.miFarmacia.invite_code||'—')}</p>`;
+}
 
 function renderConsultorioSelect(){
   const sel = document.getElementById('consultorioMedicoSel');
@@ -1382,7 +1518,7 @@ async function sendConsultorioMensaje(){
   if(!body || !consultorioActivoId) return;
   input.value = '';
   const { error } = await sb.from('mensajes').insert({
-    medico_id: consultorioActivoId, sender_role: 'farmacia',
+    medico_id: consultorioActivoId, farmacia_id: myFarmaciaId, sender_role: 'farmacia',
     sender_name: currentStaff ? currentStaff.nombre : 'Farmacia', body
   });
   if(error){ toast('Error al enviar: ' + error.message); return; }
@@ -1449,7 +1585,7 @@ function renderEstrellasList(){
 async function setMeta(plan, value){
   const target = parseFloat(value);
   if(isNaN(target)) return;
-  const { error } = await sb.from('metas').upsert({plan, target});
+  const { error } = await sb.from('metas').upsert({plan, target, farmacia_id: myFarmaciaId}, {onConflict: 'farmacia_id,plan'});
   if(error){ toast('Error al guardar meta: ' + error.message); return; }
   logAudit('metas', plan, 'editar', `${plan} — meta ${target}%`);
   await fetchAll();
@@ -1528,7 +1664,7 @@ async function saveCmr(){
   };
   let error;
   if(id){ ({error} = await sb.from('cmr').update(payload).eq('id', id)); }
-  else { ({error} = await sb.from('cmr').insert({...payload, created_by: currentUser.id})); }
+  else { ({error} = await sb.from('cmr').insert({...payload, farmacia_id: myFarmaciaId, created_by: currentUser.id})); }
   btn.disabled = false; btn.textContent = 'Guardar';
   if(error){ toast('Error: ' + error.message); return; }
   logAudit('cmr', id||null, id?'editar':'crear', name);
@@ -1819,7 +1955,7 @@ async function quickDuplicate(patientId){
   if(available.length===0){ toast('Ya tiene registro en todas las categorías'); return; }
   const newCat = available[0];
   const { data, error } = await sb.from('patients').insert({
-    name: p.name, cat: newCat, plan: p.plan, medico_id: p.medicoId || null,
+    name: p.name, cat: newCat, plan: p.plan, medico_id: p.medicoId || null, farmacia_id: myFarmaciaId,
     med: null, meds_detail: [], needs_rx: false, rx_note: null,
     direccion: p.direccion || null, lat: p.lat ?? null, lng: p.lng ?? null,
     created_by: currentUser.id
@@ -2071,7 +2207,7 @@ async function saveMedico(){
   if(id){
     ({ error } = await sb.from('medicos').update(payload).eq('id', id));
   } else {
-    const res = await sb.from('medicos').insert({...payload, created_by: currentUser.id}).select('id').single();
+    const res = await sb.from('medicos').insert({...payload, farmacia_id: myFarmaciaId, created_by: currentUser.id}).select('id').single();
     error = res.error;
     if(!error) newId = res.data.id;
   }
@@ -2141,6 +2277,7 @@ async function duplicatePatientCategory(evt){
       cat: newCat,
       plan: document.getElementById('pmPlan').value,
       medico_id: document.getElementById('pmMedicoSel').value || null,
+      farmacia_id: myFarmaciaId,
       med: null, meds_detail: [], needs_rx: false, rx_note: null,
       direccion: p.direccion || document.getElementById('pmDireccion').value.trim() || null,
       lat: p.lat ?? pmGpsCoords?.lat ?? null, lng: p.lng ?? pmGpsCoords?.lng ?? null,
@@ -2274,18 +2411,18 @@ async function persistCurrentPatient(){
       const { error: delErr } = await sb.from('fills').delete().in('id', toDelete);
       if(delErr) throw delErr;
     }
-    const toInsert = formFills.filter(f=>!f.id).map(f=>({patient_id:id, fill_date:f.date, days_supply:f.days, med_name:f.med||null, created_by: currentUser.id}));
+    const toInsert = formFills.filter(f=>!f.id).map(f=>({patient_id:id, farmacia_id: myFarmaciaId, fill_date:f.date, days_supply:f.days, med_name:f.med||null, created_by: currentUser.id}));
     if(toInsert.length){
       const { error: insErr } = await sb.from('fills').insert(toInsert);
       if(insErr) throw insErr;
     }
   } else {
     const { data: inserted, error } = await sb.from('patients')
-      .insert({...payload, created_by: currentUser.id}).select('id').single();
+      .insert({...payload, farmacia_id: myFarmaciaId, created_by: currentUser.id}).select('id').single();
     if(error) throw error;
     patientId = inserted.id;
     if(formFills.length){
-      const toInsert = formFills.map(f=>({patient_id: patientId, fill_date:f.date, days_supply:f.days, med_name:f.med||null, created_by: currentUser.id}));
+      const toInsert = formFills.map(f=>({patient_id: patientId, farmacia_id: myFarmaciaId, fill_date:f.date, days_supply:f.days, med_name:f.med||null, created_by: currentUser.id}));
       const { error: insErr } = await sb.from('fills').insert(toInsert);
       if(insErr) throw insErr;
     }
@@ -2343,7 +2480,7 @@ async function saveIntervention(){
   const btn = document.getElementById('imSaveBtn');
   btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Guardando…';
   const { error } = await sb.from('interventions').insert({
-    patient_id: patientId, intv_date: todayStr(), intv_type: type, notes, created_by: currentUser.id,
+    patient_id: patientId, farmacia_id: myFarmaciaId, intv_date: todayStr(), intv_type: type, notes, created_by: currentUser.id,
     staff_name: currentStaff ? currentStaff.nombre : null
   });
   btn.disabled = false; btn.textContent = 'Guardar intervención';
