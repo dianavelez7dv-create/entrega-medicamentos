@@ -525,6 +525,12 @@ textarea{resize:vertical;min-height:60px;}
   <div class="modal">
     <div class="modal-head"><h2 id="mdTitle">Nuevo médico</h2><button class="x" onclick="closeModal('modalMedico')">×</button></div>
     <input type="hidden" id="mdId">
+    <label>NPI</label>
+    <div style="display:flex;gap:8px;">
+      <input id="mdNpi" type="tel" inputmode="numeric" maxlength="10" placeholder="10 dígitos" style="flex:1;">
+      <button type="button" class="btn ghost sm" onclick="lookupNpiMedico()">🔍 Buscar</button>
+    </div>
+    <div id="mdNpiStatus" class="helptext"></div>
     <label>Nombre</label>
     <input id="mdNombre" placeholder="Dr(a). Nombre Apellido">
     <div class="row2">
@@ -1461,20 +1467,24 @@ function renderMiFarmacia(){
     <label>Nombre de la farmacia</label>
     <div style="display:flex;gap:8px;">
       <input id="miFarmaciaNombreInput" value="${escapeHTML(DB.miFarmacia.nombre)}" style="flex:1;">
-      <button class="btn ghost sm" onclick="saveMiFarmaciaNombre()">Guardar</button>
     </div>
+    <label style="margin-top:10px;">NPI de la farmacia</label>
+    <input id="miFarmaciaNpiInput" type="tel" inputmode="numeric" maxlength="10" placeholder="10 dígitos" value="${escapeHTML(DB.miFarmacia.npi||'')}">
+    <button class="btn ghost sm" style="width:100%;margin-top:8px;" onclick="saveMiFarmaciaNombre()">Guardar</button>
     <p class="helptext" style="margin-top:10px;">Código de tu farmacia — compártelo con el resto de tu equipo para que se unan (pantalla "¿Cómo vas a usar la app?" → "Unirme a mi farmacia"):</p>
     <p style="font-family:'IBM Plex Mono',monospace;font-size:18px;letter-spacing:.1em;color:var(--navy);font-weight:700;background:var(--amber-soft);display:inline-block;padding:6px 14px;border-radius:8px;">${escapeHTML(DB.miFarmacia.invite_code||'—')}</p>`;
 }
 async function saveMiFarmaciaNombre(){
   const nombre = document.getElementById('miFarmaciaNombreInput').value.trim();
+  const npi = document.getElementById('miFarmaciaNpiInput').value.trim();
   if(!nombre){ toast('Escribe un nombre'); return; }
-  const { error } = await sb.from('farmacias').update({nombre}).eq('id', myFarmaciaId);
+  if(npi && !/^\d{10}$/.test(npi)){ toast('El NPI debe tener 10 dígitos'); return; }
+  const { error } = await sb.from('farmacias').update({nombre, npi: npi || null}).eq('id', myFarmaciaId);
   if(error){ toast('Error: ' + error.message); return; }
   logAudit('farmacias', myFarmaciaId, 'editar', nombre);
   await fetchAll();
   renderAll();
-  toast('Nombre actualizado');
+  toast('Farmacia actualizada');
 }
 
 function renderConsultorioSelect(){
@@ -2133,11 +2143,13 @@ function openMedicoModal(id){
   mdGpsCleared = false;
   document.getElementById('mdGpsStatus').textContent = '';
   document.getElementById('mdClearGpsBtn').style.display = 'none';
+  document.getElementById('mdNpiStatus').textContent = '';
   if(id){
     const m = DB.medicos.find(x=>x.id===id);
     if(!m) return;
     document.getElementById('mdTitle').textContent = 'Editar médico';
     document.getElementById('mdId').value = m.id;
+    document.getElementById('mdNpi').value = m.npi || '';
     document.getElementById('mdNombre').value = m.nombre || '';
     document.getElementById('mdTelefono').value = m.telefono || '';
     document.getElementById('mdEmail').value = m.email || '';
@@ -2153,6 +2165,7 @@ function openMedicoModal(id){
   } else {
     document.getElementById('mdTitle').textContent = 'Nuevo médico';
     document.getElementById('mdId').value = '';
+    document.getElementById('mdNpi').value = '';
     document.getElementById('mdNombre').value = '';
     document.getElementById('mdTelefono').value = '';
     document.getElementById('mdEmail').value = '';
@@ -2200,14 +2213,41 @@ function quitarGPSMedico(){
   document.getElementById('mdGpsStatus').textContent = 'GPS quitado — se usará la dirección escrita.';
   document.getElementById('mdClearGpsBtn').style.display = 'none';
 }
+async function lookupNpiMedico(){
+  const npi = document.getElementById('mdNpi').value.trim();
+  const statusEl = document.getElementById('mdNpiStatus');
+  if(!/^\d{10}$/.test(npi)){ statusEl.textContent = 'Escribe los 10 dígitos del NPI primero.'; return; }
+  statusEl.textContent = 'Buscando…';
+  try{
+    const res = await fetch(`https://npiregistry.cms.hhs.gov/api/?number=${npi}&version=2.1`);
+    const data = await res.json();
+    if(!data.results || data.results.length===0){ statusEl.textContent = 'No se encontró ese NPI en el registro público.'; return; }
+    const r = data.results[0];
+    const basic = r.basic || {};
+    const nombre = basic.organization_name || [basic.name_prefix, basic.first_name, basic.last_name].filter(Boolean).join(' ');
+    if(nombre) document.getElementById('mdNombre').value = nombre;
+    const addr = (r.addresses||[]).find(a=>a.address_purpose==='LOCATION') || (r.addresses||[])[0];
+    if(addr){
+      if(addr.telephone_number) document.getElementById('mdTelefono').value = addr.telephone_number;
+      const dir = [addr.address_1, addr.city, addr.state, addr.postal_code].filter(Boolean).join(', ');
+      if(dir) document.getElementById('mdDireccion').value = dir;
+    }
+    statusEl.textContent = '✅ Encontrado en el registro público — revisa y ajusta si hace falta.';
+  }catch(e){
+    statusEl.textContent = 'No se pudo consultar el registro ahora mismo. Puedes escribir los datos a mano.';
+  }
+}
 async function saveMedico(){
   const nombre = document.getElementById('mdNombre').value.trim();
   if(!nombre){ toast('Escribe el nombre del médico'); return; }
   const id = document.getElementById('mdId').value;
+  const npi = document.getElementById('mdNpi').value.trim();
+  if(npi && !/^\d{10}$/.test(npi)){ toast('El NPI debe tener 10 dígitos'); return; }
+  if(npi && DB.medicos.some(m=> m.npi===npi && m.id!==id)){ toast('Ese NPI ya está registrado en otro médico'); return; }
   const btn = document.getElementById('mdSaveBtn');
   btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Guardando…';
   const payload = {
-    nombre,
+    nombre, npi: npi || null,
     telefono: document.getElementById('mdTelefono').value.trim() || null,
     email: document.getElementById('mdEmail').value.trim() || null,
     direccion: document.getElementById('mdDireccion').value.trim() || null,
