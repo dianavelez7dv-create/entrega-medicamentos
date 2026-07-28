@@ -69,7 +69,7 @@ footer{text-align:center;padding:26px 20px;color:var(--ink-soft);font-size:12px;
 <header class="top">
   <div class="eyebrow">Guía de uso</div>
   <h1>Adherencia PR — Panel de Farmacia</h1>
-  <div class="sub">Cómo trabajar el programa de adherencia y las 5 estrellas, paso a paso</div>
+  <div class="sub">Cómo trabajar el programa de adherencia, el portal del consultorio, y las 5 estrellas</div>
 </header>
 
 <main>
@@ -77,44 +77,67 @@ footer{text-align:center;padding:26px 20px;color:var(--ink-soft);font-size:12px;
   <div class="toc">
     <div class="eyebrow">En esta guía</div>
     <a href="#que-es">1. ¿Qué hace esta app?</a>
-    <a href="#primer-uso">2. Primer uso en un dispositivo nuevo</a>
+    <a href="#primer-uso">2. Primer uso — crear/unirte a tu farmacia</a>
+    <a href="#personal">2.5 Personal — nombre, PIN y administrador</a>
     <a href="#pacientes">3. Añadir y editar pacientes</a>
-    <a href="#medicos">3.5 Directorio de médicos</a>
-    <a href="#pdc">4. Cómo se calcula el PDC (y qué significan los colores)</a>
-    <a href="#tarjetas">4.5 Las tarjetas y sus botones de acción rápida</a>
+    <a href="#medicos">3.5 Directorio de médicos — NPI, GPS y portal</a>
+    <a href="#pdc">4. Cómo se calcula el PDC</a>
+    <a href="#tarjetas">4.5 Las tarjetas, botones y filtros</a>
     <a href="#panel">5. El Panel — brechas, riesgo temprano y resumen del día</a>
     <a href="#cmr">5.5 CMR / MTM</a>
     <a href="#estrellas">5.7 Progreso hacia 5 estrellas</a>
     <a href="#intervenciones">6. Registrar intervenciones</a>
     <a href="#reportes">7. Reportes, Rx pendientes y exportar</a>
-    <a href="#sync">8. Sincronización entre dispositivos</a>
-    <a href="#problemas">9. Solución de problemas comunes</a>
+    <a href="#consultorio">7.5 Portal del consultorio médico</a>
+    <a href="#alertas">7.7 Alertas y notificaciones</a>
+    <a href="#busqueda">7.8 Buscar en las listas</a>
+    <a href="#auditoria">7.9 Auditoría</a>
+    <a href="#multitenant">8. Varias farmacias en la misma app</a>
+    <a href="#sync">9. Sincronización entre dispositivos</a>
+    <a href="#problemas">10. Solución de problemas comunes</a>
   </div>
 
   <section id="que-es">
     <div class="num">01</div>
     <h2>¿Qué hace esta app?</h2>
-    <p>Es la herramienta interna para trabajar el programa de adherencia de medicamentos (estatinas, hipertensión y diabetes) que usan los planes Medicare Advantage de Puerto Rico para calcular las <b>Star Ratings</b> de CMS. La farmacia usa el <b>PDC</b> (Proportion of Days Covered) de cada paciente para saber a quién contactar antes de que se convierta en una brecha que afecte las estrellas del plan.</p>
-    <div class="card amber">
-      <h4>En corto</h4>
-      <p>Registras a los pacientes en las tres medidas triple-peso (estatina, hipertensión, diabetes), anotas cada resurtido, y la app calcula automáticamente quién está al día y quién necesita una llamada — sin hojas de cálculo sueltas.</p>
-    </div>
+    <p>Es la herramienta interna para trabajar el programa de adherencia de medicamentos (estatinas, hipertensión y diabetes) que usan los planes Medicare Advantage de Puerto Rico para calcular las <b>Star Ratings</b> de CMS. Incluye seguimiento de PDC, CMR/MTM, un directorio de médicos con su propio portal de mensajería y citas, y ahora soporta que varias farmacias la usen a la vez, cada una completamente aislada de las demás.</p>
   </section>
 
   <section id="primer-uso">
     <div class="num">02</div>
-    <h2>Primer uso en un dispositivo nuevo</h2>
-    <p>La primera vez que abres la app en un teléfono, tableta o computadora, te va a pedir tres datos. Estos se guardan solo en ese dispositivo — no hay que repetirlo cada vez que la abres.</p>
-    <ol class="steps">
-      <li>Abre <code>adherencia-pr.html</code> (o el enlace de GitHub Pages si ya lo subiste ahí).</li>
-      <li>Pega la <b>URL del proyecto</b> y la <b>anon public key</b> de Supabase — son las mismas que usa EntregaMeds (Settings → API en el dashboard de Supabase).</li>
-      <li>En el campo <b>Schema (piso)</b> deja <code>adherencia</code>.</li>
-      <li>Toca <b>Conectar</b>.</li>
-      <li>Inicia sesión con el correo y contraseña de tu cuenta (la misma cuenta de EntregaMeds sirve aquí — es el mismo sistema de usuarios).</li>
-    </ol>
+    <h2>Primer uso — crear o unirte a tu farmacia</h2>
+    <p>La primera vez que abres la app en un dispositivo, pide la <b>URL del proyecto</b>, la <b>anon public key</b>, y el <b>schema</b> (<code>adherencia</code>) de Supabase. Después de conectar, inicias sesión con tu correo y contraseña.</p>
+    <p>Si es la primera vez que <b>esa cuenta</b> se usa, sale <b>"¿Cómo vas a usar la app?"</b> con tres caminos:</p>
+    <div class="card amber">
+      <h4>🏥 Crear una farmacia nueva</h4>
+      <p>Pones el nombre de tu farmacia y quedas como su <b>administradora</b> automáticamente. Te da un código para invitar al resto de tu equipo.</p>
+    </div>
+    <div class="card">
+      <h4>👥 Unirme a mi farmacia (ya existe)</h4>
+      <p>Para el resto del equipo — pones el código que te dio la administradora (visible en Reportes → 🏥 Mi farmacia) y quedas dentro de esa misma farmacia, viendo los mismos pacientes.</p>
+    </div>
+    <div class="card">
+      <h4>🩺 Soy del consultorio de un médico</h4>
+      <p>Para el doctor/secretaria de un consultorio — ver la sección <a href="#consultorio">Portal del consultorio médico</a> más abajo.</p>
+    </div>
     <div class="card warn">
-      <h4>¿No tienes cuenta todavía?</h4>
-      <p>Las cuentas no se crean desde la app por seguridad. Se crean manualmente en el dashboard de Supabase: <b>Authentication → Users → Add user</b>. Ahí defines el correo y contraseña de cada persona del equipo.</p>
+      <h4>⚠️ Cuidado con probar códigos con tu cuenta real</h4>
+      <p>Si tu cuenta de farmacia entra un código de consultorio (o viceversa) por error, le cambia el rol permanentemente. Usa siempre una cuenta de prueba aparte para probar flujos nuevos.</p>
+    </div>
+  </section>
+
+  <section id="personal">
+    <div class="num">02.5</div>
+    <h2>Personal — nombre, PIN y administrador</h2>
+    <p>Aparte de la cuenta de Supabase (compartida por el equipo o individual), cada persona elige su propio <b>nombre + PIN de 4 dígitos</b> la primera vez que usa un dispositivo — así las intervenciones que registra quedan a su nombre, aunque compartan la misma cuenta de Supabase.</p>
+    <ol class="steps">
+      <li>Sale la pantalla <b>"¿Quién eres?"</b> después de entrar por primera vez con una cuenta ya identificada como farmacia.</li>
+      <li>Toca <b>+ Añadir mi nombre</b>, pon tu nombre y un PIN de 4 dígitos.</li>
+      <li>El dispositivo lo recuerda — no hay que repetirlo cada vez. Para cambiar de persona en el mismo teléfono, toca <b>"cambiar"</b> junto al nombre en el encabezado.</li>
+    </ol>
+    <div class="card">
+      <h4>👥 Gestionar personal (Reportes)</h4>
+      <p>Muestra a todo el equipo que se ha identificado. <b>Solo la cuenta administradora</b> puede eliminar a alguien de la lista (por ejemplo, duplicados por doble toque, o alguien que ya no trabaja ahí) — el resto del equipo puede verla pero no borrar.</p>
     </div>
   </section>
 
@@ -122,169 +145,216 @@ footer{text-align:center;padding:26px 20px;color:var(--ink-soft);font-size:12px;
     <div class="num">03</div>
     <h2>Añadir y editar pacientes</h2>
     <ol class="steps">
-      <li>Toca el botón <b>+</b> (esquina inferior derecha) o entra a la pestaña <b>Pacientes</b> y toca cualquier tarjeta para editar.</li>
-      <li>Llena nombre, categoría (Estatina / Hipertensión / Diabetes), plan médico y médico.</li>
-      <li>Añade cada medicamento con <b>+ Añadir</b> — puedes meter varios (por ejemplo si cambió de estatina a mitad de año).</li>
-      <li>Añade cada resurtido con su <b>fecha de despacho</b> y <b>días de suplido</b> — esto alimenta el cálculo de PDC. Ya puedes hacerlo desde que creas el paciente, no hace falta guardar primero.</li>
-      <li>Toca <b>Guardar paciente</b>.</li>
+      <li>Toca el botón <b>+</b> o cualquier tarjeta para editar.</li>
+      <li>Nombre, categoría (Estatina/Hipertensión/Diabetes), plan, médico.</li>
+      <li><b>Dirección de entrega</b> (opcional) — para el botón de navegar en entregas a domicilio, con GPS o dirección escrita.</li>
+      <li>Añade cada medicamento con <b>+ Añadir</b> — puedes meter varios.</li>
+      <li>Añade cada resurtido (fecha + días de suplido) — puedes hacerlo desde que creas el paciente, sin guardar primero.</li>
+      <li>Guardar paciente.</li>
     </ol>
 
     <div class="card">
       <h4>Un paciente con varias categorías</h4>
-      <p>Un mismo paciente puede tener más de un registro — uno por cada categoría en la que toma medicamentos (por ejemplo, Diabetes Y Hipertensión) — porque CMS mide el PDC de cada medida por separado. Para no tener que escribirlo todo de nuevo:</p>
-      <ol class="steps">
-        <li>Puedes hacerlo desde el momento en que estás <b>creando</b> el paciente (no hace falta guardarlo primero) — en cuanto escribes el nombre, aparece la sección con las categorías disponibles.</li>
-        <li>Elige la que corresponda (ej. Hipertensión) y toca <b>🔁 Crear en esa categoría</b> — si el paciente que estás creando todavía no se ha guardado, la app lo guarda automáticamente primero, y luego crea el segundo registro con el mismo nombre, plan y médico, y te lleva directo a ese registro para que le añadas sus medicamentos específicos de esa categoría.</li>
-      </ol>
-      <p>En la tarjeta del paciente vas a ver una línea <b>"🔁 Hipertensión"</b> para que sepas que ese mismo paciente tiene otro registro — así no se te olvida ni se ve como si estuviera duplicado por error.</p>
+      <p>Cada categoría es un registro separado (para que el PDC de cada una se calcule aparte, como lo mide CMS). Al final del formulario, sección <b>"Este paciente también en otra categoría"</b> — funciona desde que creas el paciente, no hace falta guardar primero: elige la categoría y toca <b>🔁 Crear en esa categoría</b>, y si el actual no se ha guardado, lo guarda automáticamente antes.</p>
     </div>
 
     <div class="card amber">
       <h4>Necesita Rx nueva del médico</h4>
-      <p>Cada medicamento tiene su propia casilla <b>"📋 Necesita Rx nueva del médico"</b>. Si un paciente tiene tres medicamentos y solo uno necesita autorización, marca solo ese — el reporte de Rx pendientes va a mostrar únicamente ese medicamento, no la lista completa. Si ese medicamento en particular lo receta un médico distinto al de arriba, puedes asignarle su propio médico justo ahí.</p>
+      <p>Cada medicamento tiene su propia casilla <b>"📋 Necesita Rx nueva"</b> con su propia nota, y opcionalmente su propio médico (si es distinto al médico general del paciente arriba) — útil cuando un paciente tiene medicamentos de dos doctores distintos.</p>
+    </div>
+
+    <div class="card">
+      <h4>GPS de entrega</h4>
+      <p>Botón <b>📍 Usar mi ubicación actual</b> — si el GPS quedó mal guardado (por ejemplo capturado sin querer), usa <b>🗑️ Quitar GPS guardado</b> para volver a usar la dirección escrita. El GPS, cuando existe, siempre tiene prioridad sobre la dirección escrita — por eso importa poder quitarlo.</p>
     </div>
 
     <div class="card">
       <h4>Historial de intervenciones en el perfil</h4>
-      <p>Al editar cualquier paciente, al final del formulario aparece su <b>timeline completo de intervenciones</b> — todas las llamadas, consejerías y notas que le has hecho, sin tener que salir a buscar en la pestaña de Intervenciones.</p>
+      <p>Al editar cualquier paciente, aparece su timeline completo de intervenciones al final del formulario.</p>
     </div>
   </section>
 
   <section id="medicos">
     <div class="num">03.5</div>
-    <h2>Directorio de médicos</h2>
-    <p>En <b>Reportes → 🩺 Directorio de médicos</b> puedes añadir cada médico con teléfono, correo, dirección y ubicación GPS. Toca <b>✏️</b> en cualquiera para editarlo o eliminarlo. Estos son los médicos que después eliges al asignar cada medicamento de un paciente.</p>
+    <h2>Directorio de médicos — NPI, GPS y portal</h2>
+    <p>En Reportes → 🩺 Directorio de médicos:</p>
+    <ol class="steps">
+      <li><b>NPI</b>: escribe el NPI (10 dígitos) y toca <b>🔍 Buscar</b> — consulta el registro público federal (NPPES) y autocompleta nombre, teléfono y dirección. La app no deja guardar un NPI repetido entre médicos.</li>
+      <li><b>Teléfono, email, dirección, notas.</b></li>
+      <li><b>GPS</b>: igual que en pacientes — botón de capturar y botón de quitar si quedó mal.</li>
+      <li><b>Portal del consultorio</b>: botón <b>🔑 Generar código de acceso</b> — ese código se lo das al consultorio para que entren a su propio portal (ver siguiente sección).</li>
+    </ol>
+    <p>En la lista del directorio, cada médico tiene un enlace <b>🧭 Navegar</b> (ruta directa en Google Maps) y un ✏️ para editar.</p>
   </section>
 
   <section id="pdc">
     <div class="num">04</div>
     <h2>Cómo se calcula el PDC</h2>
-    <p><b>PDC = días cubiertos ÷ días del período de medición</b>, contando desde el primer despacho del año (o el 1 de enero, lo que sea más tarde) hasta hoy. Los resurtidos que se solapan no se cuentan dos veces.</p>
+    <p><b>PDC = días cubiertos ÷ días del período de medición</b>, desde el primer despacho del año (o el 1 de enero) hasta hoy. Resurtidos que se solapan no se cuentan dos veces. Si un paciente tiene varios medicamentos de la misma categoría, cuenta el día como cubierto si tenía <b>cualquiera</b> de ellos disponible.</p>
     <table>
       <tr><th>PDC</th><th>Estatus</th><th>Qué significa</th></tr>
-      <tr><td>≥ 80%</td><td class="dot-ok">Al día</td><td>Cuenta a favor de las 5 estrellas del plan.</td></tr>
-      <tr><td>70–79%</td><td class="dot-warn">En riesgo</td><td>Requiere intervención pronto, antes de que baje de 70%.</td></tr>
-      <tr><td>&lt; 70%</td><td class="dot-crit">Brecha crítica</td><td>Prioridad de contacto — es lo primero que ve el Panel.</td></tr>
+      <tr><td>≥ 80%</td><td class="dot-ok">Al día</td><td>Cuenta a favor de las 5 estrellas.</td></tr>
+      <tr><td>70–79%</td><td class="dot-warn">En riesgo</td><td>Requiere intervención pronto.</td></tr>
+      <tr><td>&lt; 70%</td><td class="dot-crit">Brecha crítica</td><td>Prioridad — es lo primero que ve el Panel.</td></tr>
     </table>
     <div class="card">
-      <h4>La botellita de colores en cada tarjeta</h4>
-      <p>En Panel y Pacientes, cada tarjeta tiene un ícono de botella junto al nombre. Es un indicador de "nivel de pastillas": la parte de abajo, coloreada según su estatus (verde/ámbar/rojo), representa el % de PDC que tiene cubierto; la parte de arriba, en crema, representa lo que le falta. Por eso se ve de <b>dos colores</b> cuando el paciente está en un punto intermedio (por ejemplo 65% o 92%). Se ve de un solo color cuando está en los extremos: toda crema si el PDC es 0% (sin resurtidos registrados), o toda llena si es 100%.</p>
+      <h4>La botellita de colores</h4>
+      <p>La parte de abajo (verde/ámbar/rojo) representa el % de PDC cubierto; la parte de arriba, en crema, lo que falta. Por eso se ve de dos colores en valores intermedios, y de un solo color en 0% o 100%.</p>
     </div>
   </section>
 
   <section id="tarjetas">
     <div class="num">04.5</div>
-    <h2>Las tarjetas de paciente y sus botones</h2>
-    <p>En Panel y Pacientes, cada tarjeta trae una fila de botones de acción rápida debajo, sin tener que abrir nada:</p>
+    <h2>Las tarjetas, botones y filtros</h2>
+    <p>Cada tarjeta de paciente (Panel y Pacientes) trae una fila de botones de acción rápida, sin abrir nada:</p>
     <table>
       <tr><th>Botón</th><th>Qué hace</th></tr>
-      <tr><td>📋</td><td>Registrar una intervención para ese paciente/categoría</td></tr>
+      <tr><td>📋</td><td>Registrar una intervención</td></tr>
       <tr><td>✏️</td><td>Editar el paciente completo</td></tr>
-      <tr><td>📞</td><td>Llamar al médico asignado a ese medicamento/categoría</td></tr>
-      <tr><td>💬</td><td>WhatsApp directo al médico</td></tr>
-      <tr><td>✉️</td><td>Correo directo al médico</td></tr>
-      <tr><td>📝</td><td>Ver la nota de Rx pendiente de ese paciente</td></tr>
+      <tr><td>📞 💬 ✉️</td><td>Llamar / WhatsApp / correo al médico de ese medicamento</td></tr>
+      <tr><td>📝</td><td>Ver la nota de Rx pendiente</td></tr>
       <tr><td>🔁</td><td>Duplicar de un toque en la primera categoría disponible</td></tr>
+      <tr><td>🧭</td><td>Navegar a la casa del paciente (ruta en Google Maps)</td></tr>
     </table>
-    <p class="helptext" style="margin-top:8px;">Si un botón sale atenuado (más clarito) es porque no aplica — por ejemplo, el médico de ese paciente no tiene teléfono guardado en el directorio.</p>
+    <p class="helptext" style="font-size:13px;color:var(--ink-soft);">Un botón atenuado significa que no aplica (ej. el médico no tiene teléfono guardado).</p>
 
     <div class="card">
       <h4>Pacientes con varias categorías: una sola tarjeta</h4>
-      <p>Cuando no filtras por categoría específica (queda en "Todos"), los pacientes con más de un registro salen consolidados en <b>una sola tarjeta</b> con el nombre arriba, y cada categoría como su propia fila — con su pastilla de color/PDC y su fila completa de botones. Si filtras por una categoría en particular, vuelve a la vista normal de tarjetas individuales.</p>
+      <p>Cuando no filtras por categoría específica, los pacientes con más de un registro salen consolidados en una tarjeta con una pastilla de color/PDC por categoría — tócala para entrar a esa categoría, con su fila completa de botones debajo.</p>
     </div>
 
     <div class="card amber">
       <h4>Las pastillas de arriba también filtran</h4>
-      <p>En el encabezado (debajo de "Sincronizado en tiempo real"), las pastillas <b>Pacientes</b>, <b>Al día</b>, <b>En riesgo</b> y <b>Brecha</b> son botones: al tocar cualquiera, te lleva directo a <b>Pacientes</b> filtrado solo por ese estatus. Se puede combinar con los filtros de plan y categoría. "PDC prom." es solo informativo (es un promedio, no un grupo de pacientes).</p>
+      <p>En el encabezado, <b>Pacientes</b>, <b>Al día</b>, <b>En riesgo</b> y <b>Brecha</b> son botones — tócalos para ir directo a Pacientes filtrado por ese estatus. Se combina con los filtros de plan y categoría.</p>
     </div>
   </section>
 
   <section id="panel">
     <div class="num">05</div>
     <h2>El Panel — brechas, riesgo temprano y resumen del día</h2>
-    <p>Esta es la pestaña con la que se empieza el turno.</p>
     <div class="card amber">
       <h4>☀️ Resumen de hoy</h4>
-      <p>Arriba de todo, un conteo rápido: brechas críticas, en riesgo, en riesgo temprano, medicamentos esperando Rx, y CMR próximas/vencidas. Botón <b>✉️ Compartir resumen</b> para mandártelo por correo antes de empezar.</p>
+      <p>Arriba de todo: brechas críticas, en riesgo, riesgo temprano, Rx pendientes, y CMR próximas/vencidas. Botón para compartir el resumen por correo.</p>
     </div>
-    <p>Debajo, un menú desplegable para filtrar por <b>plan</b> (MCS, Triple-S Advantage, MMM/PMC, First Medical, Plan Vital) — útil si trabajas un plan a la vez. El mismo filtro también está en <b>Pacientes</b> y se mantiene sincronizado entre las dos pestañas.</p>
-    <p><b>Brechas priorizadas</b> muestra a los pacientes con PDC menor a 80%, ordenados de más crítico a menos. Toca cualquier tarjeta para registrar la intervención directamente.</p>
+    <p>Filtro de <b>plan</b> debajo, sincronizado con el mismo filtro en Pacientes.</p>
+    <p><b>Brechas priorizadas</b>: pacientes con PDC &lt; 80%, peor primero.</p>
     <div class="card warn">
       <h4>🔔 En riesgo temprano</h4>
-      <p>Debajo de las brechas, una segunda lista: pacientes que <b>todavía están al día</b> (PDC ≥ 80%) pero que van camino a convertirse en brecha — porque el resurtido está atrasado más de 5 días, o porque el PDC está en la zona de 80-86% (muy cerca del límite). Trabajarlos aquí evita que aparezcan mañana en la lista roja de arriba.</p>
-    </div>
-    <div class="card green">
-      <h4>Rutina sugerida</h4>
-      <p>Revisa el resumen del día, trabaja las brechas rojas primero, luego las amarillas, y termina con los de riesgo temprano. Cada llamada o consejería que documentes desaparece de esa lista en cuanto el resurtido mejora el PDC por encima de 80%.</p>
+      <p>Pacientes todavía ≥80% pero con el resurtido atrasado más de 5 días, o con PDC entre 80-86% — trabájalos antes de que bajen a la lista roja.</p>
     </div>
   </section>
 
   <section id="cmr">
     <div class="num">05.5</div>
     <h2>CMR / MTM</h2>
-    <p>Pestaña separada para trackear las <b>Comprehensive Medication Reviews</b> — la otra medida grande que pesa en las estrellas, aparte del PDC.</p>
-    <ol class="steps">
-      <li>Toca <b>+ Nueva CMR</b> y llena nombre del paciente, plan, fecha límite y notas.</li>
-      <li>La lista se ordena sola por urgencia: <b>⏰ Vencida</b> (roja) primero, luego <b>🔔 Próxima a vencer</b> (ámbar, dentro de 14 días), luego pendientes sin apuro, y al final las <b>✅ Completadas</b>.</li>
-      <li>Al terminarla, ábrela y toca <b>✅ Marcar como completada</b> — queda con la fecha de hoy.</li>
-    </ol>
+    <p>Pestaña separada para las Comprehensive Medication Reviews. <b>+ Nueva CMR</b> con nombre, plan, fecha límite y notas. Semáforo automático: ⏰ vencida, 🔔 próxima (14 días), ✅ completada.</p>
   </section>
 
   <section id="estrellas">
     <div class="num">05.7</div>
     <h2>Progreso hacia 5 estrellas</h2>
-    <p>En <b>Reportes → 🎯 Progreso hacia 5 estrellas</b>, cada plan muestra una barra con el % de tus pacientes que están ≥80% de PDC ahora mismo, comparado contra una <b>meta editable</b> (el corte exacto que pide cada plan cambia por año y por medida, así que la pones tú misma tocando el número junto a "Meta:"). Debajo de la barra te dice exactamente <b>cuántos pacientes más</b> necesitas subir a ≥80% para llegar a esa meta.</p>
+    <p>En Reportes: por plan, % de pacientes ≥80% contra una <b>meta editable</b> (el corte varía por año — ajústala tú misma), con el número exacto de pacientes que faltan para llegar.</p>
   </section>
 
   <section id="intervenciones">
     <div class="num">06</div>
     <h2>Registrar intervenciones</h2>
-    <p>Desde una tarjeta de paciente en el Panel, selecciona el tipo de intervención (llamada, consejería, sincronización de medicamentos, notificación al médico, CMR, mensaje de texto) y añade una nota breve. Queda guardada con fecha automática en la pestaña <b>Intervenciones</b>, visible para todo el equipo.</p>
+    <p>Desde cualquier tarjeta: tipo (llamada, consejería, sincronización, notificación al médico, CMR, mensaje de texto) + nota. Queda con fecha y con el <b>nombre del empleado</b> que la hizo.</p>
   </section>
 
   <section id="reportes">
     <div class="num">07</div>
     <h2>Reportes, Rx pendientes y exportar</h2>
-    <p>En la pestaña <b>Reportes</b>, el botón <b>Descargar CSV</b> genera un archivo con el PDC actual y la última intervención de cada paciente — listo para adjuntar al reporte mensual que le envías al plan o para subir a EQUIPP como respaldo de tu trabajo de adherencia.</p>
-
+    <p><b>Descargar CSV</b>: PDC actual + última intervención de cada paciente, sin acentos para evitar problemas de codificación al abrirlo.</p>
     <div class="card amber">
       <h4>📋 Rx pendientes con el médico</h4>
-      <p>Muestra, agrupado por <b>plan → médico → clasificación</b>, cada medicamento marcado como "Necesita Rx". Arriba hay un selector <b>"Enviar a"</b> — elige un médico específico para que el correo y el WhatsApp salgan dirigidos solo a él (con su teléfono/correo prellenado si los tienes en el directorio), o deja "Todos los médicos" para mandar el paquete completo.</p>
-      <ul>
-        <li><b>🖨️ Imprimir</b> abre una vista previa en pantalla primero — revisas y ahí mismo tocas imprimir.</li>
-        <li><b>✉️ Correo</b> abre tu app de correo con el asunto y la lista ya escritos.</li>
-        <li><b>Enviar por WhatsApp</b> abre la app de WhatsApp directo en el teléfono (esto solo funciona bien si abres la app desde su enlace de GitHub Pages, no desde un archivo descargado).</li>
-      </ul>
+      <p>Agrupado por plan → médico → clasificación. Selector <b>"Enviar a"</b> para dirigir el correo/WhatsApp a un médico específico (con su contacto prellenado) o a todos. <b>🖨️ Imprimir</b> abre vista previa en pantalla primero.</p>
+    </div>
+    <div class="card">
+      <h4>🏥 Mi farmacia</h4>
+      <p>Nombre, NPI, y el <b>código de invitación</b> para que el resto de tu equipo se una a la misma farmacia (no cree una nueva por accidente).</p>
     </div>
   </section>
 
-  <section id="sync">
+  <section id="consultorio">
+    <div class="num">07.5</div>
+    <h2>Portal del consultorio médico</h2>
+    <p>Un área separada para que el doctor o la secretaria entren con su propia cuenta, y <b>solo</b> vean mensajería y citas — nunca pacientes, PDC, ni nada de la farmacia. El aislamiento está reforzado a nivel de base de datos, no solo escondido en la pantalla.</p>
+    <ol class="steps">
+      <li><b>Generar el código</b>: Reportes → Directorio de médicos → editar el médico → 🔑 Generar código de acceso.</li>
+      <li><b>Crear la cuenta</b>: tú le creas una cuenta de Supabase al consultorio (Authentication → Users), igual que al resto del equipo.</li>
+      <li><b>Primer ingreso</b>: entra con ese correo/contraseña, elige <b>"🩺 Soy del consultorio de un médico"</b>, pone su nombre y el código.</li>
+      <li>Queda dentro de su portal con dos pestañas: <b>📅 Citas</b> (agenda con estado: pendiente/confirmada/completada/cancelada) y <b>💬 Mensajes</b> (chat directo con la farmacia).</li>
+    </ol>
+    <div class="card">
+      <h4>Del lado de la farmacia</h4>
+      <p>En Reportes → 🩺💬 Consultorios: elige cualquier médico con portal activo y ves/mandas los mismos mensajes y citas desde tu lado, sincronizado en tiempo real.</p>
+    </div>
+  </section>
+
+  <section id="alertas">
+    <div class="num">07.7</div>
+    <h2>Alertas y notificaciones</h2>
+    <p>Cuando llega un mensaje o se crea una cita: sonido corto, aviso en pantalla, y notificación del navegador si diste permiso (te lo pide la primera vez). Un punto rojo aparece en la pestaña correspondiente si no la tienes abierta — se quita al tocarla.</p>
+    <p class="helptext" style="font-size:13px;color:var(--ink-soft);">Funciona mientras la app está abierta (aunque en segundo plano); no es una notificación push real con la app cerrada del todo — eso está pendiente para más adelante.</p>
+  </section>
+
+  <section id="busqueda">
+    <div class="num">07.8</div>
+    <h2>Buscar en las listas</h2>
+    <p>Lupa 🔍 en <b>Pacientes</b> (por nombre), <b>CMR</b> (por paciente), <b>Intervenciones</b> (por paciente o nota), y <b>Directorio de médicos</b> (por nombre) — filtran mientras escribes.</p>
+  </section>
+
+  <section id="auditoria">
+    <div class="num">07.9</div>
+    <h2>Auditoría</h2>
+    <p>Pestaña con lupa que registra cada creación, edición o eliminación: qué (🆕/✏️/🗑️), en qué tabla, quién (nombre del empleado), y cuándo. Nadie puede editar ni borrar ese historial, ni siquiera desde la app.</p>
+  </section>
+
+  <section id="multitenant">
     <div class="num">08</div>
+    <h2>Varias farmacias en la misma app</h2>
+    <p>La app soporta que farmacias distintas la usen a la vez, completamente aisladas entre sí — ninguna ve los datos de otra, reforzado a nivel de base de datos.</p>
+    <ul>
+      <li><b>Crear una farmacia nueva</b>: pantalla "¿Cómo vas a usar la app?" → 🏥 Crear una farmacia nueva. Quien la crea queda como su administradora.</li>
+      <li><b>Sumar a tu equipo</b>: comparte el código de Reportes → Mi farmacia; ellos usan "👥 Unirme a mi farmacia".</li>
+      <li><b>Administrador</b>: por ahora solo la cuenta administradora puede eliminar personal. Para dar el rol de admin a alguien más, se hace por SQL (pídele a Claude el comando si hace falta).</li>
+    </ul>
+  </section>
+
+  <section id="sync">
+    <div class="num">09</div>
     <h2>Sincronización entre dispositivos</h2>
-    <p>Todo lo que se guarda aparece en los demás dispositivos conectados en segundos, sin recargar la página. El punto de color junto al título indica el estado:</p>
-    <div class="card green"><h4>🟢 Sincronizado en tiempo real</h4><p>Todo funcionando normal.</p></div>
-    <div class="card red"><h4>🔴 Sin conexión — reintentando</h4><p>Revisa el internet del dispositivo; la app reintenta sola.</p></div>
+    <p>Todo lo que se guarda aparece en los demás dispositivos en segundos. El punto junto al título indica el estado: <b>🟢 Sincronizado</b> o <b>🔴 Sin conexión — reintentando</b>.</p>
   </section>
 
   <section id="problemas">
-    <div class="num">09</div>
+    <div class="num">10</div>
     <h2>Solución de problemas comunes</h2>
 
-    <h3>"No tengo permiso en schema adherencia"</h3>
-    <p>Le faltó otorgar permisos de uso sobre el schema a los roles de la API (esto se hace una sola vez, no por dispositivo). Corre el script <code>supabase_fix_permisos_adherencia.sql</code> en el SQL Editor del proyecto.</p>
+    <h3>Entré a la app y salió la parte del consultorio en vez de la farmacia (o al revés)</h3>
+    <p>Tu cuenta quedó con el rol equivocado en la base de datos — casi siempre por probar un código con la cuenta equivocada. Se corrige por SQL cambiando <code>role</code> en <code>user_roles</code>. Usa siempre una cuenta de prueba aparte para probar flujos nuevos.</p>
 
-    <h3>El botón "Conectar" no responde</h3>
+    <h3>"No tengo permiso en schema adherencia" / errores de permisos</h3>
+    <p>Faltó correr algún script SQL de configuración, o el schema no está en Settings → API → Exposed schemas.</p>
+
+    <h3>El botón no responde / nada carga</h3>
     <ul>
-      <li>Revisa que la URL empiece con <code>https://</code> y que la anon key esté completa (son bien largas).</li>
-      <li>Confirma que el dispositivo tiene internet activo en ese momento.</li>
-      <li>Si nada funciona, abre las herramientas de desarrollador del navegador (F12 → Console) y busca el error en rojo.</li>
+      <li>Borra copias viejas de <code>adherencia-pr.html</code> en Descargas (Chrome en Android le pone "(1)", "(2)"...) — abre siempre la más reciente, o mejor, por el enlace de GitHub Pages.</li>
+      <li>Revisa la consola del navegador (F12) para ver el error exacto.</li>
     </ul>
 
-    <h3>Correo o contraseña incorrectos</h3>
-    <p>Verifica en <b>Authentication → Users</b> del dashboard de Supabase que la cuenta existe y está confirmada. Si acabas de crearla, puede que necesite confirmarse por correo antes de poder entrar (a menos que se haya marcado "Auto Confirm User" al crearla).</p>
+    <h3>El reporte CSV sale con símbolos raros</h3>
+    <p>Ya está resuelto — el CSV se genera sin acentos a propósito, para evitar el problema sin importar qué app lo abra.</p>
 
-    <h3>Guardé un paciente pero no aparece en otro dispositivo</h3>
-    <p>Revisa el punto de sincronización — si está rojo, ese dispositivo perdió conexión. También confirma que ambos dispositivos están usando la <b>misma URL, key y schema</b> (<code>adherencia</code>).</p>
+    <h3>WhatsApp abre la versión web en vez de la app</h3>
+    <p>Pasa si abres la app como archivo descargado (<code>file://</code>) en vez de por internet. Ábrela siempre por el enlace de GitHub Pages para que funcione el salto directo a la app.</p>
+
+    <h3>Un empleado se duplicó varias veces</h3>
+    <p>Bug ya corregido (el botón se bloqueaba mal contra doble toque). Borra los duplicados desde Reportes → 👥 Personal (requiere cuenta administradora).</p>
+
+    <h3>El GPS de un médico o paciente muestra la ubicación equivocada</h3>
+    <p>El GPS capturado tiene prioridad sobre la dirección escrita. Edítalo y usa <b>🗑️ Quitar GPS guardado</b> para que vuelva a usar la dirección de texto.</p>
   </section>
 
   <div class="divider"></div>

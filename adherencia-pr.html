@@ -568,7 +568,7 @@ textarea{resize:vertical;min-height:60px;}
     <div class="section-title" style="margin-top:16px;">Portal del consultorio</div>
     <p class="helptext">Genera un código para que el doctor o la secretaria entren a su propio portal (mensajería y citas), sin ver el resto de la farmacia.</p>
     <div id="mdInviteWrap"></div>
-    <button type="button" class="btn ghost sm" style="width:100%;margin-top:8px;" onclick="generateInviteCode()">🔑 Generar código de acceso</button>
+    <button type="button" class="btn ghost sm" id="mdGenCodeBtn" style="width:100%;margin-top:8px;" onclick="generateInviteCode()">🔑 Generar código de acceso</button>
     <button class="btn primary" id="mdSaveBtn" onclick="saveMedico()">Guardar médico</button>
     <button class="btn danger" id="mdDeleteBtn" style="display:none;" onclick="deleteMedico()">Eliminar médico</button>
   </div>
@@ -2326,10 +2326,20 @@ function openMedicoModal(id){
 }
 function renderInviteCodeWrap(code){
   const el = document.getElementById('mdInviteWrap');
-  if(!code){ el.innerHTML = '<p class="helptext">Sin código generado todavía.</p>'; return; }
-  el.innerHTML = `<div class="card amber" style="margin:0;"><p style="margin:0;font-family:'IBM Plex Mono',monospace;font-size:20px;letter-spacing:.1em;color:var(--navy);font-weight:700;">${escapeHTML(code)}</p><p class="helptext" style="margin-top:4px;">Comparte este código con el consultorio para que entren a su portal.</p></div>`;
+  const btn = document.getElementById('mdGenCodeBtn');
+  const iAmAdmin = currentStaff && currentStaff.isAdmin;
+  if(!code){
+    el.innerHTML = '<p class="helptext">Sin código generado todavía.</p>';
+  } else {
+    el.innerHTML = `<div class="card amber" style="margin:0;"><p style="margin:0;font-family:'IBM Plex Mono',monospace;font-size:20px;letter-spacing:.1em;color:var(--navy);font-weight:700;">${escapeHTML(code)}</p><p class="helptext" style="margin-top:4px;">Comparte este código con el consultorio para que entren a su portal.</p></div>`;
+  }
+  if(btn){
+    btn.style.display = iAmAdmin ? 'block' : 'none';
+    if(!iAmAdmin) el.insertAdjacentHTML('beforeend', '<p class="helptext" style="margin-top:6px;">Solo un administrador puede generar o cambiar este código.</p>');
+  }
 }
 async function generateInviteCode(){
+  if(!currentStaff || !currentStaff.isAdmin){ toast('Solo un administrador puede generar el código'); return; }
   const id = document.getElementById('mdId').value;
   if(!id){ toast('Guarda el médico primero'); return; }
   const code = Math.random().toString(36).slice(2,8).toUpperCase();
