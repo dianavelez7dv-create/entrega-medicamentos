@@ -692,6 +692,7 @@ let myRole = 'farmacia';
 let myMedicoId = null;
 let myMedicoNombreCuenta = null;
 let myFarmaciaId = null;
+let myIsAdmin = false;
 
 async function showApp(){
   document.getElementById('gateLogin').style.display = 'none';
@@ -711,6 +712,7 @@ async function showApp(){
   }
   if(roleRow && roleRow.role === 'farmacia'){
     myFarmaciaId = roleRow.farmacia_id;
+    myIsAdmin = !!roleRow.is_admin;
     await continuePharmacyFlow();
     return;
   }
@@ -728,7 +730,7 @@ async function continuePharmacyFlow(){
   const savedStaffId = localStorage.getItem('adherenciaPR_staffId');
   const match = savedStaffId ? DB.staff.find(s=>s.id===savedStaffId) : null;
   if(match){
-    currentStaff = {id: match.id, nombre: match.nombre};
+    currentStaff = {id: match.id, nombre: match.nombre, isAdmin: !!match.is_admin};
     document.getElementById('appRoot').style.display = 'block';
     document.getElementById('staffLabel').textContent = currentStaff.nombre;
     renderAll();
@@ -762,6 +764,7 @@ async function createFarmacia(){
   if(error){ errEl.textContent = 'Error: ' + error.message; errEl.classList.add('show'); return; }
   const { data: roleRow } = await sb.from('user_roles').select('*').maybeSingle();
   myFarmaciaId = roleRow.farmacia_id;
+  myIsAdmin = !!roleRow.is_admin;
   toast('Farmacia creada. Código del equipo: ' + code);
   await continuePharmacyFlow();
 }
@@ -774,6 +777,7 @@ async function joinFarmacia(){
   if(error || data !== 'ok'){ errEl.textContent = 'Código inválido.'; errEl.classList.add('show'); return; }
   const { data: roleRow } = await sb.from('user_roles').select('*').maybeSingle();
   myFarmaciaId = roleRow.farmacia_id;
+  myIsAdmin = !!roleRow.is_admin;
   await continuePharmacyFlow();
 }
 async function joinMedicoPortal(){
@@ -1003,7 +1007,7 @@ function confirmStaffPin(){
     return;
   }
   errEl.classList.remove('show');
-  currentStaff = {id: s.id, nombre: s.nombre};
+  currentStaff = {id: s.id, nombre: s.nombre, isAdmin: !!s.is_admin};
   localStorage.setItem('adherenciaPR_staffId', s.id);
   document.getElementById('gateStaff').style.display = 'none';
   document.getElementById('appRoot').style.display = 'block';
@@ -1045,7 +1049,7 @@ async function createStaff(){
     return;
   }
   await fetchAll();
-  currentStaff = {id: data.id, nombre};
+  currentStaff = {id: data.id, nombre, isAdmin: false};
   localStorage.setItem('adherenciaPR_staffId', data.id);
   logAudit('staff', data.id, 'crear', nombre);
   document.getElementById('gateStaff').style.display = 'none';
@@ -1471,12 +1475,26 @@ function renderAll(){ populatePlanFilters(); renderStats(); renderDash(); render
 function renderStaffMgmt(){
   const el = document.getElementById('staffMgmtList');
   if(!el) return;
+  const iAmAdmin = currentStaff && currentStaff.isAdmin;
   if(DB.staff.length===0){ el.innerHTML = '<p class="helptext">Nadie se ha añadido todavía.</p>'; return; }
   el.innerHTML = DB.staff.map(s=>`
     <div class="fillrow">
-      <span>${escapeHTML(s.nombre)}</span>
-      <button class="small-x" onclick="deleteStaff('${s.id}','${escapeHTML(s.nombre)}')">🗑️</button>
+      <span>${escapeHTML(s.nombre)}${s.is_admin ? ' <span class="d">· admin</span>' : ''}</span>
+      ${iAmAdmin ? `
+        ${!s.is_admin ? `<button class="btn ghost sm" style="width:auto;margin-top:0;padding:5px 9px;font-size:11px;" onclick="toggleStaffAdmin('${s.id}', true)">Hacer admin</button>` : (currentStaff.id!==s.id ? `<button class="btn ghost sm" style="width:auto;margin-top:0;padding:5px 9px;font-size:11px;" onclick="toggleStaffAdmin('${s.id}', false)">Quitar admin</button>` : '')}
+        <button class="small-x" onclick="deleteStaff('${s.id}','${escapeHTML(s.nombre)}')">🗑️</button>
+      ` : ''}
     </div>`).join('');
+  if(!iAmAdmin) el.insertAdjacentHTML('beforeend', '<p class="helptext" style="margin-top:8px;">Solo un administrador puede eliminar personal o nombrar más administradores.</p>');
+}
+async function toggleStaffAdmin(id, makeAdmin){
+  const { error } = await sb.from('staff').update({is_admin: makeAdmin}).eq('id', id);
+  if(error){ toast('Error: ' + error.message); return; }
+  logAudit('staff', id, 'editar', makeAdmin ? 'nombrado administrador' : 'admin removido');
+  if(currentStaff && currentStaff.id === id) currentStaff.isAdmin = makeAdmin;
+  await fetchAll();
+  renderAll();
+  toast(makeAdmin ? 'Ahora es administrador' : 'Ya no es administrador');
 }
 async function deleteStaff(id, nombre){
   if(!confirm(`¿Eliminar a "${nombre}" del personal?`)) return;
