@@ -262,7 +262,8 @@ textarea{resize:vertical;min-height:60px;}
   </div>
   <nav class="tabs" id="portalTabs">
     <button data-pview="citas" class="active">📅 Citas</button>
-    <button data-pview="mensajes">💬 Mensajes</button>
+    <button data-pview="mensajes">💬 Farmacia</button>
+    <button data-pview="colegas">🩺 Colegas</button>
   </nav>
   <main>
     <div class="view active" id="pview-citas">
@@ -277,6 +278,22 @@ textarea{resize:vertical;min-height:60px;}
         <button class="btn ghost" style="width:auto;margin-top:0;padding:12px 14px;" onclick="document.getElementById('mensajeFotoInput').click()">📷</button>
         <input id="mensajeInput" placeholder="Escribe un mensaje..." style="flex:1;" onkeydown="if(event.key==='Enter')sendMensajePortal();">
         <button class="btn amber" style="width:auto;margin-top:0;padding:12px 18px;" onclick="sendMensajePortal()">➤</button>
+      </div>
+    </div>
+    <div class="view" id="pview-colegas">
+      <div id="colegasListWrap">
+        <div class="section-title">Pacientes que compartes con otros médicos</div>
+        <p class="helptext" style="margin-top:-6px;">Solo aparecen pacientes que tú atiendes y que también tiene asignado otro médico en esta farmacia.</p>
+        <div id="colegasList" style="margin-top:10px;"></div>
+      </div>
+      <div id="colegasThreadWrap" style="display:none;">
+        <button class="btn ghost sm" onclick="closeColegasThread()">← Volver a la lista</button>
+        <div class="section-title" style="margin-top:12px;" id="colegasThreadTitle">Paciente</div>
+        <div id="colegasThread" style="max-height:50vh;overflow-y:auto;margin-bottom:12px;"></div>
+        <div style="display:flex;gap:8px;">
+          <input id="colegasInput" placeholder="Pregunta sobre el tratamiento..." style="flex:1;" onkeydown="if(event.key==='Enter')sendColegaMensaje();">
+          <button class="btn amber" style="width:auto;margin-top:0;padding:12px 18px;" onclick="sendColegaMensaje()">➤</button>
+        </div>
       </div>
     </div>
   </main>
@@ -839,6 +856,8 @@ async function enterMedicoPortal(link){
   setupPortalRealtime();
   renderCitasAgenda();
   renderMensajesThread();
+  closeColegasThread();
+  await renderColegasList();
   setPortalSyncStatus('live');
   askNotificationPermission();
 }
@@ -897,6 +916,13 @@ function setupPortalRealtime(){
         notifyAlert('💬 Mensaje nuevo', payload.new.body || '📷 Foto');
         if(document.querySelector('#pview-mensajes:not(.active)')) markTabDot('mensajes', true);
       }
+    })
+    .on('postgres_changes', {event:'INSERT', schema:dbSchema, table:'medico_chat'}, payload=>{
+      if(payload.new.farmacia_id !== activeLink.farmacia_id) return;
+      if(payload.new.sender_medico_id === activeLink.medico_id) return;
+      if(activeColegaPatient === payload.new.patient_name) renderColegasThread();
+      notifyAlert('🩺 ' + (payload.new.sender_nombre||'Colega') + ' — ' + payload.new.patient_name, payload.new.body);
+      if(document.querySelector('#pview-colegas:not(.active)')) markTabDot('colegas', true);
     })
     .subscribe(status=>{
       if(status==='SUBSCRIBED') setPortalSyncStatus('live');
@@ -1052,6 +1078,71 @@ async function sendMensajePortalFoto(file){
     renderMensajesThread();
     toast('Foto enviada');
   }catch(e){ toast('Error al subir la foto: ' + e.message); }
+}
+
+/* ---- Colegas: pacientes compartidos entre médicos ---- */
+let sharedPatients = [];
+let activeColegaPatient = null;
+async function renderColegasList(){
+  const el = document.getElementById('colegasList');
+  if(!el) return;
+  el.innerHTML = '<p class="helptext">Cargando…</p>';
+  const { data, error } = await sb.rpc('list_shared_patients', { p_farmacia_id: activeLink.farmacia_id });
+  if(error){ el.innerHTML = '<p class="helptext">No se pudo cargar.</p>'; return; }
+  sharedPatients = data || [];
+  if(sharedPatients.length===0){ el.innerHTML = '<p class="helptext">Ningún paciente compartido con otro médico todavía.</p>'; return; }
+  el.innerHTML = sharedPatients.map(p=>`
+    <div class="pcard" style="cursor:pointer;display:flex;align-items:center;gap:12px;" onclick="openColegasThread('${escapeHTML(p.patient_name).replace(/'/g,"\\'")}')">
+      <div class="info" style="flex:1;">
+        <div class="name">${escapeHTML(p.patient_name)}</div>
+        <div class="meds">con: ${escapeHTML(p.otros_medicos||'—')}</div>
+      </div>
+      <div class="pdc"><div class="lbl">💬</div></div>
+    </div>`).join('');
+}
+async function openColegasThread(patientName){
+  activeColegaPatient = patientName;
+  document.getElementById('colegasListWrap').style.display = 'none';
+  document.getElementById('colegasThreadWrap').style.display = 'block';
+  document.getElementById('colegasThreadTitle').textContent = patientName;
+  await renderColegasThread();
+}
+function closeColegasThread(){
+  activeColegaPatient = null;
+  document.getElementById('colegasListWrap').style.display = 'block';
+  document.getElementById('colegasThreadWrap').style.display = 'none';
+}
+async function renderColegasThread(){
+  const el = document.getElementById('colegasThread');
+  if(!el || !activeColegaPatient) return;
+  const { data, error } = await sb.from('medico_chat').select('*')
+    .eq('farmacia_id', activeLink.farmacia_id).eq('patient_name', activeColegaPatient)
+    .order('created_at');
+  if(error){ el.innerHTML = '<p class="helptext">No se pudo cargar.</p>'; return; }
+  if(!data || data.length===0){ el.innerHTML = '<p class="helptext">Sin mensajes todavía sobre este paciente.</p>'; return; }
+  el.innerHTML = data.map(m=>{
+    const mine = m.sender_medico_id === activeLink.medico_id;
+    return `<div style="display:flex;justify-content:${mine?'flex-end':'flex-start'};margin-bottom:8px;">
+      <div style="max-width:82%;background:${mine?'var(--navy)':'var(--paper)'};color:${mine?'#F4EEDD':'var(--ink)'};border:1px solid var(--line);border-radius:12px;padding:8px 12px;">
+        <div style="font-size:11px;opacity:.75;margin-bottom:2px;">Dr(a). ${escapeHTML(m.sender_nombre||'')}</div>
+        <div style="font-size:14px;">${escapeHTML(m.body)}</div>
+      </div>
+    </div>`;
+  }).join('');
+  el.scrollTop = el.scrollHeight;
+}
+async function sendColegaMensaje(){
+  const input = document.getElementById('colegasInput');
+  const body = input.value.trim();
+  if(!body || !activeColegaPatient) return;
+  input.value = '';
+  const { error } = await sb.from('medico_chat').insert({
+    farmacia_id: activeLink.farmacia_id, patient_name: activeColegaPatient,
+    sender_medico_id: activeLink.medico_id, sender_nombre: activeLink.medicos ? activeLink.medicos.nombre : 'Médico',
+    body
+  });
+  if(error){ toast('Error al enviar: ' + error.message); return; }
+  await renderColegasThread();
 }
 
 /* ---- Identificación de empleado (nombre + PIN) ---- */
@@ -1568,6 +1659,12 @@ function renderStaffMgmt(){
   if(!iAmAdmin) el.insertAdjacentHTML('beforeend', '<p class="helptext" style="margin-top:8px;">Solo un administrador puede eliminar personal o nombrar más administradores.</p>');
 }
 async function toggleStaffAdmin(id, makeAdmin){
+  const s = DB.staff.find(x=>x.id===id);
+  const nombre = s ? s.nombre : '';
+  const mensaje = makeAdmin
+    ? `¿Hacer administrador a "${nombre}"? Podrá eliminar personal y generar/cambiar códigos de médicos.`
+    : `¿Quitarle el rol de administrador a "${nombre}"?`;
+  if(!confirm(mensaje)) return;
   const { error } = await sb.from('staff').update({is_admin: makeAdmin}).eq('id', id);
   if(error){ toast('Error: ' + error.message); return; }
   logAudit('staff', id, 'editar', makeAdmin ? 'nombrado administrador' : 'admin removido');
@@ -2342,6 +2439,11 @@ async function generateInviteCode(){
   if(!currentStaff || !currentStaff.isAdmin){ toast('Solo un administrador puede generar el código'); return; }
   const id = document.getElementById('mdId').value;
   if(!id){ toast('Guarda el médico primero'); return; }
+  const medico = DB.medicos.find(m=>m.id===id);
+  const mensaje = (medico && medico.invite_code)
+    ? '¿Generar un código NUEVO? El código actual dejará de funcionar — cualquier consultorio que todavía no lo haya usado no podrá conectarse con el viejo.'
+    : '¿Generar el código de acceso para este médico?';
+  if(!confirm(mensaje)) return;
   const code = Math.random().toString(36).slice(2,8).toUpperCase();
   const { error } = await sb.from('medicos').update({invite_code: code}).eq('id', id);
   if(error){ toast('Error: ' + error.message); return; }
