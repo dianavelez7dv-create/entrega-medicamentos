@@ -450,6 +450,7 @@ textarea{resize:vertical;min-height:60px;}
 </main>
 
 <button class="fab" id="fabAdd" title="Añadir paciente">+</button>
+<button class="fab" id="fabIA" title="Asistente IA" style="right:auto;left:20px;background:var(--navy);font-size:22px;" onclick="openIAModal()">✨</button>
 </div>
 
 <!-- MODAL: paciente -->
@@ -558,6 +559,20 @@ textarea{resize:vertical;min-height:60px;}
     <button class="btn primary" id="cmrSaveBtn" onclick="saveCmr()">Guardar</button>
     <button class="btn amber" id="cmrCompleteBtn" style="display:none;" onclick="completeCmr()">✅ Marcar como completada</button>
     <button class="btn danger" id="cmrDeleteBtn" style="display:none;" onclick="deleteCmr()">Eliminar</button>
+  </div>
+</div>
+
+<!-- MODAL: asistente IA -->
+<div class="overlay" id="modalIA">
+  <div class="modal" style="max-height:88vh;display:flex;flex-direction:column;">
+    <div class="modal-head"><h2>✨ Asistente</h2><button class="x" onclick="closeModal('modalIA')">×</button></div>
+    <p class="helptext" style="margin-top:-4px;">Pídele que resuma el día, redacte un mensaje, te cuente de un paciente, o que añada un paciente nuevo con la información que le des.</p>
+    <div id="iaThread" style="flex:1;overflow-y:auto;margin:10px 0;min-height:200px;max-height:48vh;"></div>
+    <div id="iaActionCard" style="display:none;"></div>
+    <div style="display:flex;gap:8px;">
+      <input id="iaInput" placeholder="Escribe aquí..." style="flex:1;" onkeydown="if(event.key==='Enter')sendIAMessage();">
+      <button class="btn amber" style="width:auto;margin-top:0;padding:12px 18px;" id="iaSendBtn" onclick="sendIAMessage()">➤</button>
+    </div>
   </div>
 </div>
 
@@ -1361,6 +1376,147 @@ function handleRemoteChange(){
 function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
 function todayStr(){ return new Date().toISOString().slice(0,10); }
 function fmtDate(s){ const d = new Date(s+'T00:00:00'); return d.toLocaleDateString('es-PR',{month:'short',day:'numeric',year:'numeric'}); }
+/* ================= Asistente IA ================= */
+let iaHistory = []; // [{role, content}]
+let iaPendingAction = null;
+
+function openIAModal(){
+  document.getElementById('modalIA').classList.add('show');
+  document.getElementById('iaInput').focus();
+}
+function iaAddBubble(role, text){
+  const el = document.getElementById('iaThread');
+  const mine = role === 'user';
+  el.insertAdjacentHTML('beforeend', `
+    <div style="display:flex;justify-content:${mine?'flex-end':'flex-start'};margin-bottom:8px;">
+      <div style="max-width:85%;background:${mine?'var(--navy)':'var(--paper)'};color:${mine?'#F4EEDD':'var(--ink)'};border:1px solid var(--line);border-radius:12px;padding:8px 12px;font-size:14px;white-space:pre-wrap;">${escapeHTML(text)}</div>
+    </div>`);
+  el.scrollTop = el.scrollHeight;
+}
+function findPatientMentions(msg){
+  const lower = msg.toLowerCase();
+  return DB.patients.filter(p=>p.activo!==false && lower.includes(p.name.toLowerCase())).slice(0,3);
+}
+function buildIAContext(userMessage){
+  const parts = [];
+  parts.push(`Fecha de hoy: ${fmtDate(todayStr())}.`);
+  parts.push(buildResumenDiaText());
+  const mentioned = findPatientMentions(userMessage);
+  if(mentioned.length){
+    parts.push('\nDetalle de paciente(s) mencionados:');
+    mentioned.forEach(p=>{
+      const r = calcPDC(p);
+      parts.push(`- ${p.name} — ${p.cat} — plan ${p.plan} — PDC ${r.pct}% (${statusLabel(r.status)}) — médico: ${p.medico||'ninguno'} — medicamentos: ${p.med||'—'}${p.needsRx?' — Rx pendiente: '+(p.rxNote||''):''}`);
+    });
+  }
+  if(DB.medicos.length){
+    parts.push('\nMédicos en el directorio: ' + DB.medicos.map(m=>m.nombre).join(', '));
+  }
+  return parts.join('\n');
+}
+async function sendIAMessage(){
+  const input = document.getElementById('iaInput');
+  const msg = input.value.trim();
+  if(!msg) return;
+  input.value = '';
+  iaAddBubble('user', msg);
+  document.getElementById('iaActionCard').style.display = 'none';
+  document.getElementById('iaActionCard').innerHTML = '';
+  const btn = document.getElementById('iaSendBtn');
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>';
+
+  const systemPrompt = `Eres un asistente dentro de una app de farmacia para el programa de adherencia de medicamentos en Puerto Rico (PDC, CMS Star Ratings). Ayudas al personal a: (1) resumir el día y priorizar pacientes, (2) redactar mensajes/notas para médicos o pacientes, (3) responder preguntas sobre pacientes específicos usando SOLO los datos que se te dan (nunca inventes datos), y (4) añadir pacientes nuevos al sistema cuando te den la información.
+
+Cuando el usuario pida AÑADIR/CREAR un paciente nuevo, responde ÚNICAMENTE con este JSON exacto (nada de texto antes o después, sin backticks):
+{"reply":"<mensaje breve confirmando lo que vas a añadir, en español>","action":{"type":"create_patient","data":{"name":"<nombre completo>","cat":"Estatina|Hipertensión|Diabetes","plan":"<plan o MCS si no se especifica>","medico_nombre":"<nombre exacto de la lista de médicos, o null>","meds":["<medicamento 1>"],"fills":[{"date":"YYYY-MM-DD","days":30}],"needs_rx":false,"rx_note":null}}}
+Si falta información esencial (nombre o categoría), en vez de eso pide lo que falta con {"reply":"...","action":null}.
+
+Para cualquier otra petición, responde ÚNICAMENTE con: {"reply":"<tu respuesta completa aquí, en español, con el tono cálido y directo de la farmacia>","action":null}
+Nunca respondas fuera de este formato JSON.`;
+
+  iaHistory.push({role:'user', content: buildIAContext(msg) + '\n\nMensaje del usuario: ' + msg});
+
+  try{
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-6",
+        max_tokens: 1000,
+        system: systemPrompt,
+        messages: iaHistory
+      })
+    });
+    const data = await response.json();
+    const raw = (data.content||[]).map(b=>b.text||'').join('').trim();
+    const clean = raw.replace(/^```json/,'').replace(/```$/,'').trim();
+    let parsed;
+    try{ parsed = JSON.parse(clean); }catch(e){ parsed = {reply: raw, action: null}; }
+
+    iaHistory.push({role:'assistant', content: clean});
+    iaAddBubble('assistant', parsed.reply || '(sin respuesta)');
+
+    if(parsed.action && parsed.action.type === 'create_patient'){
+      showIAActionCard(parsed.action.data);
+    }
+  }catch(e){
+    iaAddBubble('assistant', 'No se pudo conectar con el asistente: ' + e.message);
+  }finally{
+    btn.disabled = false; btn.textContent = '➤';
+  }
+}
+function showIAActionCard(data){
+  iaPendingAction = data;
+  const el = document.getElementById('iaActionCard');
+  el.style.display = 'block';
+  el.innerHTML = `
+    <div class="card amber" style="margin:0 0 10px;">
+      <h4 style="margin:0 0 6px;">📋 Confirmar nuevo paciente</h4>
+      <p style="margin:0;font-size:13px;">
+        <b>${escapeHTML(data.name||'')}</b><br>
+        ${escapeHTML(data.cat||'')} · ${escapeHTML(data.plan||'')}${data.medico_nombre ? ' · Dr(a). '+escapeHTML(data.medico_nombre) : ''}<br>
+        ${data.meds && data.meds.length ? 'Medicamentos: '+data.meds.map(escapeHTML).join(', ') : ''}
+        ${data.fills && data.fills.length ? '<br>Resurtidos: '+data.fills.map(f=>fmtDate(f.date)+' ('+f.days+'d)').join(', ') : ''}
+        ${data.needs_rx ? '<br>📋 Necesita Rx: '+escapeHTML(data.rx_note||'') : ''}
+      </p>
+      <div class="row2" style="margin-top:10px;">
+        <button class="btn amber sm" style="width:100%;" onclick="confirmIAAction()">✅ Confirmar y guardar</button>
+        <button class="btn ghost sm" style="width:100%;" onclick="discardIAAction()">Descartar</button>
+      </div>
+    </div>`;
+}
+function discardIAAction(){
+  iaPendingAction = null;
+  document.getElementById('iaActionCard').style.display = 'none';
+  document.getElementById('iaActionCard').innerHTML = '';
+}
+async function confirmIAAction(){
+  const data = iaPendingAction;
+  if(!data){ return; }
+  const medico = data.medico_nombre ? DB.medicos.find(m=> m.nombre.toLowerCase() === data.medico_nombre.toLowerCase()) : null;
+  const meds = (data.meds||[]).map(name=>({name, needsRx: !!data.needs_rx, note: data.needs_rx ? (data.rx_note||'') : '', medicoId:null}));
+  const payload = {
+    name: data.name, cat: data.cat, plan: data.plan || 'MCS',
+    medico_id: medico ? medico.id : null,
+    farmacia_id: myFarmaciaId,
+    med: meds.length ? meds.map(m=>m.name).join(', ') : null,
+    meds_detail: meds,
+    needs_rx: !!data.needs_rx,
+    rx_note: data.needs_rx ? (data.rx_note||null) : null,
+  };
+  const { data: inserted, error } = await sb.from('patients').insert({...payload, created_by: currentUser.id}).select('id').single();
+  if(error){ toast('Error al guardar: ' + error.message); return; }
+  if(data.fills && data.fills.length){
+    const toInsert = data.fills.map(f=>({patient_id: inserted.id, farmacia_id: myFarmaciaId, fill_date:f.date, days_supply:f.days, created_by: currentUser.id}));
+    await sb.from('fills').insert(toInsert);
+  }
+  logAudit('patients', inserted.id, 'crear', `${data.name} — ${data.cat} (vía asistente IA)`);
+  discardIAAction();
+  iaAddBubble('assistant', `✅ Listo, "${data.name}" quedó añadido al sistema.`);
+  await fetchAll();
+  renderAll();
+}
+
 function toast(msg){
   const t = document.getElementById('toast');
   t.textContent = msg; t.classList.add('show');
