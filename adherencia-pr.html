@@ -8,6 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,500&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 :root{
   --paper:#FAF5EC; --card:#FFFFFF; --navy:#17253F; --navy2:#22365A;
@@ -388,6 +389,14 @@ textarea{resize:vertical;min-height:60px;}
       <div id="miFarmaciaBody"><p class="helptext">Cargando…</p></div>
     </div>
     <div class="card">
+      <h3 style="margin:0 0 4px;color:var(--navy);">📥 Importar pacientes desde Excel/CSV</h3>
+      <p class="helptext">Descarga la plantilla, llénala con tus pacientes, y súbela aquí.</p>
+      <button class="btn ghost" onclick="downloadImportTemplate()">⬇️ Descargar plantilla</button>
+      <input type="file" id="importFileInput" accept=".xlsx,.xls,.csv" style="display:none;" onchange="if(this.files[0]) handleImportFile(this.files[0]); this.value='';">
+      <button class="btn amber" style="margin-top:8px;" onclick="document.getElementById('importFileInput').click()">📥 Elegir archivo para importar</button>
+      <div id="importPreview" style="margin-top:12px;"></div>
+    </div>
+    <div class="card">
       <h3 style="margin:0 0 4px;color:var(--navy);">👥 Personal</h3>
       <p class="helptext">Empleados que han entrado con su nombre/PIN. Borra duplicados o quien ya no trabaje aquí.</p>
       <div id="staffMgmtList" style="margin-top:10px;"></div>
@@ -463,6 +472,10 @@ textarea{resize:vertical;min-height:60px;}
     <input type="hidden" id="pmId">
     <label>Nombre del paciente</label>
     <input id="pmName" placeholder="Nombre y apellido" oninput="renderDuplicateCatSection()">
+    <div class="row2">
+      <div><label>ID del paciente (opcional)</label><input id="pmPacienteId" placeholder="Ej. récord del plan"></div>
+      <div><label>Fecha de nacimiento</label><input type="date" id="pmFechaNac"></div>
+    </div>
     <div class="row2">
       <div>
         <label>Categoría</label>
@@ -1307,6 +1320,7 @@ async function fetchAll(){
     needsRx: !!p.needs_rx, rxNote: p.rx_note,
     direccion: p.direccion, lat: p.lat, lng: p.lng,
     activo: p.activo !== false, motivoInactivo: p.motivo_inactivo,
+    pacienteId: p.paciente_id, fechaNacimiento: p.fecha_nacimiento,
     fills: (p.fills||[]).map(f=>({id:f.id, date:f.fill_date, days:f.days_supply, med:f.med_name||null}))
   }));
   DB.interventions = (intv||[]).map(i=>({
@@ -2882,6 +2896,8 @@ function openPatientModal(id){
     document.getElementById('pmTitle').textContent = 'Editar paciente';
     document.getElementById('pmId').value = p.id;
     document.getElementById('pmName').value = p.name;
+    document.getElementById('pmPacienteId').value = p.pacienteId || '';
+    document.getElementById('pmFechaNac').value = p.fechaNacimiento || '';
     document.getElementById('pmCat').value = p.cat;
     document.getElementById('pmPlan').value = p.plan;
     document.getElementById('pmDireccion').value = p.direccion || '';
@@ -2905,6 +2921,8 @@ function openPatientModal(id){
     document.getElementById('pmTitle').textContent = 'Nuevo paciente';
     document.getElementById('pmId').value = '';
     document.getElementById('pmName').value = '';
+    document.getElementById('pmPacienteId').value = '';
+    document.getElementById('pmFechaNac').value = '';
     document.getElementById('pmCat').value = 'Estatina';
     document.getElementById('pmPlan').value = 'MCS';
     document.getElementById('pmDireccion').value = '';
@@ -2961,6 +2979,8 @@ async function persistCurrentPatient(){
     needs_rx: flagged.length > 0,
     rx_note: flagged.length ? flagged.map(m=> m.name + (m.note ? ' — '+m.note : '')).join('; ') : null,
     direccion: document.getElementById('pmDireccion').value.trim() || null,
+    paciente_id: document.getElementById('pmPacienteId').value.trim() || null,
+    fecha_nacimiento: document.getElementById('pmFechaNac').value || null,
     activo: !document.getElementById('pmInactivo').checked,
     motivo_inactivo: document.getElementById('pmInactivo').checked
       ? document.getElementById('pmMotivo').value + (document.getElementById('pmMotivoNota').value.trim() ? ' — ' + document.getElementById('pmMotivoNota').value.trim() : '')
@@ -3071,12 +3091,131 @@ document.getElementById('fabAdd').addEventListener('click', ()=>openPatientModal
 function stripAccents(s){
   return (s+'').normalize('NFD').replace(/[\u0300-\u036f]/g,'');
 }
+/* ================= Importar pacientes desde Excel/CSV ================= */
+const IMPORT_HEADERS = ['ID_Paciente','Nombre','Fecha_Nacimiento','Categoria','Plan','Medico','Medicamentos','Direccion','Necesita_Rx','Nota_Rx','Fecha_Resurtido','Dias_Suplido'];
+function downloadImportTemplate(){
+  const ejemplo = ['12345','Juan Pérez','1965-03-14','Estatina','MCS','Dr. Carlos Meléndez','Atorvastatina 20mg, Ezetimiba','San Juan, PR','no','','2026-07-01','30'];
+  const rows = [IMPORT_HEADERS, ejemplo];
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Pacientes');
+  XLSX.writeFile(wb, 'plantilla_pacientes.xlsx');
+}
+let pendingImportRows = [];
+function handleImportFile(file){
+  const reader = new FileReader();
+  reader.onload = (e)=>{
+    try{
+      const wb = XLSX.read(e.target.result, {type:'array', cellDates:true});
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, {defval:''});
+      processImportRows(rows);
+    }catch(err){
+      toast('No se pudo leer el archivo: ' + err.message);
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+function normalizeCat(raw){
+  const s = (raw||'').toString().trim().toLowerCase();
+  if(s.startsWith('estatina')) return 'Estatina';
+  if(s.startsWith('hipertension') || s.startsWith('hipertensión')) return 'Hipertensión';
+  if(s.startsWith('diabetes')) return 'Diabetes';
+  return null;
+}
+function toISODateVal(val){
+  if(!val) return null;
+  if(val instanceof Date) return val.toISOString().slice(0,10);
+  const s = val.toString().trim();
+  if(!s) return null;
+  // admite dd/mm/yyyy o yyyy-mm-dd
+  if(/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  const m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+  if(m) return `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
+  const d = new Date(s);
+  return isNaN(d) ? null : d.toISOString().slice(0,10);
+}
+function processImportRows(rows){
+  const parsed = [];
+  const errores = [];
+  rows.forEach((row, i)=>{
+    const pacienteId = (row['ID_Paciente']||row['Id_Paciente']||row['id_paciente']||'').toString().trim();
+    const nombre = (row['Nombre']||row['nombre']||'').toString().trim();
+    const fechaNac = toISODateVal(row['Fecha_Nacimiento']||row['fecha_nacimiento']);
+    const cat = normalizeCat(row['Categoria']||row['Categoría']||row['categoria']);
+    const plan = (row['Plan']||row['plan']||'').toString().trim() || 'MCS';
+    const medicoNombre = (row['Medico']||row['Médico']||row['medico']||'').toString().trim();
+    const medsRaw = (row['Medicamentos']||row['medicamentos']||'').toString().trim();
+    const direccion = (row['Direccion']||row['Dirección']||row['direccion']||'').toString().trim();
+    const necesitaRxRaw = (row['Necesita_Rx']||row['necesita_rx']||'').toString().trim().toLowerCase();
+    const notaRx = (row['Nota_Rx']||row['nota_rx']||'').toString().trim();
+    const fechaResurtido = toISODateVal(row['Fecha_Resurtido']||row['fecha_resurtido']);
+    const diasSuplido = parseInt(row['Dias_Suplido']||row['dias_suplido']) || null;
+    if(!nombre || !cat){ errores.push(`Fila ${i+2}: falta nombre o la categoría no es válida.`); return; }
+    const meds = medsRaw ? medsRaw.split(',').map(s=>s.trim()).filter(Boolean) : [];
+    const needsRx = necesitaRxRaw==='si' || necesitaRxRaw==='sí' || necesitaRxRaw==='yes' || necesitaRxRaw==='true';
+    parsed.push({ pacienteId, nombre, fechaNac, cat, plan, medicoNombre, meds, direccion, needsRx, notaRx, fechaResurtido, diasSuplido });
+  });
+  pendingImportRows = parsed;
+  renderImportPreview(parsed, errores, rows.length);
+}
+function renderImportPreview(parsed, errores, total){
+  const el = document.getElementById('importPreview');
+  let html = `<p class="helptext"><b>${parsed.length}</b> de ${total} fila(s) listas para importar.</p>`;
+  if(errores.length){
+    html += `<div class="card warn" style="margin:8px 0;"><p style="margin:0;font-size:12.5px;">${errores.slice(0,8).map(escapeHTML).join('<br>')}${errores.length>8 ? '<br>...y '+(errores.length-8)+' más.' : ''}</p></div>`;
+  }
+  if(parsed.length){
+    html += '<div style="max-height:200px;overflow-y:auto;border:1px solid var(--line);border-radius:8px;padding:8px;margin-bottom:8px;">' +
+      parsed.slice(0,20).map(p=>`<div class="fillrow"><span>${escapeHTML(p.nombre)} <span class="d">· ${escapeHTML(p.cat)} · ${escapeHTML(p.plan)}</span></span></div>`).join('') +
+      (parsed.length>20 ? `<p class="helptext" style="margin:4px 0 0;">...y ${parsed.length-20} más.</p>` : '') +
+      '</div>';
+    html += `<button class="btn amber" onclick="confirmImport()">✅ Importar ${parsed.length} paciente(s)</button>`;
+  }
+  el.innerHTML = html;
+}
+async function confirmImport(){
+  if(pendingImportRows.length===0) return;
+  const el = document.getElementById('importPreview');
+  el.innerHTML = '<p class="helptext">Importando… no cierres esta pantalla.</p>';
+  let ok = 0, fail = 0;
+  for(const row of pendingImportRows){
+    const medico = row.medicoNombre ? DB.medicos.find(m=>m.nombre.toLowerCase()===row.medicoNombre.toLowerCase()) : null;
+    const meds = row.meds.map(name=>({name, needsRx: row.needsRx, note: row.needsRx ? row.notaRx : '', medicoId:null}));
+    const payload = {
+      name: row.nombre, cat: row.cat, plan: row.plan,
+      medico_id: medico ? medico.id : null,
+      farmacia_id: myFarmaciaId,
+      med: meds.length ? meds.map(m=>m.name).join(', ') : null,
+      meds_detail: meds,
+      direccion: row.direccion || null,
+      paciente_id: row.pacienteId || null,
+      fecha_nacimiento: row.fechaNac || null,
+      needs_rx: row.needsRx,
+      rx_note: row.needsRx ? (row.notaRx || null) : null,
+      created_by: currentUser.id
+    };
+    const { data: inserted, error } = await sb.from('patients').insert(payload).select('id').single();
+    if(error){ fail++; continue; }
+    ok++;
+    if(row.fechaResurtido && row.diasSuplido){
+      await sb.from('fills').insert({patient_id: inserted.id, farmacia_id: myFarmaciaId, fill_date: row.fechaResurtido, days_supply: row.diasSuplido, created_by: currentUser.id});
+    }
+  }
+  logAudit('patients', null, 'crear', `Importación masiva: ${ok} paciente(s) desde Excel/CSV`);
+  pendingImportRows = [];
+  el.innerHTML = `<p class="helptext">✅ ${ok} paciente(s) importado(s)${fail ? `, ${fail} con error` : ''}.</p>`;
+  await fetchAll();
+  renderAll();
+  toast('Importación completada');
+}
+
 function exportCSV(){
-  const rows = [['Paciente','Categoria','Plan','Medicamento','PDC %','Estatus','Ultima intervencion']];
+  const rows = [['ID Paciente','Paciente','Fecha Nac.','Categoria','Plan','Medicamento','PDC %','Estatus','Ultima intervencion']];
   DB.patients.filter(p=>p.activo!==false).forEach(p=>{
     const r = calcPDC(p);
     const lastIntv = DB.interventions.filter(i=>i.patientId===p.id).sort((a,b)=>b.date.localeCompare(a.date))[0];
-    rows.push([p.name, p.cat, p.plan, p.med||'', r.pct+'%', statusLabel(r.status), lastIntv?fmtDate(lastIntv.date)+' - '+lastIntv.type:'']);
+    rows.push([p.pacienteId||'', p.name, p.fechaNacimiento?fmtDate(p.fechaNacimiento):'', p.cat, p.plan, p.med||'', r.pct+'%', statusLabel(r.status), lastIntv?fmtDate(lastIntv.date)+' - '+lastIntv.type:'']);
   });
   const csv = rows.map(r=>r.map(c=>`"${stripAccents(c).replace(/"/g,'""')}"`).join(',')).join('\n');
   const blob = new Blob(['\uFEFF' + csv], {type:'text/csv;charset=utf-8;'});
