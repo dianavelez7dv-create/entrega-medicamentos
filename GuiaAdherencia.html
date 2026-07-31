@@ -81,6 +81,7 @@ footer{text-align:center;padding:26px 20px;color:var(--ink-soft);font-size:12px;
     <a href="#personal">2.5 Personal — nombre, PIN y administrador</a>
     <a href="#pacientes">3. Añadir y editar pacientes</a>
     <a href="#medicos">3.5 Directorio de médicos — NPI, GPS y portal</a>
+    <a href="#cargadatos">3.7 Cómo cargar tus datos por primera vez</a>
     <a href="#pdc">4. Cómo se calcula el PDC</a>
     <a href="#tarjetas">4.5 Las tarjetas, botones y filtros</a>
     <a href="#panel">5. El Panel — brechas, riesgo temprano y resumen del día</a>
@@ -92,6 +93,7 @@ footer{text-align:center;padding:26px 20px;color:var(--ink-soft);font-size:12px;
     <a href="#alertas">7.7 Alertas y notificaciones</a>
     <a href="#busqueda">7.8 Buscar en las listas</a>
     <a href="#auditoria">7.9 Auditoría</a>
+    <a href="#asistente">7.95 Asistente IA</a>
     <a href="#multitenant">8. Varias farmacias en la misma app</a>
     <a href="#sync">9. Sincronización entre dispositivos</a>
     <a href="#problemas">10. Solución de problemas comunes</a>
@@ -172,6 +174,12 @@ footer{text-align:center;padding:26px 20px;color:var(--ink-soft);font-size:12px;
       <h4>Historial de intervenciones en el perfil</h4>
       <p>Al editar cualquier paciente, aparece su timeline completo de intervenciones al final del formulario.</p>
     </div>
+
+    <div class="card red">
+      <h4>🚫 Pacientes "irreparables" (fallecidos, no son tuyos, error del plan)</h4>
+      <p>Los planes a veces siguen mandando pacientes que ya no son tuyos, fallecieron, o están en <b>hospicio</b> (CMS los excluye formalmente del PDC). No los puedes corregir en la plataforma del plan, pero sí en tu sistema: al final del formulario del paciente, marca <b>"🚫 Este paciente no debe contar"</b>, elige el motivo (Fallecido / Hospicio / No es paciente de esta farmacia / Transferido / Error del plan / Otro), y guarda.</p>
+      <p>Con eso desaparece de Panel, riesgo temprano, Rx pendientes, progreso de estrellas y el CSV — pero no se borra, queda accesible en <b>Pacientes → 🚫 Inactivos</b> para tu registro.</p>
+    </div>
   </section>
 
   <section id="medicos">
@@ -185,6 +193,21 @@ footer{text-align:center;padding:26px 20px;color:var(--ink-soft);font-size:12px;
       <li><b>Portal del consultorio</b>: botón <b>🔑 Generar código de acceso</b> — ese código se lo das al consultorio para que entren a su propio portal (ver siguiente sección).</li>
     </ol>
     <p>En la lista del directorio, cada médico tiene un enlace <b>🧭 Navegar</b> (ruta directa en Google Maps) y un ✏️ para editar.</p>
+  </section>
+
+  <section id="cargadatos">
+    <div class="num">03.7</div>
+    <h2>Cómo cargar tus datos por primera vez, sin líos</h2>
+    <p>Si vas a meter una lista grande de pacientes (por ejemplo, desde los reportes de los planes), este orden evita duplicados y datos sueltos:</p>
+    <ol class="steps">
+      <li><b>Médicos primero, pacientes después.</b> La columna "Medico" del Excel de importación solo enlaza si el nombre coincide exactamente con uno ya en tu directorio. Al revés, te quedan médicos sin enlazar.</li>
+      <li><b>Importa plan por plan</b> (MCS, Triple-S, MMM, First Medical), uno a la vez, revisando la vista previa antes de confirmar cada uno — más fácil detectar un error en 50 filas que en 2,000.</li>
+      <li><b>Un paciente = una fila por categoría.</b> Si está en Estatina y en Diabetes, van dos filas separadas en el Excel, no una con las dos juntas.</li>
+      <li><b>Marca los "irreparables" apenas los veas</b> — fallecidos o pacientes que no son tuyos — con 🚫 Inactivo y su motivo, en vez de dejarlos mezclados con los reales.</li>
+      <li><b>Trae al menos el resurtido más reciente</b> de cada paciente (fecha + días de suplido) — con eso el PDC ya arranca razonable, sin necesidad de meter el historial completo de una vez.</li>
+      <li><b>Deja que el Panel te diga a quién enriquecer.</b> Después de importar, revisa quién sale en 🔴 crítico o 🔔 riesgo temprano con pocos datos, y solo a esos añádeles resurtidos históricos adicionales a mano.</li>
+      <li><b>Cada quien con su nombre desde el primer día</b> en "¿Quién eres?" — así hasta las correcciones de la importación quedan en la auditoría a nombre de quien las hizo.</li>
+    </ol>
   </section>
 
   <section id="pdc">
@@ -254,6 +277,10 @@ footer{text-align:center;padding:26px 20px;color:var(--ink-soft);font-size:12px;
     <div class="num">05.7</div>
     <h2>Progreso hacia 5 estrellas</h2>
     <p>En Reportes: por plan, % de pacientes ≥80% contra una <b>meta editable</b> (el corte varía por año — ajústala tú misma), con el número exacto de pacientes que faltan para llegar.</p>
+    <div class="card amber">
+      <h4>💊 Oportunidad: Estatina en diabéticos (SUPD)</h4>
+      <p>CMS también mide si tus pacientes diabéticos activos están tomando un estatina. Esta tarjeta en Reportes detecta automáticamente a los que no tienen esa categoría registrada, con un botón <b>+ Añadir Estatina</b> para crearla de un toque.</p>
+    </div>
   </section>
 
   <section id="intervenciones">
@@ -265,7 +292,11 @@ footer{text-align:center;padding:26px 20px;color:var(--ink-soft);font-size:12px;
   <section id="reportes">
     <div class="num">07</div>
     <h2>Reportes, Rx pendientes y exportar</h2>
-    <p><b>Descargar CSV</b>: PDC actual + última intervención de cada paciente, sin acentos para evitar problemas de codificación al abrirlo.</p>
+    <p><b>Descargar CSV</b>: ID del paciente, fecha de nacimiento, PDC actual y última intervención de cada paciente, sin acentos para evitar problemas de codificación al abrirlo.</p>
+    <div class="card">
+      <h4>📥 Importar pacientes desde Excel/CSV</h4>
+      <p>Descarga la plantilla (columnas: ID_Paciente, Nombre, Fecha_Nacimiento, Categoria, Plan, Medico, Medicamentos, Direccion, Necesita_Rx, Nota_Rx, Fecha_Resurtido, Dias_Suplido), llénala, y súbela — te muestra una vista previa antes de confirmar. Ver la sección <a href="#cargadatos">"Cómo cargar tus datos por primera vez"</a> para el orden recomendado.</p>
+    </div>
     <div class="card amber">
       <h4>📋 Rx pendientes con el médico</h4>
       <p>Agrupado por plan → médico → clasificación. Selector <b>"Enviar a"</b> para dirigir el correo/WhatsApp a un médico específico (con su contacto prellenado) o a todos. <b>🖨️ Imprimir</b> abre vista previa en pantalla primero.</p>
@@ -309,6 +340,16 @@ footer{text-align:center;padding:26px 20px;color:var(--ink-soft);font-size:12px;
     <div class="num">07.9</div>
     <h2>Auditoría</h2>
     <p>Pestaña con lupa que registra cada creación, edición o eliminación: qué (🆕/✏️/🗑️), en qué tabla, quién (nombre del empleado), y cuándo. Nadie puede editar ni borrar ese historial, ni siquiera desde la app.</p>
+  </section>
+
+  <section id="asistente">
+    <div class="num">07.95</div>
+    <h2>✨ Asistente IA</h2>
+    <p>Botón flotante ✨ (abajo a la izquierda). Puedes pedirle que resuma el día y priorice pacientes, redacte un mensaje para un médico o paciente, responda preguntas sobre un paciente mencionado en tu propio mensaje, o que <b>añada un paciente nuevo</b> con la información que le des — siempre te muestra una tarjeta de confirmación antes de guardar nada, nunca escribe en la base de datos sin que la apruebes.</p>
+    <div class="card warn">
+      <h4>Pendiente de activar</h4>
+      <p>Este botón todavía no funciona fuera de Claude.ai — la app en GitHub Pages necesita una clave de API de Anthropic conectada de forma segura (vía una Supabase Edge Function) antes de poder usarse. Está anotado como pendiente.</p>
+    </div>
   </section>
 
   <section id="multitenant">
