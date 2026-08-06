@@ -418,6 +418,11 @@ textarea{resize:vertical;min-height:60px;}
       <p class="helptext">% de pacientes con PDC ≥ 80% por plan, contra la meta que definas (varía por año/medida — pon la que te indique cada plan).</p>
       <div id="estrellasList" style="margin-top:10px;"></div>
     </div>
+    <div class="card amber">
+      <h3 style="margin:0 0 4px;color:var(--navy);">💊 Oportunidad: Estatina en diabéticos (SUPD)</h3>
+      <p class="helptext">CMS también mide si tus pacientes diabéticos están tomando un estatina. Estos no tienen registro en esa categoría — puede ser una estrella que se está quedando sobre la mesa.</p>
+      <div id="supdList" style="margin-top:10px;"></div>
+    </div>
     <div class="card">
       <h3 style="margin:0 0 4px;color:var(--navy);">🩺 Directorio de médicos</h3>
       <div class="searchbox" style="margin-top:10px;"><span class="ic">🔍</span><input id="searchMedicos" placeholder="Buscar médico por nombre..." oninput="renderMedicosList()"></div>
@@ -540,6 +545,7 @@ textarea{resize:vertical;min-height:60px;}
         <label>Motivo</label>
         <select id="pmMotivo">
           <option>Fallecido</option>
+          <option>Hospicio</option>
           <option>No es paciente de esta farmacia</option>
           <option>Transferido a otra farmacia</option>
           <option>Error del plan (paciente irreparable)</option>
@@ -1714,7 +1720,7 @@ function renderResumenDia(){
   const crit = withPdc.filter(x=>x.r.status==='crit').length;
   const warn = withPdc.filter(x=>x.r.status==='warn').length;
   const early = withPdc.filter(x=> isEarlyRisk(x.p, x.r)).length;
-  const rxPend = getRxItems().length;
+  const rxPend = getRxItemsPendientes().length;
   const cmrDue = DB.cmr.filter(c=> !c.completed_date && cmrStatus(c)!=='ok' && cmrStatus(c)!=='none').length;
   el.innerHTML = `
     <p style="margin:0 0 8px;font-size:14px;">
@@ -1891,7 +1897,39 @@ function renderIntv(){
       <div class="note">${escapeHTML(i.notes||'')}</div>
     </div>`).join('');
 }
-function renderAll(){ populatePlanFilters(); renderStats(); renderDash(); renderPatients(); renderIntv(); renderRxList(); renderMedicosList(); renderCmrList(); renderEstrellasList(); renderAuditLog(); renderConsultorioSelect(); if(consultorioActivoId) loadConsultorioMedico(consultorioActivoId); renderMiFarmacia(); renderStaffMgmt(); }
+function renderAll(){ populatePlanFilters(); renderStats(); renderDash(); renderPatients(); renderIntv(); renderRxList(); renderMedicosList(); renderCmrList(); renderEstrellasList(); renderAuditLog(); renderConsultorioSelect(); if(consultorioActivoId) loadConsultorioMedico(consultorioActivoId); renderMiFarmacia(); renderStaffMgmt(); renderSUPD(); }
+
+function renderSUPD(){
+  const el = document.getElementById('supdList');
+  if(!el) return;
+  const activos = DB.patients.filter(p=>p.activo!==false);
+  const diabeticos = activos.filter(p=>p.cat==='Diabetes');
+  const sinEstatina = diabeticos.filter(p=>
+    !activos.some(x=> x.cat==='Estatina' && x.name.trim().toLowerCase()===p.name.trim().toLowerCase())
+  );
+  if(sinEstatina.length===0){ el.innerHTML = '<p class="helptext">Ninguno ahora mismo — todos tus pacientes diabéticos activos ya tienen registro de estatina.</p>'; return; }
+  el.innerHTML = sinEstatina.map(p=>`
+    <div class="fillrow">
+      <span>${escapeHTML(p.name)} <span class="d">· ${escapeHTML(p.plan)}</span></span>
+      <button class="btn ghost sm" onclick="addEstatinaForSUPD('${p.id}')">+ Añadir Estatina</button>
+    </div>`).join('');
+}
+async function addEstatinaForSUPD(patientId){
+  const p = DB.patients.find(x=>x.id===patientId);
+  if(!p) return;
+  const { data, error } = await sb.from('patients').insert({
+    name: p.name, cat: 'Estatina', plan: p.plan, medico_id: p.medicoId || null, farmacia_id: myFarmaciaId,
+    med: null, meds_detail: [], needs_rx: false, rx_note: null,
+    direccion: p.direccion || null, lat: p.lat ?? null, lng: p.lng ?? null,
+    created_by: currentUser.id
+  }).select('id').single();
+  if(error){ toast('Error: ' + error.message); return; }
+  logAudit('patients', data.id, 'crear', `${p.name} — Estatina (SUPD, desde Diabetes)`);
+  await fetchAll();
+  renderAll();
+  toast(p.name + ' — categoría Estatina creada');
+  openPatientModal(data.id);
+}
 
 function renderStaffMgmt(){
   const el = document.getElementById('staffMgmtList');
@@ -2256,18 +2294,34 @@ function getMedicoById(id){
 }
 /* Lista plana: un ítem por CADA medicamento marcado con Rx, con su médico efectivo
    (el del medicamento si se especificó, si no el del paciente/categoría) */
+async function toggleRxReceived(patientId, medIdx, received){
+  const p = DB.patients.find(x=>x.id===patientId);
+  if(!p) return;
+  const meds = (p.medsDetail||[]).slice();
+  if(!meds[medIdx]) return;
+  meds[medIdx] = {...meds[medIdx], rxReceived: received};
+  const { error } = await sb.from('patients').update({meds_detail: meds}).eq('id', patientId);
+  if(error){ toast('Error: ' + error.message); return; }
+  logAudit('patients', patientId, 'editar', `${p.name} — ${meds[medIdx].name} — Rx ${received?'recibida':'pendiente otra vez'}`);
+  await fetchAll();
+  renderAll();
+  toast(received ? '✅ Rx marcada como recibida' : 'Marcada como pendiente de nuevo');
+}
 function getRxItems(){
   const items = [];
   DB.patients.filter(p=>p.activo!==false).forEach(p=>{
-    (p.medsDetail||[]).filter(m=>m.needsRx).forEach(m=>{
+    (p.medsDetail||[]).forEach((m, idx)=>{
+      if(!m.needsRx) return;
       const effectiveMedicoId = m.medicoId || p.medicoId || null;
       const medicoObj = getMedicoById(effectiveMedicoId);
       const medicoName = medicoObj ? medicoObj.nombre : (p.medico || 'Sin médico asignado');
       const contact = medicoObj || p.medicoContact || null;
       items.push({
         patient: p,
+        medIdx: idx,
         medName: m.name,
         medNote: m.note || '',
+        received: !!m.rxReceived,
         plan: p.plan || 'Sin plan',
         medico: medicoName,
         contact,
@@ -2277,14 +2331,16 @@ function getRxItems(){
   });
   return items;
 }
+function getRxItemsPendientes(){ return getRxItems().filter(it=>!it.received); }
 function currentRxFilter(){
   const sel = document.getElementById('rxMedicoFilter');
   return sel ? sel.value : '__all__';
 }
 /* Agrupa: Plan -> Médico -> Clasificación (PDC), a nivel de medicamento */
-function groupRxItems(filterMedico){
+function groupRxItems(filterMedico, onlyPending){
   const groups = {};
   let items = getRxItems();
+  if(onlyPending) items = items.filter(it=>!it.received);
   if(filterMedico && filterMedico !== '__all__'){
     items = items.filter(it=> it.medico === filterMedico);
   }
@@ -2344,8 +2400,11 @@ function renderRxList(){
         const items = groups[plan][medico].clasifs[clasif];
         html += `<div class="fillrow" style="border-bottom:none;padding:4px 0 4px 10px;"><span class="d">${escapeHTML(clasif)} (${items.length})</span></div>`;
         items.forEach(it=>{
-          html += `<div class="fillrow" style="padding:4px 0 4px 20px;">
-            <span><b>${escapeHTML(it.patient.name)}</b> <span class="d">· ${escapeHTML(it.medName)}</span>${it.medNote ? `<br><span class="d">${escapeHTML(it.medNote)}</span>` : ''}</span>
+          html += `<div class="fillrow" style="padding:4px 0 4px 20px;align-items:flex-start;">
+            <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;flex:1;">
+              <input type="checkbox" style="width:auto;margin-top:3px;" ${it.received?'checked':''} onchange="toggleRxReceived('${it.patient.id}', ${it.medIdx}, this.checked)">
+              <span style="${it.received?'text-decoration:line-through;opacity:.55;':''}"><b>${escapeHTML(it.patient.name)}</b> <span class="d">· ${escapeHTML(it.medName)}</span>${it.medNote ? `<br><span class="d">${escapeHTML(it.medNote)}</span>` : ''}</span>
+            </label>
           </div>`;
         });
       });
@@ -2359,7 +2418,7 @@ function statusOrder(label){
   return 2;
 }
 function buildRxSummaryText(filterMedico){
-  const groups = groupRxItems(filterMedico);
+  const groups = groupRxItems(filterMedico, true);
   const plans = Object.keys(groups).sort();
   if(plans.length===0) return 'No hay medicamentos pendientes de Rx en este momento.';
   const lines = [`Medicamentos que necesitan Rx nueva del médico (${fmtDate(todayStr())}):`, ''];
@@ -2383,7 +2442,7 @@ function buildRxSummaryText(filterMedico){
 /* ---- Vista previa de impresión (regla de oro: preview en pantalla antes de imprimir) ---- */
 function openRxPreview(){
   const filter = currentRxFilter();
-  const groups = groupRxItems(filter);
+  const groups = groupRxItems(filter, true);
   const plans = Object.keys(groups).sort();
   let rows = '';
   plans.forEach(plan=>{
@@ -2813,7 +2872,7 @@ function mapsLink(m){
 }
 
 const ALL_CATS = ['Estatina','Hipertensión','Diabetes'];
-const ALL_MOTIVOS = ['Fallecido','No es paciente de esta farmacia','Transferido a otra farmacia','Error del plan (paciente irreparable)','Otro'];
+const ALL_MOTIVOS = ['Fallecido','Hospicio','No es paciente de esta farmacia','Transferido a otra farmacia','Error del plan (paciente irreparable)','Otro'];
 function sameNamePatients(p){
   return DB.patients.filter(x=> x.id!==p.id && x.name.trim().toLowerCase()===p.name.trim().toLowerCase());
 }
