@@ -1900,7 +1900,7 @@ function renderIntv(){
       <div class="note">${escapeHTML(i.notes||'')}</div>
     </div>`).join('');
 }
-function renderAll(){ populatePlanFilters(); renderStats(); renderDash(); renderPatients(); renderIntv(); renderRxList(); renderMedicosList(); renderCmrList(); renderEstrellasList(); renderAuditLog(); renderConsultorioSelect(); if(consultorioActivoId) loadConsultorioMedico(consultorioActivoId); renderMiFarmacia(); renderStaffMgmt(); renderSUPD(); }
+function renderAll(){ populatePlanFilters(); renderStats(); renderDash(); renderPatients(); renderIntv(); renderRxList(); renderMedicosList(); renderCmrList(); renderEstrellasList(); renderAuditLog(); renderConsultorioSelect(); if(consultorioActivoId) loadConsultorioMedico(consultorioActivoId); renderMiFarmacia(); renderStaffMgmt(); renderSUPD(); refreshUnreadBadges(); }
 
 function renderSUPD(){
   const el = document.getElementById('supdList');
@@ -2006,13 +2006,40 @@ async function saveMiFarmaciaNombre(){
   toast('Farmacia actualizada');
 }
 
+let unreadMedicoIds = new Set();
+function getLastSeenMap(){
+  try{ return JSON.parse(localStorage.getItem('adherenciaPR_lastSeenMsgs')||'{}'); }catch(e){ return {}; }
+}
+function setLastSeen(medicoId){
+  const map = getLastSeenMap();
+  map[medicoId] = new Date().toISOString();
+  localStorage.setItem('adherenciaPR_lastSeenMsgs', JSON.stringify(map));
+}
+async function refreshUnreadBadges(){
+  if(myRole !== 'farmacia' || !myFarmaciaId) return;
+  const { data, error } = await sb.from('mensajes')
+    .select('medico_id, created_at, sender_role')
+    .eq('farmacia_id', myFarmaciaId)
+    .eq('sender_role', 'medico')
+    .order('created_at', {ascending:false});
+  if(error) return;
+  const lastSeen = getLastSeenMap();
+  const latestByMedico = {};
+  (data||[]).forEach(m=>{ if(!latestByMedico[m.medico_id]) latestByMedico[m.medico_id] = m.created_at; });
+  unreadMedicoIds = new Set(
+    Object.keys(latestByMedico).filter(mid=>
+      mid !== consultorioActivoId && (!lastSeen[mid] || new Date(latestByMedico[mid]) > new Date(lastSeen[mid]))
+    )
+  );
+  renderConsultorioSelect();
+}
 function renderConsultorioSelect(){
   const sel = document.getElementById('consultorioMedicoSel');
   if(!sel) return;
   const prev = sel.value;
   const conPortal = DB.medicos.filter(m=>m.invite_code);
   sel.innerHTML = '<option value="">— Selecciona un médico —</option>' +
-    conPortal.map(m=>`<option value="${m.id}">${escapeHTML(m.nombre)}</option>`).join('');
+    conPortal.map(m=>`<option value="${m.id}">${unreadMedicoIds.has(m.id) ? '🔴 ' : ''}${escapeHTML(m.nombre)}${unreadMedicoIds.has(m.id) ? ' (mensaje nuevo)' : ''}</option>`).join('');
   if(conPortal.some(m=>m.id===prev)) sel.value = prev;
 }
 let consultorioActivoId = null;
@@ -2025,7 +2052,10 @@ async function loadConsultorioMedico(medicoId){
   const { data: citas } = await sb.from('citas').select('*').eq('medico_id', medicoId).order('fecha').order('hora');
   const { data: mensajes } = await sb.from('mensajes').select('*').eq('medico_id', medicoId).order('created_at');
   DBC.citas = citas || []; DBC.mensajes = mensajes || [];
+  setLastSeen(medicoId);
+  unreadMedicoIds.delete(medicoId);
   renderConsultorioBody();
+  renderConsultorioSelect();
 }
 function renderConsultorioBody(){
   const body = document.getElementById('consultorioBody');
