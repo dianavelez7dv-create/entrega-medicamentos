@@ -1638,13 +1638,16 @@ document.getElementById('tabs').addEventListener('click', e=>{
 
 /* ================= Render ================= */
 function renderStats(){
-  const withPdc = DB.patients.map(p=>({p, r:calcPDC(p)}));
+  const activos = DB.patients.filter(p=>p.activo!==false);
+  const withPdc = activos.map(p=>({p, r:calcPDC(p)}));
   const ok = withPdc.filter(x=>x.r.status==='ok').length;
   const warn = withPdc.filter(x=>x.r.status==='warn').length;
   const crit = withPdc.filter(x=>x.r.status==='crit').length;
   const avg = withPdc.length ? Math.round(withPdc.reduce((s,x)=>s+x.r.pct,0)/withPdc.length) : 0;
+  const personasUnicas = new Set(activos.map(p=>p.name.trim().toLowerCase())).size;
   document.getElementById('statsRow').innerHTML = `
-    <div class="stat-pill" style="cursor:pointer;" onclick="setStatusFilter('all')"><div class="n">${DB.patients.length}</div><div class="l">Pacientes</div></div>
+    <div class="stat-pill" style="cursor:pointer;" onclick="setStatusFilter('all')"><div class="n">${personasUnicas}</div><div class="l">Personas</div></div>
+    <div class="stat-pill" style="cursor:pointer;" onclick="setStatusFilter('all')"><div class="n">${activos.length}</div><div class="l">Registros</div></div>
     <div class="stat-pill"><div class="n">${avg}%</div><div class="l">PDC prom.</div></div>
     <div class="stat-pill ok" style="cursor:pointer;" onclick="setStatusFilter('ok')"><div class="n">${ok}</div><div class="l">Al día</div></div>
     <div class="stat-pill warn" style="cursor:pointer;" onclick="setStatusFilter('warn')"><div class="n">${warn}</div><div class="l">En riesgo</div></div>
