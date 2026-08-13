@@ -619,10 +619,7 @@ textarea{resize:vertical;min-height:60px;}
     <div class="modal-head"><h2 id="mdTitle">Nuevo médico</h2><button class="x" onclick="closeModal('modalMedico')">×</button></div>
     <input type="hidden" id="mdId">
     <label>NPI</label>
-    <div style="display:flex;gap:8px;">
-      <input id="mdNpi" type="tel" inputmode="numeric" maxlength="10" placeholder="10 dígitos" style="flex:1;">
-      <button type="button" class="btn ghost sm" onclick="lookupNpiMedico()">🔍 Buscar</button>
-    </div>
+    <input id="mdNpi" type="tel" inputmode="numeric" maxlength="10" placeholder="10 dígitos (escríbelo a mano)">
     <div id="mdNpiStatus" class="helptext"></div>
     <label>Nombre</label>
     <input id="mdNombre" placeholder="Dr(a). Nombre Apellido">
